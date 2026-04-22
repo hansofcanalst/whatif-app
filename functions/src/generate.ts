@@ -4,7 +4,9 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getPrompt, isPremiumCategory } from './prompts';
 
 const FREE_CAP = 3;
-const MODEL_ID = 'gemini-2.0-flash-exp-image-generation';
+// Image edit/generation model. Overridable via env. Keep default in sync
+// with app/api/generate+api.ts.
+const MODEL_ID = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const RATE_LIMIT_PER_MINUTE = 10;
 
 interface GenerateBody {

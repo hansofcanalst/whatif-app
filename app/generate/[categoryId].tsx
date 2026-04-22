@@ -8,20 +8,20 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { useToast } from '@/components/ui/Toast';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function GenerateCategoryScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
   const router = useRouter();
   const { show } = useToast();
   const category = getCategory(categoryId || '');
-  const { selectedPhotoUri } = useGenerationStore();
+  const { selectedPhotoUri, selectedPhotoBase64 } = useGenerationStore();
   const { start, isPro } = useGeneration();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [paywall, setPaywall] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const base64 = (useGenerationStore.getState() as any)._base64 as string | undefined;
+  const base64 = selectedPhotoBase64;
 
   const allSelected = useMemo(() => {
     if (!category) return false;
@@ -51,7 +51,11 @@ export default function GenerateCategoryScreen() {
   };
 
   const handleGenerate = async () => {
-    if (!base64) return show('Please re-pick your photo.', 'error');
+    if (!base64) {
+      show('Photo data missing — please re-pick your photo.', 'error');
+      router.replace('/(tabs)/home');
+      return;
+    }
     if (selected.size === 0) return show('Select at least one transformation.', 'error');
     setBusy(true);
     const res = await start({
@@ -62,6 +66,11 @@ export default function GenerateCategoryScreen() {
     });
     setBusy(false);
     if (res) router.replace('/generate/results');
+    else {
+      // start() returns null on error after setting store.error. Surface it.
+      const err = useGenerationStore.getState().error;
+      if (err) show(err, 'error');
+    }
   };
 
   if (busy) {
@@ -127,7 +136,14 @@ const styles = StyleSheet.create({
   backText: { color: colors.textPrimary, fontSize: 26 },
   title: { ...typography.h2, color: colors.textPrimary },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
-  preview: { width: '100%', aspectRatio: 1, borderRadius: radii.lg, backgroundColor: colors.bgCard },
+  preview: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    aspectRatio: 1,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgCard,
+  },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   section: { ...typography.h3, color: colors.textPrimary },
   allLink: { ...typography.caption, color: colors.accent, fontWeight: '700' },

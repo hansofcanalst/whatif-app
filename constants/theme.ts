@@ -37,6 +37,13 @@ export const spacing = {
   xxxl: 48,
 };
 
+// Phone-ish max width for the main scrollable content on web. On mobile this
+// is bigger than the device width so width:'100%' wins; on a large browser
+// window it keeps images from ballooning to 2000px wide.
+export const layout = {
+  maxContentWidth: 520,
+};
+
 export const radii = {
   sm: 8,
   md: 12,

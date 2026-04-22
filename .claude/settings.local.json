@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npx expo *)",
+      "Bash(npx expo-doctor *)",
+      "Bash(npx tsc *)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('async-storage in deps:', !!p.dependencies['@react-native-async-storage/async-storage'], '| version:', p.dependencies['@react-native-async-storage/async-storage']\\); console.log\\('firebase version:', p.dependencies.firebase\\);\")",
+      "Bash(node -e \"const p = require\\('./node_modules/firebase/package.json'\\); console.log\\('installed firebase version:', p.version\\);\")",
+      "Bash(node -e \"const a = require\\('./node_modules/firebase/auth/package.json'\\); console.log\\('firebase/auth main:', a.main, '| rn entry:', a['react-native']\\);\")",
+      "Bash(node -e \"const mod = require\\('./node_modules/firebase/auth/dist/index.rn.js'\\); console.log\\('rn exports has getReactNativePersistence:', typeof mod.getReactNativePersistence\\); console.log\\('rn exports has initializeAuth:', typeof mod.initializeAuth\\);\")",
+      "Bash(node -e \"const p = require\\('./node_modules/metro/package.json'\\); console.log\\('metro version:', p.version\\);\")",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

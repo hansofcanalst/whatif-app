@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
+import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { config } from '@/constants/config';
 
 export interface PickedImage {
@@ -9,6 +10,24 @@ export interface PickedImage {
   base64: string;
   width: number;
   height: number;
+}
+
+/**
+ * Extract base64 body (no `data:...;base64,` prefix) from an image URI on web.
+ * Used as a fallback when expo-image-manipulator / expo-file-system don't
+ * produce base64 on the web target.
+ */
+async function uriToBase64Web(uri: string): Promise<string> {
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
+    reader.readAsDataURL(blob);
+  });
+  const comma = dataUrl.indexOf(',');
+  return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
 }
 
 export function useImagePicker() {
@@ -35,11 +54,34 @@ export function useImagePicker() {
       { compress: config.imageQuality, format: ImageManipulator.SaveFormat.JPEG, base64: true },
     );
 
-    let base64 = manipulated.base64;
+    let base64 = manipulated.base64 ?? '';
+
+    // Fallback chain:
+    //   1. manipulator produced base64 → use it
+    //   2. native → ask expo-file-system
+    //   3. web → fetch(uri) + FileReader
     if (!base64) {
-      base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        if (Platform.OS === 'web') {
+          base64 = await uriToBase64Web(manipulated.uri);
+        } else {
+          base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        }
+      } catch (e) {
+        console.warn('[useImagePicker] base64 fallback failed, trying opposite path', e);
+        // Last-ditch: try the other method.
+        try {
+          base64 = await uriToBase64Web(manipulated.uri);
+        } catch (e2) {
+          console.warn('[useImagePicker] last-ditch base64 failed', e2);
+        }
+      }
+    }
+
+    if (!base64) {
+      throw new Error('Could not read image bytes — pick a different photo.');
     }
 
     return {

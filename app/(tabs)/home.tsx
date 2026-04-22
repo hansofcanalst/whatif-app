@@ -22,7 +22,7 @@ export default function Home() {
 
   const handlePicked = (img: PickedImage | null) => {
     setImage(img);
-    setPhoto(img?.uri ?? null);
+    setPhoto(img?.uri ?? null, img?.base64 ?? null);
   };
 
   const handleSelect = (category: Category) => {
@@ -34,9 +34,8 @@ export default function Home() {
       setPaywall(true);
       return;
     }
-    // Pass the base64 via store? Simpler: persist in memory on store.
-    useGenerationStore.setState({ selectedPhotoUri: image.uri });
-    (useGenerationStore.getState() as any)._base64 = image.base64;
+    // Defensive: store was written in handlePicked, but re-confirm before nav.
+    setPhoto(image.uri, image.base64);
     router.push(`/generate/${category.id}`);
   };
 

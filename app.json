@@ -4,11 +4,10 @@
     "slug": "whatif",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "whatif",
     "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android", "web"],
     "splash": {
-      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B0B0F"
     },
@@ -24,10 +23,13 @@
     "android": {
       "package": "com.whatif.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0B0B0F"
       },
       "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "server"
     },
     "plugins": [
       "expo-router",

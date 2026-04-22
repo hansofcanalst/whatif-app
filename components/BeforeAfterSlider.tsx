@@ -3,10 +3,9 @@ import { View, Image, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedGestureHandler,
   withSpring,
 } from 'react-native-reanimated';
-import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { colors, radii, typography } from '@/constants/theme';
 
 interface BeforeAfterSliderProps {
@@ -19,7 +18,7 @@ interface BeforeAfterSliderProps {
 export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = false }: BeforeAfterSliderProps) {
   const [width, setWidth] = useState(0);
   const translateX = useSharedValue(0);
-  const dragging = useSharedValue(false);
+  const startX = useSharedValue(0);
 
   const onLayout = (e: LayoutChangeEvent) => {
     const w = e.nativeEvent.layout.width;
@@ -27,20 +26,17 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
     translateX.value = w / 2;
   };
 
-  const gesture = useAnimatedGestureHandler<PanGestureHandlerGestureEvent, { startX: number }>({
-    onStart: (_, ctx) => {
-      ctx.startX = translateX.value;
-      dragging.value = true;
-    },
-    onActive: (e, ctx) => {
-      const next = ctx.startX + e.translationX;
+  const pan = Gesture.Pan()
+    .onBegin(() => {
+      startX.value = translateX.value;
+    })
+    .onUpdate((e) => {
+      const next = startX.value + e.translationX;
       translateX.value = Math.max(0, Math.min(width, next));
-    },
-    onEnd: () => {
-      dragging.value = false;
+    })
+    .onEnd(() => {
       if (snapBack) translateX.value = withSpring(width / 2);
-    },
-  });
+    });
 
   const afterStyle = useAnimatedStyle(() => ({
     width: translateX.value,
@@ -59,11 +55,11 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
         <Image source={{ uri: afterURL }} style={[styles.image, { width }]} resizeMode="cover" />
       </Animated.View>
       <Animated.View style={[styles.divider, dividerStyle]} />
-      <PanGestureHandler onGestureEvent={gesture}>
+      <GestureDetector gesture={pan}>
         <Animated.View style={[styles.handle, handleStyle]}>
           <Text style={styles.handleIcon}>⇆</Text>
         </Animated.View>
-      </PanGestureHandler>
+      </GestureDetector>
       <View style={[styles.labelPill, { left: 12 }]}>
         <Text style={styles.labelText}>BEFORE</Text>
       </View>

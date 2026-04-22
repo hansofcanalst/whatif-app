@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, View, Text, Image, StyleSheet } from 'react-native';
 import { useImagePicker, PickedImage } from '@/hooks/useImagePicker';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 interface PhotoUploaderProps {
   image: PickedImage | null;
@@ -16,13 +16,30 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
     if (res) onPicked(res);
   };
 
+  const handleRemove = () => onPicked(null);
+
   if (image) {
     return (
       <View style={styles.container}>
-        <Image source={{ uri: image.uri }} style={styles.image} />
-        <Pressable onPress={handlePress} style={styles.changeBtn}>
-          <Text style={styles.changeText}>Change photo</Text>
-        </Pressable>
+        <View style={styles.imageWrap}>
+          <Image source={{ uri: image.uri }} style={styles.image} />
+          <Pressable
+            onPress={handleRemove}
+            style={styles.removeBtn}
+            hitSlop={8}
+            accessibilityLabel="Remove photo"
+          >
+            <Text style={styles.removeText}>✕</Text>
+          </Pressable>
+        </View>
+        <View style={styles.actionsRow}>
+          <Pressable onPress={handlePress} style={styles.actionBtn}>
+            <Text style={styles.actionText}>Change photo</Text>
+          </Pressable>
+          <Pressable onPress={handleRemove} style={[styles.actionBtn, styles.removeActionBtn]}>
+            <Text style={[styles.actionText, styles.removeActionText]}>Remove</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -37,9 +54,44 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { width: '100%', alignItems: 'center', gap: spacing.md },
-  image: { width: '100%', aspectRatio: 1, borderRadius: radii.lg, backgroundColor: colors.bgCard },
-  changeBtn: {
+  container: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  imageWrap: {
+    width: '100%',
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgCard,
+  },
+  removeBtn: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 32,
+    height: 32,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  removeText: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', lineHeight: 18 },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  actionBtn: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: radii.pill,
@@ -47,9 +99,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  changeText: { ...typography.bodyBold, color: colors.textPrimary },
+  actionText: { ...typography.bodyBold, color: colors.textPrimary },
+  removeActionBtn: { borderColor: colors.danger },
+  removeActionText: { color: colors.danger },
   empty: {
     width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
     aspectRatio: 1,
     borderRadius: radii.lg,
     borderWidth: 2,
