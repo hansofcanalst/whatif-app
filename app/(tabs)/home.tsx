@@ -31,12 +31,15 @@ export default function Home() {
   const [image, setImage] = useState<PickedImage | null>(null);
   const [paywall, setPaywall] = useState(false);
 
-  // Kick off people detection whenever a new photo lands. Run once per
-  // unique image; re-picking the same image won't retrigger because
-  // setPhoto below resets detectionStatus to 'idle'.
+  // Kick off people detection whenever a new photo lands. We key the effect
+  // on `image` only — NOT on `detectionStatus`. Including status in the deps
+  // caused a race: setDetectionStatus('detecting') re-triggers the effect,
+  // which runs the previous effect's cleanup (cancelled = true) before the
+  // fetch resolves, so the success handler bails out and the UI sticks on
+  // "Detecting people…" forever. Zustand action references are stable, so
+  // they're safe to list without causing re-runs.
   useEffect(() => {
     if (!image) return;
-    if (detectionStatus !== 'idle') return;
     let cancelled = false;
     setDetectionStatus('detecting');
     requestDetection(image.base64)
@@ -56,7 +59,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [image, detectionStatus, setDetectionStatus, setDetectedPeople]);
+  }, [image, setDetectionStatus, setDetectedPeople]);
 
   const handlePicked = (img: PickedImage | null) => {
     setImage(img);
