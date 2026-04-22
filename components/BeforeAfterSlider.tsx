@@ -6,7 +6,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { colors, radii, typography } from '@/constants/theme';
+import { colors, layout, radii, typography } from '@/constants/theme';
 
 interface BeforeAfterSliderProps {
   beforeURL: string;
@@ -73,6 +73,8 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
     aspectRatio: 1,
     borderRadius: radii.lg,
     overflow: 'hidden',
