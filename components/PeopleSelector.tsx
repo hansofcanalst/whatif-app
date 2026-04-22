@@ -168,7 +168,10 @@ const styles = StyleSheet.create({
     borderColor: colors.textPrimary,
   },
   markerUnselected: {
-    backgroundColor: 'rgba(20,20,28,0.85)',
+    // Slightly-transparent card surface so markers read against the dim
+    // overlay but don't become a second solid circle. Alpha-tinted rather
+    // than a theme token because of the 0.85 opacity.
+    backgroundColor: 'rgba(20,20,20,0.85)',
     borderColor: 'rgba(255,255,255,0.5)',
   },
   markerText: { fontSize: 16, fontWeight: '800' },

@@ -9,6 +9,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors, spacing, typography } from '@/constants/theme';
 
+// The loading animation is explicitly preserved during design refreshes:
+// the ring's pink/magenta arc is part of the app's personality. We pin the
+// original colors here instead of reading `colors.accent` / `colors.border`
+// so swapping the global palette (e.g. to purple) never alters the spinner.
+const SPINNER_RING_BASE = '#2A2A36';  // legacy --border color, muted ring
+const SPINNER_RING_ARC = '#FF2E93';   // legacy --accent, pink/magenta arc
+
 const TAGLINES = [
   'Rewriting your DNA…',
   'Consulting the multiverse…',
@@ -54,8 +61,8 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     borderWidth: 4,
-    borderColor: colors.border,
-    borderTopColor: colors.accent,
+    borderColor: SPINNER_RING_BASE,
+    borderTopColor: SPINNER_RING_ARC,
   },
   tagline: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 });

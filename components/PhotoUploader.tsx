@@ -108,10 +108,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     aspectRatio: 1,
     borderRadius: radii.lg,
+    // FRAME drop-zone: subtle gray dashed border at rest on the input-tinted
+    // surface. The accent (purple) is reserved for active / focus states.
     borderWidth: 2,
-    borderColor: colors.accent,
+    borderColor: colors.borderDashed,
     borderStyle: 'dashed',
-    backgroundColor: colors.bgCard,
+    backgroundColor: colors.bgInput,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
