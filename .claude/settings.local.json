@@ -1,4 +1,19 @@
 {
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"C:/Claude - WhatIf\" && git add . && if ! git diff --cached --quiet; then git commit -m \"auto: update project files\" && git push origin main; fi",
+            "shell": "bash",
+            "timeout": 60,
+            "statusMessage": "Committing and pushing to GitHub..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Bash(npm install *)",
