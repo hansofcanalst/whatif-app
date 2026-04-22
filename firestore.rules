@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !('subscriptionStatus' in request.resource.data.diff(resource.data).affectedKeys())
+        && !('freeGenerationsUsed' in request.resource.data.diff(resource.data).affectedKeys());
+    }
+    match /generations/{id} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+    match /subscriptions/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+    match /rateLimits/{uid} {
+      allow read, write: if false;
+    }
+  }
+}
