@@ -7,6 +7,15 @@ export interface GenerateRequest {
   imageBase64: string;
   category: string;
   subcategoryIds: string[];
+  // Optional scope: labels of the people the user picked from the
+  // detection step. If provided AND the image has multiple people,
+  // the server wraps the prompt to transform only these people.
+  // If omitted / empty, the transformation applies to the whole image
+  // as before.
+  selectedPeopleLabels?: string[];
+  // Total people count from detection — lets the server skip scoping
+  // when selectedPeopleLabels covers everyone.
+  totalPeopleInImage?: number;
 }
 
 export interface GenerateResponseItem {

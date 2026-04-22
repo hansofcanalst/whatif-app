@@ -92,3 +92,29 @@ export function getPrompt(category: string, subcategory: string): SubcategoryMet
 export function isPremiumCategory(category: string): boolean {
   return PREMIUM_CATEGORIES.has(category);
 }
+
+/**
+ * Wraps a base subcategory prompt with a "transform only these people" scope
+ * when the user has selected a subset. Nano Banana has no mask/region API, so
+ * we steer it with descriptive labels from the detection step.
+ *
+ * If `selectedLabels` is empty or undefined, returns the prompt unchanged
+ * (whole-image transformation, original behavior).
+ */
+export function buildScopedPrompt(
+  basePrompt: string,
+  selectedLabels: string[] | undefined,
+  totalPeopleInImage: number | undefined,
+): string {
+  if (!selectedLabels || selectedLabels.length === 0) return basePrompt;
+  // If "all" people are selected there's no scoping to do.
+  if (totalPeopleInImage != null && selectedLabels.length >= totalPeopleInImage) {
+    return basePrompt;
+  }
+  const list = selectedLabels.map((l) => `- ${l}`).join('\n');
+  const scope =
+    `This image contains multiple people. Apply the transformation ONLY to the following person or people:\n${list}\n\n` +
+    `CRITICAL: Every other person in the image must be left COMPLETELY UNCHANGED — identical face, skin tone, hair, expression, clothing, pose, and position. Do not edit, retouch, or alter anyone not in the list above. Preserve the full original background and composition.\n\n` +
+    `Transformation to apply to the listed person/people only:\n`;
+  return `${scope}${basePrompt}`;
+}

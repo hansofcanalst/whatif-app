@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt, isPremiumCategory } from './prompts';
+import { getPrompt, isPremiumCategory, buildScopedPrompt } from './prompts';
 
 const FREE_CAP = 3;
 // Image edit/generation model. Overridable via env. Keep default in sync
@@ -13,6 +13,12 @@ interface GenerateBody {
   imageBase64: string;
   category: string;
   subcategoryIds: string[];
+  // Optional people-scoping (from the detection step). When present and
+  // the image has multiple people, we wrap each subcategory prompt with
+  // a "only transform these people" preamble. Omitted / empty means
+  // transform the whole image (original behavior).
+  selectedPeopleLabels?: string[];
+  totalPeopleInImage?: number;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -154,8 +160,15 @@ export const generate = functions
         const meta = getPrompt(body.category, subId);
         if (!meta) continue;
         try {
-          const resultB64 = await generateOne(body.imageBase64, meta.prompt);
+          const scopedPrompt = buildScopedPrompt(
+            meta.prompt,
+            body.selectedPeopleLabels,
+            body.totalPeopleInImage,
+          );
+          const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
           const url = await uploadImage(uid, generationId, `result_${i}`, resultB64);
+          // Store the base (unwrapped) prompt — the gallery shows the
+          // transformation the user asked for, not the scoping preamble.
           results.push({ imageURL: url, prompt: meta.prompt, label: meta.label, subcategoryId: subId });
         } catch (err) {
           console.warn(`Generation failed for ${subId}:`, err);

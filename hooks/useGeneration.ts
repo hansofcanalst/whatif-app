@@ -36,10 +36,22 @@ export function useGeneration() {
       setLoading(true);
       setError(null);
       try {
+        // Pull selection from the store at call time so we always see the
+        // latest user choice without threading it through every caller.
+        const { detectedPeople, selectedPersonIds } = useGenerationStore.getState();
+        const selectedPeopleLabels =
+          detectedPeople.length > 1 && selectedPersonIds.length > 0
+            ? detectedPeople
+                .filter((p) => selectedPersonIds.includes(p.id))
+                .map((p) => p.label)
+            : undefined;
+
         const res = await requestGeneration({
           imageBase64,
           category: categoryId,
           subcategoryIds,
+          selectedPeopleLabels,
+          totalPeopleInImage: detectedPeople.length || undefined,
         });
         setResults(res.generationId, res.results);
         return res;

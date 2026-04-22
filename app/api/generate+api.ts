@@ -18,7 +18,7 @@
 // that pulls in React Native modules. This file is server-only.
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt } from '@/lib/prompts';
+import { getPrompt, buildScopedPrompt } from '@/lib/prompts';
 
 // Image edit/generation model. Overridable via .env so we can try newer
 // previews (e.g. gemini-3.1-flash-image-preview) without a code change.
@@ -30,6 +30,12 @@ interface GenerateBody {
   imageBase64: string;
   category: string;
   subcategoryIds: string[];
+  // Optional people-scoping (from the detection step). When present and
+  // the image has multiple people, we wrap each subcategory prompt with
+  // a "only transform these people" preamble. Omitted / empty means
+  // transform the whole image (original behavior).
+  selectedPeopleLabels?: string[];
+  totalPeopleInImage?: number;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -110,10 +116,17 @@ export async function POST(request: Request): Promise<Response> {
         continue;
       }
       try {
-        const resultB64 = await generateOne(body.imageBase64, meta.prompt);
+        const scopedPrompt = buildScopedPrompt(
+          meta.prompt,
+          body.selectedPeopleLabels,
+          body.totalPeopleInImage,
+        );
+        const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.
         const imageURL = `data:image/jpeg;base64,${resultB64}`;
+        // Store the base (unwrapped) prompt so the gallery/history shows
+        // the user what transformation they asked for, not the scoping boilerplate.
         results.push({ imageURL, prompt: meta.prompt, label: meta.label, subcategoryId: subId });
       } catch (err: any) {
         const reason = err?.message ?? String(err);

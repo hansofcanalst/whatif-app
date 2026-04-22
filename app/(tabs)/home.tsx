@@ -1,24 +1,62 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
 import { GenerationCounter } from '@/components/GenerationCounter';
+import { PeopleSelector } from '@/components/PeopleSelector';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { useToast } from '@/components/ui/Toast';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Category } from '@/constants/categories';
 import { PickedImage } from '@/hooks/useImagePicker';
+import { requestDetection } from '@/lib/detect';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
   const router = useRouter();
   const { show } = useToast();
-  const { setPhoto } = useGenerationStore();
+  const {
+    setPhoto,
+    detectionStatus,
+    detectedPeople,
+    selectedPersonIds,
+    setDetectionStatus,
+    setDetectedPeople,
+    togglePersonSelected,
+    setAllPersonSelection,
+  } = useGenerationStore();
   const { isActive: isPro } = useSubscriptionStore();
   const [image, setImage] = useState<PickedImage | null>(null);
   const [paywall, setPaywall] = useState(false);
+
+  // Kick off people detection whenever a new photo lands. Run once per
+  // unique image; re-picking the same image won't retrigger because
+  // setPhoto below resets detectionStatus to 'idle'.
+  useEffect(() => {
+    if (!image) return;
+    if (detectionStatus !== 'idle') return;
+    let cancelled = false;
+    setDetectionStatus('detecting');
+    requestDetection(image.base64)
+      .then((res) => {
+        if (cancelled) return;
+        setDetectedPeople(res.people);
+        setDetectionStatus('ready');
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        // Detection failure is non-fatal — user can still generate on the
+        // full image. Log + mark failed so we don't retry in a loop.
+        console.warn('[home] detection failed', e);
+        setDetectedPeople([]);
+        setDetectionStatus('failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [image, detectionStatus, setDetectionStatus, setDetectedPeople]);
 
   const handlePicked = (img: PickedImage | null) => {
     setImage(img);
@@ -34,10 +72,21 @@ export default function Home() {
       setPaywall(true);
       return;
     }
-    // Defensive: store was written in handlePicked, but re-confirm before nav.
+    // If the user has detection pending or >1 people detected AND selected
+    // none, block generation until they pick at least one.
+    if (detectionStatus === 'detecting') {
+      show('Still detecting people — hang on a sec.', 'info');
+      return;
+    }
+    if (detectedPeople.length > 1 && selectedPersonIds.length === 0) {
+      show('Pick at least one person to transform.', 'error');
+      return;
+    }
     setPhoto(image.uri, image.base64);
     router.push(`/generate/${category.id}`);
   };
+
+  const showSelector = detectionStatus === 'ready' && detectedPeople.length > 1;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -47,6 +96,42 @@ export default function Home() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <PhotoUploader image={image} onPicked={handlePicked} />
+
+        {image && detectionStatus === 'detecting' ? (
+          <View style={styles.statusRow}>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={styles.statusText}>Detecting people…</Text>
+          </View>
+        ) : null}
+
+        {image && detectionStatus === 'failed' ? (
+          <Text style={styles.statusTextMuted}>
+            Couldn't detect people — we'll just transform the whole image.
+          </Text>
+        ) : null}
+
+        {image && detectionStatus === 'ready' && detectedPeople.length === 0 ? (
+          <Text style={styles.statusTextMuted}>
+            No people found — we'll transform the whole image.
+          </Text>
+        ) : null}
+
+        {showSelector ? (
+          <View style={styles.selectorWrap}>
+            <Text style={styles.selectorTitle}>
+              Found {detectedPeople.length} people — tap to pick who to transform
+            </Text>
+            <PeopleSelector
+              imageUri={image!.uri}
+              people={detectedPeople}
+              selectedIds={selectedPersonIds}
+              onToggle={togglePersonSelected}
+              onSelectAll={() => setAllPersonSelection(true)}
+              onSelectNone={() => setAllPersonSelection(false)}
+            />
+          </View>
+        ) : null}
+
         <Text style={styles.sectionTitle}>Pick a transformation</Text>
         <CategoryGrid onSelect={handleSelect} isPro={isPro} />
       </ScrollView>
@@ -67,4 +152,22 @@ const styles = StyleSheet.create({
   logo: { ...typography.h1, color: colors.textPrimary },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
   sectionTitle: { ...typography.h2, color: colors.textPrimary },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'center',
+  },
+  statusText: { ...typography.caption, color: colors.textSecondary },
+  statusTextMuted: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  selectorWrap: { gap: spacing.sm },
+  selectorTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
 });
