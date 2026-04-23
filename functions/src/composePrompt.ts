@@ -106,6 +106,19 @@ function buildMetaPrompt(args: ComposeArgs): { meta: string; variant: MetaVarian
   return { meta, variant };
 }
 
+// See lib/composePrompt.ts for the full retry rationale.
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_COMPOSER_ATTEMPTS = 3;
+
+function isRetryable(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  return status != null && RETRYABLE_STATUSES.has(status);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function composePrompt(args: ComposeArgs): Promise<string> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: COMPOSER_MODEL_ID });
@@ -113,18 +126,32 @@ export async function composePrompt(args: ComposeArgs): Promise<string> {
   const { meta, variant } = buildMetaPrompt(args);
   console.log(`[composePrompt] using meta variant: ${variant} | composer model: ${COMPOSER_MODEL_ID}`);
 
-  const result = await model.generateContent([
-    { inlineData: { mimeType: 'image/jpeg', data: args.imageBase64 } },
-    { text: meta },
-  ]);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_COMPOSER_ATTEMPTS; attempt++) {
+    try {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'image/jpeg', data: args.imageBase64 } },
+        { text: meta },
+      ]);
 
-  const text = result.response.text?.();
-  if (!text || !text.trim()) {
-    throw new Error('Composer returned empty text');
+      const text = result.response.text?.();
+      if (!text || !text.trim()) {
+        throw new Error('Composer returned empty text');
+      }
+
+      return text
+        .replace(/^```(?:prompt|text|markdown)?\s*/i, '')
+        .replace(/\s*```\s*$/i, '')
+        .trim();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryable(err) || attempt === MAX_COMPOSER_ATTEMPTS) throw err;
+      const delay = 500 * attempt + Math.floor(Math.random() * 250);
+      console.warn(
+        `[composePrompt] attempt ${attempt} failed (${(err as { status?: number })?.status ?? '?'}); retrying in ${delay}ms`,
+      );
+      await wait(delay);
+    }
   }
-
-  return text
-    .replace(/^```(?:prompt|text|markdown)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }

@@ -132,6 +132,24 @@ function buildMetaPrompt(args: ComposeArgs): { meta: string; variant: MetaVarian
   return { meta, variant };
 }
 
+// Transient failures (Google 503 "Service Unavailable", 429 rate limits,
+// brief network hiccups) are very common on the public Gemini endpoints.
+// A simple bounded backoff makes the composer path significantly more
+// reliable without complicating the happy path. We DON'T retry 4xx errors
+// other than 429 — those are programming/config bugs that won't fix
+// themselves.
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_COMPOSER_ATTEMPTS = 3;
+
+function isRetryable(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  return status != null && RETRYABLE_STATUSES.has(status);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function composePrompt(args: ComposeArgs): Promise<string> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: COMPOSER_MODEL_ID });
@@ -139,20 +157,36 @@ export async function composePrompt(args: ComposeArgs): Promise<string> {
   const { meta, variant } = buildMetaPrompt(args);
   console.log(`[composePrompt] using meta variant: ${variant} | composer model: ${COMPOSER_MODEL_ID}`);
 
-  const result = await model.generateContent([
-    { inlineData: { mimeType: 'image/jpeg', data: args.imageBase64 } },
-    { text: meta },
-  ]);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_COMPOSER_ATTEMPTS; attempt++) {
+    try {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'image/jpeg', data: args.imageBase64 } },
+        { text: meta },
+      ]);
 
-  const text = result.response.text?.();
-  if (!text || !text.trim()) {
-    throw new Error('Composer returned empty text');
+      const text = result.response.text?.();
+      if (!text || !text.trim()) {
+        throw new Error('Composer returned empty text');
+      }
+
+      // Strip any accidental markdown fences — Flash usually obeys the
+      // "no fences" instruction but we've seen occasional ```prompt blocks.
+      return text
+        .replace(/^```(?:prompt|text|markdown)?\s*/i, '')
+        .replace(/\s*```\s*$/i, '')
+        .trim();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryable(err) || attempt === MAX_COMPOSER_ATTEMPTS) throw err;
+      // Exponential backoff with jitter: ~500ms, ~1500ms. Total worst-case
+      // added latency when all retries fire: ~2s — tolerable.
+      const delay = 500 * attempt + Math.floor(Math.random() * 250);
+      console.warn(
+        `[composePrompt] attempt ${attempt} failed (${(err as { status?: number })?.status ?? '?'}); retrying in ${delay}ms`,
+      );
+      await wait(delay);
+    }
   }
-
-  // Strip any accidental markdown fences — Flash usually obeys the
-  // "no fences" instruction but we've seen occasional ```prompt blocks.
-  return text
-    .replace(/^```(?:prompt|text|markdown)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
