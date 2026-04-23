@@ -23,11 +23,12 @@ function getGenAI(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(key);
 }
 
-// Meta-prompt variant switch. See lib/composePrompt.ts for the full rationale.
+// Meta-prompt variant switch. See lib/composePrompt.ts for the A/B results
+// and rationale — v1 wins empirically so it's the default.
 type MetaVariant = 'v1' | 'v2';
 function resolveVariant(): MetaVariant {
-  const raw = (process.env.GEMINI_META_PROMPT_VARIANT || 'v2').toLowerCase();
-  return raw === 'v1' ? 'v1' : 'v2';
+  const raw = (process.env.GEMINI_META_PROMPT_VARIANT || 'v1').toLowerCase();
+  return raw === 'v2' ? 'v2' : 'v1';
 }
 
 function buildScopeLine(

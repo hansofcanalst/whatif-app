@@ -26,9 +26,18 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
     translateX.value = w / 2;
   };
 
+  // Pan gesture is attached to the ENTIRE container, not just the 36x36
+  // handle. Attaching it to the handle meant the click-box traveled with
+  // the handle and got clipped by the container's `overflow: hidden` near
+  // x=0 and x=width — which is exactly the "hard to grab at the edges" bug
+  // the user reported. onBegin snaps translateX to the tap location so
+  // tapping anywhere in the slider also jumps the divider there; onUpdate
+  // then tracks the drag relative to that anchor.
   const pan = Gesture.Pan()
-    .onBegin(() => {
-      startX.value = translateX.value;
+    .onBegin((e) => {
+      const next = Math.max(0, Math.min(width, e.x));
+      startX.value = next;
+      translateX.value = next;
     })
     .onUpdate((e) => {
       const next = startX.value + e.translationX;
@@ -49,24 +58,27 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
   }));
 
   return (
-    <View style={[styles.container, height ? { height } : null]} onLayout={onLayout}>
-      <Image source={{ uri: beforeURL }} style={styles.image} resizeMode="cover" />
-      <Animated.View style={[styles.clipped, afterStyle]}>
-        <Image source={{ uri: afterURL }} style={[styles.image, { width }]} resizeMode="cover" />
-      </Animated.View>
-      <Animated.View style={[styles.divider, dividerStyle]} />
-      <GestureDetector gesture={pan}>
-        <Animated.View style={[styles.handle, handleStyle]}>
+    <GestureDetector gesture={pan}>
+      <View style={[styles.container, height ? { height } : null]} onLayout={onLayout}>
+        <Image source={{ uri: beforeURL }} style={styles.image} resizeMode="cover" />
+        <Animated.View style={[styles.clipped, afterStyle]}>
+          <Image source={{ uri: afterURL }} style={[styles.image, { width }]} resizeMode="cover" />
+        </Animated.View>
+        {/* All visual overlays use pointerEvents="none" so the gesture falls
+            through to the container underneath — otherwise the handle and
+            label pills would eat taps in their own bounds. */}
+        <Animated.View style={[styles.divider, dividerStyle]} pointerEvents="none" />
+        <Animated.View style={[styles.handle, handleStyle]} pointerEvents="none">
           <Text style={styles.handleIcon}>⇆</Text>
         </Animated.View>
-      </GestureDetector>
-      <View style={[styles.labelPill, { left: 12 }]}>
-        <Text style={styles.labelText}>BEFORE</Text>
+        <View style={[styles.labelPill, { left: 12 }]} pointerEvents="none">
+          <Text style={styles.labelText}>BEFORE</Text>
+        </View>
+        <View style={[styles.labelPill, { right: 12 }]} pointerEvents="none">
+          <Text style={styles.labelText}>AFTER</Text>
+        </View>
       </View>
-      <View style={[styles.labelPill, { right: 12 }]}>
-        <Text style={styles.labelText}>AFTER</Text>
-      </View>
-    </View>
+    </GestureDetector>
   );
 }
 

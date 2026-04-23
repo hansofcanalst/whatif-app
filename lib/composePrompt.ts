@@ -45,15 +45,18 @@ function getGenAI(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(key);
 }
 
-// Meta-prompt variant. v1 is the original "enumerate + describe + preserve"
-// wording; v2 adds forced Person-N-of-N numbering, a 2-anchor requirement,
-// softer preservation verbs, and a final verification checklist. Selected
-// via env var GEMINI_META_PROMPT_VARIANT (v1 | v2, default v2) so the two
-// can be A/B-compared against the same image model without a code edit.
+// Meta-prompt variant. v1 produces a unified plural transformation
+// statement ("Transform all N individuals to appear..."); v2 enumerates
+// per-person with Person-N-of-N numbering and per-person preservation
+// clauses. Empirically v1 wins on the hard 5-person race-swap case we
+// benchmarked (5/5 transformed vs v2's 3/5) — v2's repeated "keep their
+// pose and smile" clauses appear to over-constrain the image model and
+// make it hedge on the harder subjects. Default is v1. Env var
+// GEMINI_META_PROMPT_VARIANT=v2 still switches back for A/B testing.
 type MetaVariant = 'v1' | 'v2';
 function resolveVariant(): MetaVariant {
-  const raw = (process.env.GEMINI_META_PROMPT_VARIANT || 'v2').toLowerCase();
-  return raw === 'v1' ? 'v1' : 'v2';
+  const raw = (process.env.GEMINI_META_PROMPT_VARIANT || 'v1').toLowerCase();
+  return raw === 'v2' ? 'v2' : 'v1';
 }
 
 function buildScopeLine(
