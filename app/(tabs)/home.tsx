@@ -12,7 +12,7 @@ import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Category } from '@/constants/categories';
 import { PickedImage } from '@/hooks/useImagePicker';
 import { requestDetection } from '@/lib/detect';
-import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
+import { colors, fontFamily, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
   const router = useRouter();
@@ -206,7 +206,20 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   logoAccent: { color: colors.accent },
-  content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
+  // Cap the scroll content to the app's phone-ish reading width on wide
+  // viewports (desktop web). Without the cap, the hero headline and
+  // section labels stretched full-width while self-capped children
+  // (PhotoUploader, CategoryGrid) stayed at layout.maxContentWidth —
+  // producing a ragged left/right edge on desktop. Centering the content
+  // container fixes the alignment for every section at once.
+  content: {
+    padding: spacing.xl,
+    gap: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    width: '100%',
+    maxWidth: layout.maxContentWidth + spacing.xl * 2,
+    alignSelf: 'center',
+  },
   hero: { gap: spacing.sm },
   heroTitle: {
     fontSize: 34,

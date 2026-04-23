@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { CategoryCard } from './CategoryCard';
 import { CATEGORIES, Category } from '@/constants/categories';
-import { spacing } from '@/constants/theme';
+import { layout, spacing } from '@/constants/theme';
 
 interface CategoryGridProps {
   onSelect: (category: Category) => void;
@@ -29,6 +29,17 @@ export function CategoryGrid({ onSelect, isPro }: CategoryGridProps) {
 }
 
 const styles = StyleSheet.create({
-  grid: { gap: spacing.md },
+  // Cap the grid to the same phone-ish width PhotoUploader and
+  // BeforeAfterSlider use. Without this cap, on wide (desktop web)
+  // viewports the 1:1 cards balloon to ~400px squares because flex:1
+  // takes half the ScrollView width each. `alignSelf: 'center'` keeps
+  // the grid centered on the page when the viewport is wider than the
+  // cap — same pattern every other top-level component follows.
+  grid: {
+    gap: spacing.md,
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+  },
   row: { flexDirection: 'row', gap: spacing.md },
 });
