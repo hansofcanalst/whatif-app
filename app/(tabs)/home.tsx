@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
@@ -31,35 +31,47 @@ export default function Home() {
   const [image, setImage] = useState<PickedImage | null>(null);
   const [paywall, setPaywall] = useState(false);
 
+  // Run detection against the in-memory base64. Exported as a callback so
+  // the "Try again" button on the failure state can re-run it without
+  // forcing the user to re-pick the file. The cancellation token makes the
+  // currently-in-flight run a no-op if a newer one starts before it
+  // resolves — same guarantee as the useEffect version.
+  const runDetection = useCallback(
+    (img: PickedImage) => {
+      let cancelled = false;
+      setDetectionStatus('detecting');
+      requestDetection(img.base64)
+        .then((res) => {
+          if (cancelled) return;
+          setDetectedPeople(res.people);
+          setDetectionStatus('ready');
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          // Detection failure is non-fatal — user can still generate on the
+          // full image. Log + mark failed; the UI offers a retry.
+          console.warn('[home] detection failed', e);
+          setDetectedPeople([]);
+          setDetectionStatus('failed');
+        });
+      return () => {
+        cancelled = true;
+      };
+    },
+    [setDetectionStatus, setDetectedPeople],
+  );
+
   // Kick off people detection whenever a new photo lands. We key the effect
   // on `image` only — NOT on `detectionStatus`. Including status in the deps
   // caused a race: setDetectionStatus('detecting') re-triggers the effect,
   // which runs the previous effect's cleanup (cancelled = true) before the
   // fetch resolves, so the success handler bails out and the UI sticks on
-  // "Detecting people…" forever. Zustand action references are stable, so
-  // they're safe to list without causing re-runs.
+  // "Detecting people…" forever.
   useEffect(() => {
     if (!image) return;
-    let cancelled = false;
-    setDetectionStatus('detecting');
-    requestDetection(image.base64)
-      .then((res) => {
-        if (cancelled) return;
-        setDetectedPeople(res.people);
-        setDetectionStatus('ready');
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        // Detection failure is non-fatal — user can still generate on the
-        // full image. Log + mark failed so we don't retry in a loop.
-        console.warn('[home] detection failed', e);
-        setDetectedPeople([]);
-        setDetectionStatus('failed');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [image, setDetectionStatus, setDetectedPeople]);
+    const cancel = runDetection(image);
+    return cancel;
+  }, [image, runDetection]);
 
   const handlePicked = (img: PickedImage | null) => {
     setImage(img);
@@ -125,9 +137,17 @@ export default function Home() {
         ) : null}
 
         {image && detectionStatus === 'failed' ? (
-          <Text style={styles.statusTextMuted}>
-            Couldn't detect people — we'll just transform the whole image.
-          </Text>
+          <View style={styles.retryRow}>
+            <Text style={styles.statusTextMuted}>
+              Couldn't detect people. Try again — this usually clears in a few seconds.
+            </Text>
+            <Pressable
+              onPress={() => runDetection(image)}
+              style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+            >
+              <Text style={styles.retryButtonText}>Try again</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         {image && detectionStatus === 'ready' && detectedPeople.length === 0 ? (
@@ -225,6 +245,29 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  retryRow: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  retryButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  retryButtonPressed: {
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+    transform: [{ scale: 0.97 }],
+  },
+  retryButtonText: {
+    ...typography.label,
+    color: colors.textPrimary,
+    fontSize: 12,
+    letterSpacing: 1.2,
   },
   selectorWrap: { gap: spacing.sm },
   selectorTitle: {
