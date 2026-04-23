@@ -139,54 +139,118 @@ export async function POST(request: Request): Promise<Response> {
         continue;
       }
       try {
-        // Two-stage pipeline for multi-person photos:
-        //   1. Compose a rich, per-person enumerated prompt by showing
-        //      Gemini Flash the image + the transformation intent.
-        //   2. Hand that composed prompt to Nano Banana.
+        // Pipeline branching:
         //
-        // For solo subjects (or when detection didn't run) we skip stage 1
-        // — the static prompt is fine and we avoid the latency/cost.
-        const isMultiPerson = (body.totalPeopleInImage ?? 0) > 1;
-        let finalPrompt: string;
-        let promptSource: 'composed' | 'composed-fallback' | 'static';
-        if (isMultiPerson) {
-          try {
-            finalPrompt = await composePrompt({
-              imageBase64: body.imageBase64,
-              transformation: meta.prompt,
-              selectedPeopleLabels: body.selectedPeopleLabels,
-              totalPeopleInImage: body.totalPeopleInImage,
-            });
-            promptSource = 'composed';
-          } catch (composeErr) {
-            // Fall back to the static scoped prompt so the user still
-            // gets a result — degraded, but not broken.
-            console.warn('[api/generate] composer failed, falling back to static prompt:', composeErr);
+        //  (A) Solo subject (or detection didn't run): single-pass with the
+        //      static prompt. Fast and correct — base prompt says "the person",
+        //      which matches the scene.
+        //
+        //  (B) Multi-person, user selected 0 or 1 specific people: single-pass
+        //      through the composer. The composer sees the image + intent and
+        //      emits a rich, scoped prompt. Good for a targeted subset-of-one
+        //      edit (everyone else preserved).
+        //
+        //  (C) Multi-person, user selected 2+ (including "All"): SEQUENTIAL
+        //      per-person passes, chained. For each selected person we run a
+        //      scoped composer prompt ("transform only this person; preserve
+        //      everyone else") and feed the output into the next pass.
+        //
+        //      Why sequential: on strong transformations (e.g. the recognizable
+        //      Latino race-swap), Nano Banana in a single shot dedicates its
+        //      editing budget to the most salient face and silently skips
+        //      harder subjects — producing results like "1 of 5 transformed".
+        //      Neither meta-prompt variant (v1 unified, v2 enumerated) is
+        //      reliable past ~3/5 subjects. Sequential trades latency for
+        //      correctness: it turns N "transform all N" calls (one shot) into
+        //      N "transform this one, leave the rest alone" calls (serialized),
+        //      which Nano Banana handles reliably.
+        const total = body.totalPeopleInImage ?? 0;
+        const selected = body.selectedPeopleLabels ?? [];
+        const isMultiPerson = total > 1;
+        const shouldSequence = isMultiPerson && selected.length >= 2;
+
+        let resultB64: string;
+        let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential';
+
+        if (shouldSequence) {
+          // (C) Sequential per-person editing.
+          console.log(
+            `[api/generate] ▼ sequential mode: ${selected.length} per-person passes for subId=${subId}`,
+          );
+          let current = body.imageBase64;
+          for (let i = 0; i < selected.length; i++) {
+            const person = selected[i];
+            let personPrompt: string;
+            try {
+              personPrompt = await composePrompt({
+                // Pass the CURRENT (possibly already partially-edited) image so
+                // the composer describes the scene as Nano Banana will see it
+                // on this pass. This also lets it reference previously-edited
+                // subjects as "already transformed, leave them as they are"
+                // without us having to say so explicitly.
+                imageBase64: current,
+                transformation: meta.prompt,
+                selectedPeopleLabels: [person],
+                totalPeopleInImage: total,
+              });
+            } catch (composeErr) {
+              console.warn(
+                `[api/generate] composer failed on pass ${i + 1}/${selected.length}, using static scoped prompt:`,
+                composeErr,
+              );
+              personPrompt = buildScopedPrompt(meta.prompt, [person], total);
+            }
+            console.log(
+              `[api/generate] ▼ pass ${i + 1}/${selected.length} — target: "${person}" — subId: ${subId}`,
+            );
+            console.log(personPrompt);
+            console.log('[api/generate] ▲ end pass prompt');
+            current = await generateOne(current, personPrompt);
+          }
+          resultB64 = current;
+          promptSource = 'sequential';
+        } else {
+          // (A) or (B): single-pass.
+          let finalPrompt: string;
+          if (isMultiPerson) {
+            try {
+              finalPrompt = await composePrompt({
+                imageBase64: body.imageBase64,
+                transformation: meta.prompt,
+                selectedPeopleLabels: body.selectedPeopleLabels,
+                totalPeopleInImage: body.totalPeopleInImage,
+              });
+              promptSource = 'composed';
+            } catch (composeErr) {
+              console.warn('[api/generate] composer failed, falling back to static prompt:', composeErr);
+              finalPrompt = buildScopedPrompt(
+                meta.prompt,
+                body.selectedPeopleLabels,
+                body.totalPeopleInImage,
+              );
+              promptSource = 'composed-fallback';
+            }
+          } else {
             finalPrompt = buildScopedPrompt(
               meta.prompt,
               body.selectedPeopleLabels,
               body.totalPeopleInImage,
             );
-            promptSource = 'composed-fallback';
+            promptSource = 'static';
           }
-        } else {
-          finalPrompt = buildScopedPrompt(
-            meta.prompt,
-            body.selectedPeopleLabels,
-            body.totalPeopleInImage,
-          );
-          promptSource = 'static';
+          console.log('[api/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
+          console.log('[api/generate] subId:', subId, '| source:', promptSource, '| total:', total, '| selected:', selected);
+          console.log(finalPrompt);
+          console.log('[api/generate] ▲▲▲ END PROMPT ▲▲▲');
+          resultB64 = await generateOne(body.imageBase64, finalPrompt);
         }
-        console.log('[api/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
-        console.log('[api/generate] subId:', subId, '| source:', promptSource, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
-        console.log(finalPrompt);
-        console.log('[api/generate] ▲▲▲ END PROMPT ▲▲▲');
-        const resultB64 = await generateOne(body.imageBase64, finalPrompt);
+
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.
         const imageURL = `data:image/jpeg;base64,${resultB64}`;
         // Store the base (unwrapped) prompt so the gallery/history shows
         // the user what transformation they asked for, not the scoping boilerplate.
+        console.log(`[api/generate] ✓ subId=${subId} complete — source=${promptSource}`);
         results.push({ imageURL, prompt: meta.prompt, label: meta.label, subcategoryId: subId });
       } catch (err: any) {
         const reason = err?.message ?? String(err);
