@@ -95,12 +95,33 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({ model: MODEL_ID });
-    const result = await model.generateContent([
-      { inlineData: { mimeType: 'image/jpeg', data: body.imageBase64 } },
-      { text: DETECTION_PROMPT },
-    ]);
 
-    const text = result.response.text();
+    // Retry transient failures (Google 503s, 429s, brief network hiccups)
+    // with bounded exponential backoff. Matches the policy in
+    // lib/composePrompt.ts so both multimodal paths behave consistently.
+    const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+    const MAX_ATTEMPTS = 3;
+    let text = '';
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const result = await model.generateContent([
+          { inlineData: { mimeType: 'image/jpeg', data: body.imageBase64 } },
+          { text: DETECTION_PROMPT },
+        ]);
+        text = result.response.text();
+        break;
+      } catch (err) {
+        lastErr = err;
+        const status = (err as { status?: number })?.status;
+        if (!status || !RETRYABLE.has(status) || attempt === MAX_ATTEMPTS) throw err;
+        const delay = 500 * attempt + Math.floor(Math.random() * 250);
+        console.warn(`[api/detect] attempt ${attempt} failed (${status}); retrying in ${delay}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    if (!text) throw lastErr instanceof Error ? lastErr : new Error('Detection failed');
+
     const raw = extractJsonArray(text);
     const people = normalizePeople(raw);
 
