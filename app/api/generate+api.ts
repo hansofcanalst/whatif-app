@@ -52,6 +52,7 @@ function getGenAI(): GoogleGenerativeAI {
 async function generateOne(imageBase64: string, prompt: string): Promise<string> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
+  console.log(`[api/generate] → image model: ${MODEL_ID}`);
   const result = await model.generateContent([
     { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
     { text: prompt },
