@@ -27,6 +27,15 @@ import { composePrompt } from '@/lib/composePrompt';
 //   curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"
 const MODEL_ID = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 
+// Defense against oversize uploads. The client resizes to 1024px JPEG at
+// q=0.8 (see useImagePicker.ts + constants/config.ts), which produces
+// ~500KB–1MB base64 payloads in practice. 12MB (base64 chars ≈ bytes) is
+// ~9MB of binary image data — well above any legitimate client payload
+// but safely under the Firebase Functions HTTP body limit (10MB decoded).
+// A malformed or malicious client sending a multi-megapixel uncompressed
+// paste would OOM the dev server without this check.
+const MAX_IMAGE_BASE64_BYTES = 12 * 1024 * 1024;
+
 interface GenerateBody {
   imageBase64: string;
   category: string;
@@ -117,6 +126,14 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!body?.imageBase64 || !body?.category || !Array.isArray(body.subcategoryIds)) {
     return new Response('Invalid body: require { imageBase64, category, subcategoryIds }', { status: 400 });
+  }
+  if (body.imageBase64.length > MAX_IMAGE_BASE64_BYTES) {
+    const sizeMB = (body.imageBase64.length / 1024 / 1024).toFixed(1);
+    const limitMB = (MAX_IMAGE_BASE64_BYTES / 1024 / 1024).toFixed(0);
+    return new Response(
+      `Image too large (${sizeMB}MB encoded, limit ${limitMB}MB). Pick a smaller photo — the app normally resizes for you, so this usually means something went wrong with the picker.`,
+      { status: 413 },
+    );
   }
   if (body.subcategoryIds.length === 0) {
     return new Response('No subcategories selected', { status: 400 });

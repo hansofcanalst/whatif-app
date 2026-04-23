@@ -10,6 +10,11 @@ const FREE_CAP = 3;
 const MODEL_ID = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
 const RATE_LIMIT_PER_MINUTE = 10;
 
+// Defense against oversize uploads. Keep in sync with app/api/generate+api.ts.
+// Client-side compression targets ~500KB–1MB base64; this 12MB cap is a
+// sanity ceiling, not a product limit.
+const MAX_IMAGE_BASE64_BYTES = 12 * 1024 * 1024;
+
 interface GenerateBody {
   imageBase64: string;
   category: string;
@@ -120,6 +125,16 @@ export const generate = functions
       const body = req.body as GenerateBody;
       if (!body?.imageBase64 || !body?.category || !Array.isArray(body.subcategoryIds)) {
         res.status(400).send('Invalid body');
+        return;
+      }
+      if (body.imageBase64.length > MAX_IMAGE_BASE64_BYTES) {
+        const sizeMB = (body.imageBase64.length / 1024 / 1024).toFixed(1);
+        const limitMB = (MAX_IMAGE_BASE64_BYTES / 1024 / 1024).toFixed(0);
+        res
+          .status(413)
+          .send(
+            `Image too large (${sizeMB}MB encoded, limit ${limitMB}MB). Pick a smaller photo.`,
+          );
         return;
       }
       if (body.subcategoryIds.length === 0) {

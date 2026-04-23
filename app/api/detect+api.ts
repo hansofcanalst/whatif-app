@@ -13,6 +13,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Vision/text model, not the image model. Free tier has access to this.
 const MODEL_ID = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
 
+// Same defense-against-oversize-upload ceiling as /api/generate. Keep in
+// sync with app/api/generate+api.ts so bypassing the pre-generate detect
+// step can't be used to OOM the dev server either.
+const MAX_IMAGE_BASE64_BYTES = 12 * 1024 * 1024;
+
 // Gemini's canonical bbox convention: [ymin, xmin, ymax, xmax] normalized
 // to 0-1000. We keep that on the wire so no client-side math has to guess.
 interface DetectedPerson {
@@ -90,6 +95,14 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!body?.imageBase64) {
     return new Response('Invalid body: require { imageBase64 }', { status: 400 });
+  }
+  if (body.imageBase64.length > MAX_IMAGE_BASE64_BYTES) {
+    const sizeMB = (body.imageBase64.length / 1024 / 1024).toFixed(1);
+    const limitMB = (MAX_IMAGE_BASE64_BYTES / 1024 / 1024).toFixed(0);
+    return new Response(
+      `Image too large (${sizeMB}MB encoded, limit ${limitMB}MB). Pick a smaller photo.`,
+      { status: 413 },
+    );
   }
 
   try {

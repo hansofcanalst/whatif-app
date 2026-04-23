@@ -15,44 +15,54 @@ export interface SubcategoryMeta {
 type CategoryPromptMap = Record<string, Record<string, SubcategoryMeta>>;
 
 export const PROMPTS: CategoryPromptMap = {
+  // RACE-SWAP PROMPT SHAPE.
+  //
+  // Every race-swap target follows the same three-part structure:
+  //   1. Specific heritage anchors ("think Mexican, Colombian, or Peruvian")
+  //      instead of a bare label — gives the image model a concrete look
+  //      to shoot for.
+  //   2. A "shift AWAY from X, Y, Z" list naming the phenotypes most
+  //      likely to overlap with the source photo. This is the part that
+  //      fixes the "barely edited" failure mode: earlier generic prompts
+  //      ("adjust skin tone and hair naturally") would under-edit when
+  //      the source was already phenotypically adjacent (e.g. Southeast
+  //      Asian source ↔ Latino target, or Mediterranean European source
+  //      ↔ Middle Eastern target), because the model read the source as
+  //      "close enough". Naming the neighbors explicitly forces a real
+  //      directional edit.
+  //   3. A recognizability gate ("a viewer looking only at the edited
+  //      image would identify the person as X without ambiguity — a
+  //      subtle skin-tone nudge is NOT enough"). Prevents the model from
+  //      hedging with a tiny tonal shift.
+  //
+  // The composer step (see lib/composePrompt.ts) treats this text as
+  // transformation intent, so the more concrete the target description,
+  // the more specific the per-person instructions it writes for Nano
+  // Banana. Keep all six entries written in this same shape.
   'race-swap': {
     'east-asian': {
       label: 'East Asian',
-      prompt: `${BASE} Transform the person to appear of East Asian descent. Adjust skin tone, eye shape, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of East Asian descent — think Chinese, Japanese, or Korean heritage. Shift their features in a direction that is distinctly East Asian rather than Southeast Asian, South Asian, Latino, Black, or White: cool-undertone fair to light-tan skin, straight black or very dark brown hair, eye shape with a defined epicanthic fold, a smaller refined nose with a lower bridge, and smoother less-angular facial bone structure with a softer brow ridge. The change must be strong enough that a viewer looking only at the edited image would identify the person as East Asian without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     'south-asian': {
       label: 'South Asian',
-      prompt: `${BASE} Transform the person to appear of South Asian descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of South Asian descent — think Indian, Pakistani, Bangladeshi, or Sri Lankan heritage. Shift their features in a direction that is distinctly South Asian rather than East/Southeast Asian, Middle Eastern, Latino, Black, or White: warm medium-to-deep brown skin with golden undertones, very dark thick hair that is often wavy, deep brown eyes under thicker eyebrows, a pronounced brow ridge and defined nose bridge, and strong cheekbones. The change must be strong enough that a viewer looking only at the edited image would identify the person as South Asian without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     black: {
       label: 'Black',
-      prompt: `${BASE} Transform the person to appear of Black/African descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Black/African descent. Shift their features in a direction that is distinctly Black rather than East/Southeast Asian, South Asian, Latino, Middle Eastern, or White: warm medium-brown to deep-brown skin, tightly coiled or curly natural hair texture (or an equivalently Black hairstyle that matches the original cut length), fuller lips, a broader nose with a more rounded tip, and warm undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as Black/African-descended without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     'white-european': {
       label: 'White/European',
-      prompt: `${BASE} Transform the person to appear of White/European descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of White/European descent — think Northern or Central European heritage such as British, German, Scandinavian, or Slavic. Shift their features in a direction that is distinctly White rather than East/Southeast Asian, South Asian, Middle Eastern, Latino, or Black: fair skin with pink or peach undertones, hair in the blond, light-brown, auburn, or medium-brown range (not jet black), lighter eye color where plausible (blue, green, hazel, or light brown), a narrower nose with a defined bridge, more angular European facial structure, and cool skin undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as White/European without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     latino: {
-      // Latino/Hispanic is phenotypically ambiguous in a way the other
-      // race-swap targets are not — it overlaps with Southeast Asian
-      // (tan skin, dark hair, dark eyes) and with Mediterranean
-      // European. Generic wording like "warm tan skin, dark hair" — the
-      // shape earlier versions of this prompt produced — is already
-      // true of many source photos, so the image model would barely
-      // edit and the result came back looking essentially unchanged.
-      //
-      // Fix: spell out distinctive mestizo features explicitly, tell
-      // the model to shift AWAY from whatever the source is, and gate
-      // the edit on the result being *recognizably* Latino rather than
-      // "a subtle tan". The composer uses this text as transformation
-      // intent, so the more concrete the target description, the more
-      // specific the per-person instructions it writes for Nano Banana.
       label: 'Latino',
-      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Latino/Hispanic descent — think mestizo Latin American heritage such as Mexican, Colombian, or Peruvian. Shift their features in a direction that is distinctly Latino rather than East/Southeast Asian, Black, or White: warm olive-to-tan skin, dark brown or black hair that often has a wave or slight curl, dark brown eyes, and a mestizo facial bone structure (rounder or slightly broader face, defined cheekbones, warm undertones). The change must be strong enough that a viewer looking only at the edited image would identify the person as Latino without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Latino/Hispanic descent — think mestizo Latin American heritage such as Mexican, Colombian, or Peruvian. Shift their features in a direction that is distinctly Latino rather than East/Southeast Asian, South Asian, Middle Eastern, Black, or White: warm olive-to-tan skin, dark brown or black hair that often has a wave or slight curl, dark brown eyes, and a mestizo facial bone structure (rounder or slightly broader face, defined cheekbones, warm undertones). The change must be strong enough that a viewer looking only at the edited image would identify the person as Latino without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     'middle-eastern': {
       label: 'Middle Eastern',
-      prompt: `${BASE} Transform the person to appear of Middle Eastern descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Middle Eastern descent — think Arab, Persian, Turkish, or Levantine heritage such as Lebanese, Iranian, or Egyptian. Shift their features in a direction that is distinctly Middle Eastern rather than East/Southeast Asian, South Asian, Latino, Black, or European: warm olive to medium-brown skin, thick dark wavy or curly hair, dark brown eyes under thick full brows, a strong defined brow ridge and nose bridge, and warm undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as Middle Eastern without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
   },
   'gender-swap': {
