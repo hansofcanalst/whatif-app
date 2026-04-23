@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getPrompt, isPremiumCategory, buildScopedPrompt } from './prompts';
+import { composePrompt } from './composePrompt';
 
 const FREE_CAP = 3;
 // Image edit/generation model. Overridable via env. Keep default in sync
@@ -160,16 +161,41 @@ export const generate = functions
         const meta = getPrompt(body.category, subId);
         if (!meta) continue;
         try {
-          const scopedPrompt = buildScopedPrompt(
-            meta.prompt,
-            body.selectedPeopleLabels,
-            body.totalPeopleInImage,
-          );
+          // Two-stage pipeline for multi-person photos. See lib/composePrompt.ts.
+          const isMultiPerson = (body.totalPeopleInImage ?? 0) > 1;
+          let finalPrompt: string;
+          let promptSource: 'composed' | 'composed-fallback' | 'static';
+          if (isMultiPerson) {
+            try {
+              finalPrompt = await composePrompt({
+                imageBase64: body.imageBase64,
+                transformation: meta.prompt,
+                selectedPeopleLabels: body.selectedPeopleLabels,
+                totalPeopleInImage: body.totalPeopleInImage,
+              });
+              promptSource = 'composed';
+            } catch (composeErr) {
+              console.warn('[fn/generate] composer failed, falling back to static prompt:', composeErr);
+              finalPrompt = buildScopedPrompt(
+                meta.prompt,
+                body.selectedPeopleLabels,
+                body.totalPeopleInImage,
+              );
+              promptSource = 'composed-fallback';
+            }
+          } else {
+            finalPrompt = buildScopedPrompt(
+              meta.prompt,
+              body.selectedPeopleLabels,
+              body.totalPeopleInImage,
+            );
+            promptSource = 'static';
+          }
           console.log('[fn/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
-          console.log('[fn/generate] subId:', subId, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
-          console.log(scopedPrompt);
+          console.log('[fn/generate] subId:', subId, '| source:', promptSource, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
+          console.log(finalPrompt);
           console.log('[fn/generate] ▲▲▲ END PROMPT ▲▲▲');
-          const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
+          const resultB64 = await generateOne(body.imageBase64, finalPrompt);
           const url = await uploadImage(uid, generationId, `result_${i}`, resultB64);
           // Store the base (unwrapped) prompt — the gallery shows the
           // transformation the user asked for, not the scoping preamble.

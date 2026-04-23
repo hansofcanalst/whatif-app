@@ -19,6 +19,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getPrompt, buildScopedPrompt } from '@/lib/prompts';
+import { composePrompt } from '@/lib/composePrompt';
 
 // Image edit/generation model. Overridable via .env so we can try newer
 // previews (e.g. gemini-3.1-flash-image-preview) without a code change.
@@ -116,16 +117,49 @@ export async function POST(request: Request): Promise<Response> {
         continue;
       }
       try {
-        const scopedPrompt = buildScopedPrompt(
-          meta.prompt,
-          body.selectedPeopleLabels,
-          body.totalPeopleInImage,
-        );
+        // Two-stage pipeline for multi-person photos:
+        //   1. Compose a rich, per-person enumerated prompt by showing
+        //      Gemini Flash the image + the transformation intent.
+        //   2. Hand that composed prompt to Nano Banana.
+        //
+        // For solo subjects (or when detection didn't run) we skip stage 1
+        // — the static prompt is fine and we avoid the latency/cost.
+        const isMultiPerson = (body.totalPeopleInImage ?? 0) > 1;
+        let finalPrompt: string;
+        let promptSource: 'composed' | 'composed-fallback' | 'static';
+        if (isMultiPerson) {
+          try {
+            finalPrompt = await composePrompt({
+              imageBase64: body.imageBase64,
+              transformation: meta.prompt,
+              selectedPeopleLabels: body.selectedPeopleLabels,
+              totalPeopleInImage: body.totalPeopleInImage,
+            });
+            promptSource = 'composed';
+          } catch (composeErr) {
+            // Fall back to the static scoped prompt so the user still
+            // gets a result — degraded, but not broken.
+            console.warn('[api/generate] composer failed, falling back to static prompt:', composeErr);
+            finalPrompt = buildScopedPrompt(
+              meta.prompt,
+              body.selectedPeopleLabels,
+              body.totalPeopleInImage,
+            );
+            promptSource = 'composed-fallback';
+          }
+        } else {
+          finalPrompt = buildScopedPrompt(
+            meta.prompt,
+            body.selectedPeopleLabels,
+            body.totalPeopleInImage,
+          );
+          promptSource = 'static';
+        }
         console.log('[api/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
-        console.log('[api/generate] subId:', subId, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
-        console.log(scopedPrompt);
+        console.log('[api/generate] subId:', subId, '| source:', promptSource, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
+        console.log(finalPrompt);
         console.log('[api/generate] ▲▲▲ END PROMPT ▲▲▲');
-        const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
+        const resultB64 = await generateOne(body.imageBase64, finalPrompt);
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.
         const imageURL = `data:image/jpeg;base64,${resultB64}`;
