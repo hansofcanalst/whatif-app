@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { subscribeToAuth } from '@/lib/auth';
-import { ensureUserDoc } from '@/lib/firestore';
+import { ensureUserDoc, UserDoc } from '@/lib/firestore';
 
 const AUTH_FALLBACK_MS = 5000;
 
@@ -41,10 +42,14 @@ export function useAuth() {
 
       if (u) {
         ensureUserDoc(u)
-          .then((doc) => setUserDoc(doc))
+          .then((doc) => {
+            setUserDoc(doc);
+            syncSubscriptionFromUserDoc(doc);
+          })
           .catch((e) => console.warn('[auth] ensureUserDoc failed', e));
       } else {
         setUserDoc(null);
+        useSubscriptionStore.getState().reset();
       }
     });
 
@@ -55,4 +60,27 @@ export function useAuth() {
   }, [setUser, setUserDoc, setLoading, setError]);
 
   return { user, userDoc, loading, error };
+}
+
+// Firestore is the authoritative source of Pro status on the server
+// (`functions/src/generate.ts` reads `user.subscriptionStatus`) and also
+// what RevenueCat webhooks update. Mirroring it into the subscription
+// store on every user-doc load means:
+//   1. Flipping `subscriptionStatus` in the Firebase console is enough to
+//      unlock Pro in the UI — no need to also poke the Zustand store.
+//   2. On web — where RevenueCat's native SDK isn't wired — Pro users
+//      still see the correct badge.
+//   3. On native, `useSubscription` will overwrite this with fresh
+//      RevenueCat entitlement info as soon as it loads, so this acts as
+//      a safe initial value rather than a competing source of truth.
+function syncSubscriptionFromUserDoc(doc: UserDoc): void {
+  const isActive = doc.subscriptionStatus === 'pro';
+  const expiresAt = doc.subscriptionExpiry
+    ? doc.subscriptionExpiry.toMillis()
+    : null;
+  useSubscriptionStore.getState().setSubscription({
+    plan: isActive ? 'yearly' : null,
+    isActive,
+    expiresAt,
+  });
 }
