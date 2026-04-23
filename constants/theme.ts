@@ -1,40 +1,56 @@
 // Design tokens — single source of truth consumed by every StyleSheet
-// in the app (native + web). Values below follow the FRAME design system:
-// dark charcoal surfaces, purple (#7c3aed) primary accent, tight radii.
+// in the app (native + web). Values below are the exact FRAME design
+// system palette: near-black surfaces in a violet-tinged charcoal ramp,
+// off-white body text, and the purple accent reserved for interactive /
+// focused state.
 //
-// Keeping the token *key names* stable (bg, bgCard, bgElevated, accent…)
-// means components don't need to be rewired — they pick up the new palette
-// automatically via their existing imports.
+// Token *keys* are kept stable (bg, bgCard, bgElevated, accent, …) so
+// existing components don't need rewiring — they pick up the new values
+// through their existing imports.
 
 export const colors = {
   // ── Surfaces ─────────────────────────────────────────────────────────
-  bg: '#0a0a0a',          // page background (--bg-primary)
-  bgCard: '#141414',      // card surface (--bg-card)
-  bgElevated: '#1a1a1a',  // elevated / modal surface (--bg-elevated)
-  bgInput: '#111111',     // text inputs (--bg-input)
+  // FRAME's four-stop dark ramp. `bg` is the page / app-shell background;
+  // `bgCard` is the standard card; `bgElevated` is for modals, headers and
+  // the tab bar; `bgInput` is the deepest stop, used for inputs and the
+  // drop-zone surface so those controls recess into the page.
+  bg: '#09090d',          // page background        — FRAME surface-900
+  bgCard: '#18181f',      // card                   — FRAME surface-800
+  bgElevated: '#1f1f29',  // elevated / modal       — FRAME surface-700
+  bgInput: '#27272f',     // input / hover surface  — FRAME surface-600
 
   // ── Borders ──────────────────────────────────────────────────────────
-  border: '#2a2a2a',        // subtle divider (--border-subtle)
-  borderDashed: '#333333',  // dashed drop-zone border (--border-dashed)
-  borderFocus: '#7c3aed',   // focused input border (--border-focus)
+  border: '#27272f',        // subtle divider on dark surfaces
+  borderDashed: '#44445a',  // dashed drop-zone border (text-muted tone)
+  borderFocus: '#7c3aed',   // focused input / active control
 
   // ── Text ─────────────────────────────────────────────────────────────
-  textPrimary: '#ffffff',    // (--text-primary)
-  textSecondary: '#a0a0a0',  // (--text-secondary)
-  textMuted: '#555555',      // (--text-muted)
-  textLabel: '#888888',      // (--text-label) — small caps section labels
+  textPrimary: '#f0f0f5',    // body / headline        — FRAME text-100
+  textSecondary: '#7070a0',  // secondary / meta       — FRAME text-300
+  textMuted: '#44445a',      // disabled / dividers    — FRAME text-500
+  textLabel: '#7070a0',      // uppercase section labels — same as secondary
 
   // ── Accent (FRAME purple) ────────────────────────────────────────────
-  accent: '#7c3aed',        // primary brand (--purple)
-  accentHover: '#6d28d9',   // hover/pressed (--purple-hover)
-  accentAlt: '#6d28d9',     // legacy alias for components that read accentAlt
-  accentDim: 'rgba(124, 58, 237, 0.15)',  // (--purple-dim)
-  accentGlow: 'rgba(124, 58, 237, 0.4)',  // (--purple-glow)
+  accent: '#7c3aed',        // primary brand — violet-600
+  accentHover: '#6d28d9',   // hover/pressed — violet-700
+  accentAlt: '#6d28d9',     // legacy alias
+  accentDim: 'rgba(124, 58, 237, 0.15)',  // violet-600/15 — label-tag bg
+  accentGlow: 'rgba(124, 58, 237, 0.4)',  // violet-600/40 — focus ring
+  // Brighter violet used for label-tag text so it reads on the accentDim
+  // background (a direct #7c3aed on violet-600/15 doesn't have enough
+  // contrast; FRAME uses violet-300).
+  accentText: '#c4b5fd',
 
   // ── Semantic ─────────────────────────────────────────────────────────
   success: '#22c55e',
   warning: '#f59e0b',
   danger: '#ef4444',
+  // Error banner pattern — red-500 tinted bg + border so the banner reads
+  // as an inline alert rather than a solid red surface. Text uses red-400
+  // for softer contrast against the tint.
+  dangerBg: 'rgba(239, 68, 68, 0.1)',
+  dangerBorder: 'rgba(239, 68, 68, 0.3)',
+  dangerText: '#f87171',
 
   // ── Gradients ────────────────────────────────────────────────────────
   // PRO badge / highlight gradient — two shades of the brand purple so the
@@ -42,6 +58,16 @@ export const colors = {
   gradientStart: '#7c3aed',
   gradientEnd: '#6d28d9',
 } as const;
+
+// FRAME uses Inter for UI and JetBrains Mono for the brand wordmark and
+// monospace accents. The `mono` key returns a `fontFamily` string that's
+// safe on every platform: on web the `app/+html.tsx` document loads JetBrains
+// Mono from Google Fonts, on iOS/Android the built-in monospace family kicks
+// in if the font isn't bundled — either way it stays readable.
+export const fontFamily = {
+  sans: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  mono: '"JetBrains Mono", ui-monospace, Menlo, Monaco, "Courier New", monospace',
+};
 
 export const typography = {
   display: { fontSize: 40, fontWeight: '900' as const, letterSpacing: -1.5 },
@@ -57,8 +83,14 @@ export const typography = {
   label: {
     fontSize: 11,
     fontWeight: '600' as const,
-    letterSpacing: 0.88, // ≈0.08em at 11px
+    letterSpacing: 1.2, // wider than before to read as a FRAME label
     textTransform: 'uppercase' as const,
+  },
+  // JetBrains Mono wordmark — used for the "What If" logo in FRAME spec.
+  mono: {
+    fontFamily: fontFamily.mono,
+    fontWeight: '700' as const,
+    letterSpacing: -0.5,
   },
 };
 
@@ -79,13 +111,17 @@ export const layout = {
   maxContentWidth: 520,
 };
 
-// Corner radii per the FRAME scale (6/10/14/20). Tighter than the previous
-// 8/12/16/24 set — reads crisper against the new darker surfaces.
+// FRAME radii scale — tighter and more consistent than before.
+//   lg  (8)  — default buttons, inputs
+//   xl  (12) — cards, chips
+//   xxl (16) — drop-zone, large panels
+//   pill (full) — tab bar pills, badges
 export const radii = {
   sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 20,
+  md: 8,
+  lg: 8,
+  xl: 12,
+  xxl: 16,
   pill: 999,
 };
 

@@ -5,7 +5,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { signInWithEmail, signInWithAppleIdToken } from '@/lib/auth';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 export default function Login() {
   const { show } = useToast();
@@ -42,41 +42,63 @@ export default function Login() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.logo}>What If</Text>
-        <Text style={styles.tagline}>See yourself in a whole new way</Text>
-
-        <View style={styles.form}>
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-          />
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor={colors.textMuted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={styles.input}
-          />
-          <Button label="Log in" onPress={handleEmail} loading={loading} />
+        <View style={styles.brand}>
+          <Text style={styles.logo}>
+            What<Text style={styles.logoAccent}>If</Text>
+          </Text>
+          <Text style={styles.tagline}>See yourself in a whole new way.</Text>
         </View>
 
-        {Platform.OS === 'ios' ? (
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-            cornerRadius={999}
-            style={styles.appleBtn}
-            onPress={handleApple}
-          />
-        ) : null}
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>Sign in</Text>
+          <Text style={styles.cardTitle}>Welcome back</Text>
+
+          <View style={styles.form}>
+            <View>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                placeholder="you@example.com"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+              />
+            </View>
+            <View>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                placeholder="••••••••"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
+            <Button label="Log in" onPress={handleEmail} loading={loading} />
+          </View>
+
+          {Platform.OS === 'ios' ? (
+            <>
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                cornerRadius={radii.lg}
+                style={styles.appleBtn}
+                onPress={handleApple}
+              />
+            </>
+          ) : null}
+        </View>
 
         <Link href="/(auth)/signup" asChild>
           <Pressable style={styles.linkRow}>
@@ -94,22 +116,55 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: spacing.xl,
-    paddingTop: spacing.xxxl * 2,
+    paddingTop: spacing.xxxl * 1.5,
     gap: spacing.xl,
     backgroundColor: colors.bg,
   },
-  logo: { ...typography.display, color: colors.textPrimary, textAlign: 'center' },
+  brand: { alignItems: 'center', gap: spacing.sm },
+  logo: {
+    fontFamily: fontFamily.mono,
+    fontSize: 40,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    letterSpacing: -1.5,
+  },
+  logoAccent: { color: colors.accent },
   tagline: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-  form: { gap: spacing.md, marginTop: spacing.xl },
-  input: {
+  card: {
     backgroundColor: colors.bgCard,
-    borderRadius: radii.md,
-    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
+  sectionLabel: { ...typography.label, color: colors.textLabel },
+  cardTitle: { ...typography.h2, color: colors.textPrimary },
+  form: { gap: spacing.md },
+  inputLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: colors.bgInput,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,
     ...typography.body,
   },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginVertical: spacing.xs,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { ...typography.label, color: colors.textMuted, fontSize: 10 },
   appleBtn: { height: 48, width: '100%' },
   linkRow: { alignItems: 'center', padding: spacing.md },
   linkText: { ...typography.body, color: colors.textSecondary },

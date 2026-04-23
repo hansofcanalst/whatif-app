@@ -12,7 +12,7 @@ import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Category } from '@/constants/categories';
 import { PickedImage } from '@/hooks/useImagePicker';
 import { requestDetection } from '@/lib/detect';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
   const router = useRouter();
@@ -75,8 +75,6 @@ export default function Home() {
       setPaywall(true);
       return;
     }
-    // If the user has detection pending or >1 people detected AND selected
-    // none, block generation until they pick at least one.
     if (detectionStatus === 'detecting') {
       show('Still detecting people — hang on a sec.', 'info');
       return;
@@ -93,11 +91,25 @@ export default function Home() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* FRAME header — mono wordmark on the left, compact label-tag on
+          the right. Sits on the page bg (not elevated) so it reads as
+          "document chrome" rather than a toolbar. */}
       <View style={styles.topBar}>
-        <Text style={styles.logo}>What If</Text>
+        <Text style={styles.logo}>What<Text style={styles.logoAccent}>If</Text></Text>
         <GenerationCounter />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* FRAME hero — three-word tagline where the verb lives in the
+            accent. Short copy, tight leading, reads as a tool tagline. */}
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>
+            Drop. Analyze. <Text style={styles.heroAccent}>Edit.</Text>
+          </Text>
+          <Text style={styles.heroSub}>
+            Upload a photo and see yourself across the multiverse.
+          </Text>
+        </View>
+
         <PhotoUploader image={image} onPicked={handlePicked} />
 
         {image && detectionStatus === 'detecting' ? (
@@ -121,9 +133,10 @@ export default function Home() {
 
         {showSelector ? (
           <View style={styles.selectorWrap}>
-            <Text style={styles.selectorTitle}>
-              Found {detectedPeople.length} people — tap to pick who to transform
+            <Text style={styles.sectionLabel}>
+              People · {detectedPeople.length} detected
             </Text>
+            <Text style={styles.selectorTitle}>Pick who to transform</Text>
             <PeopleSelector
               imageUri={image!.uri}
               people={detectedPeople}
@@ -135,8 +148,12 @@ export default function Home() {
           </View>
         ) : null}
 
-        <Text style={styles.sectionTitle}>Pick a transformation</Text>
-        <CategoryGrid onSelect={handleSelect} isPro={isPro} />
+        <View style={styles.categorySection}>
+          <Text style={styles.sectionLabel}>Transformations</Text>
+          <Text style={styles.sectionTitle}>Pick a direction</Text>
+          <View style={{ height: spacing.md }} />
+          <CategoryGrid onSelect={handleSelect} isPro={isPro} />
+        </View>
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />
     </SafeAreaView>
@@ -151,15 +168,52 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  logo: { ...typography.h1, color: colors.textPrimary },
+  // JetBrains Mono wordmark — "What" in off-white, "If" in accent for the
+  // FRAME brand-split look.
+  logo: {
+    fontFamily: fontFamily.mono,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  logoAccent: { color: colors.accent },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
+  hero: { gap: spacing.sm },
+  heroTitle: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -1.2,
+    lineHeight: 40,
+  },
+  heroAccent: { color: colors.accent },
+  heroSub: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  sectionLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    marginBottom: spacing.xs,
+  },
   sectionTitle: { ...typography.h2, color: colors.textPrimary },
+  categorySection: { gap: 2 },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     alignSelf: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   statusText: { ...typography.caption, color: colors.textSecondary },
   statusTextMuted: {
@@ -171,6 +225,5 @@ const styles = StyleSheet.create({
   selectorTitle: {
     ...typography.h3,
     color: colors.textPrimary,
-    textAlign: 'center',
   },
 });

@@ -7,7 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGenerationStore } from '@/stores/generationStore';
 import { getGeneration, GenerationDoc } from '@/lib/firestore';
 import { getCategory } from '@/constants/categories';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radii, spacing, typography } from '@/constants/theme';
 
 export default function ResultScreen() {
   const { id, idx } = useLocalSearchParams<{ id: string; idx?: string }>();
@@ -19,7 +19,6 @@ export default function ResultScreen() {
   useEffect(() => {
     if (!id) return;
     if (id === currentGenerationId && currentResults.length > 0) {
-      // optimistic: rebuild partial doc from store
       return;
     }
     (async () => {
@@ -49,16 +48,22 @@ export default function ResultScreen() {
         <Pressable onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title} numberOfLines={1}>
-          {category?.label ?? 'Result'}
-        </Text>
+        <View style={styles.headerTitle}>
+          <Text style={styles.headerLabel}>Result</Text>
+          <Text style={styles.title} numberOfLines={1}>
+            {category?.label ?? 'Transformation'}
+          </Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <BeforeAfterSlider beforeURL={original} afterURL={current.imageURL} />
-        <Text style={styles.caption}>
-          What If — {category?.label ?? ''} → {current.label}
-        </Text>
+        <View style={styles.captionCard}>
+          <Text style={styles.captionLabel}>What If</Text>
+          <Text style={styles.caption}>
+            {category?.label ?? ''} <Text style={styles.captionArrow}>→</Text> {current.label}
+          </Text>
+        </View>
         <ShareSheet
           imageURL={current.imageURL}
           categoryLabel={category?.label ?? ''}
@@ -72,10 +77,35 @@ export default function ResultScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.lg },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { alignItems: 'center', flex: 1 },
+  headerLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    fontSize: 10,
+    marginBottom: 2,
+  },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   backText: { color: colors.textPrimary, fontSize: 26 },
-  title: { ...typography.h2, color: colors.textPrimary, flex: 1, textAlign: 'center' },
+  title: { ...typography.h3, color: colors.textPrimary, textAlign: 'center' },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  captionCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: 2,
+  },
+  captionLabel: { ...typography.label, color: colors.textLabel, fontSize: 10 },
   caption: { ...typography.bodyBold, color: colors.textPrimary, textAlign: 'center' },
+  captionArrow: { color: colors.accent },
 });

@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { signOut } from '@/lib/auth';
 import { config } from '@/constants/config';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radii, spacing, typography } from '@/constants/theme';
 
 export default function Profile() {
   const { user, userDoc } = useAuthStore();
@@ -30,26 +30,45 @@ export default function Profile() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Profile</Text>
-        <Card>
-          <Text style={styles.name}>{user?.displayName || user?.email || 'You'}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
+        <View style={styles.header}>
+          <Text style={styles.sectionLabel}>Account</Text>
+          <Text style={styles.title}>Profile</Text>
+        </View>
+
+        {/* Identity card — avatar tile beside name/email, FRAME .card. */}
+        <Card style={styles.identityCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {(user?.displayName || user?.email || 'U').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{user?.displayName || user?.email || 'You'}</Text>
+            <Text style={styles.email}>{user?.email}</Text>
+          </View>
         </Card>
 
-        <Card>
+        {/* Plan card — accent-tinted for Pro, neutral for Free. */}
+        <Card style={isActive ? styles.planCardPro : styles.planCard}>
+          <Text style={[styles.planTag, isActive && styles.planTagPro]}>
+            {isActive ? 'PRO ✦' : 'FREE'}
+          </Text>
           {isActive ? (
             <>
-              <Text style={styles.planBadge}>PRO ✦</Text>
-              <Text style={styles.planName}>{plan ? `${plan[0].toUpperCase()}${plan.slice(1)} plan` : 'Pro plan'}</Text>
+              <Text style={styles.planName}>
+                {plan ? `${plan[0].toUpperCase()}${plan.slice(1)} plan` : 'Pro plan'}
+              </Text>
               {expiresAt ? (
-                <Text style={styles.planMeta}>Renews {new Date(expiresAt).toLocaleDateString()}</Text>
+                <Text style={styles.planMeta}>
+                  Renews {new Date(expiresAt).toLocaleDateString()}
+                </Text>
               ) : null}
             </>
           ) : (
             <>
-              <Text style={styles.planName}>Free Plan</Text>
+              <Text style={styles.planName}>Free plan</Text>
               <Text style={styles.planMeta}>
-                {used}/{config.freeGenerationCap} free generations used · {remaining} remaining
+                {used}/{config.freeGenerationCap} generations used · {remaining} remaining
               </Text>
               <View style={{ height: spacing.md }} />
               <Button label="Upgrade to Pro" onPress={() => setPaywall(true)} />
@@ -58,13 +77,21 @@ export default function Profile() {
         </Card>
 
         <View style={styles.settings}>
-          <SettingRow label="Privacy Policy" />
-          <SettingRow label="Terms of Service" />
-          <SettingRow label="Delete Account" destructive />
-          <Pressable onPress={handleLogout} style={styles.logout}>
-            <Text style={styles.logoutText}>Log Out</Text>
-          </Pressable>
+          <Text style={[styles.sectionLabel, { marginLeft: spacing.md, marginBottom: spacing.sm }]}>
+            Settings
+          </Text>
+          <View style={styles.settingsCard}>
+            <SettingRow label="Privacy Policy" />
+            <View style={styles.divider} />
+            <SettingRow label="Terms of Service" />
+            <View style={styles.divider} />
+            <SettingRow label="Delete Account" destructive />
+          </View>
         </View>
+
+        <Pressable onPress={handleLogout} style={styles.logout}>
+          <Text style={styles.logoutText}>Log Out</Text>
+        </Pressable>
 
         <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
       </ScrollView>
@@ -76,7 +103,7 @@ export default function Profile() {
 function SettingRow({ label, destructive }: { label: string; destructive?: boolean }) {
   return (
     <Pressable style={styles.row}>
-      <Text style={[styles.rowLabel, destructive && { color: colors.danger }]}>{label}</Text>
+      <Text style={[styles.rowLabel, destructive && { color: colors.dangerText }]}>{label}</Text>
       <Text style={styles.rowChevron}>›</Text>
     </Pressable>
   );
@@ -85,28 +112,82 @@ function SettingRow({ label, destructive }: { label: string; destructive?: boole
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
+  header: { marginBottom: spacing.sm },
+  sectionLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    marginBottom: spacing.xs,
+  },
   title: { ...typography.h1, color: colors.textPrimary },
-  name: { ...typography.h2, color: colors.textPrimary },
-  email: { ...typography.caption, color: colors.textSecondary, marginTop: 4 },
-  planBadge: { ...typography.tiny, color: colors.accent, letterSpacing: 2 },
-  planName: { ...typography.h3, color: colors.textPrimary, marginTop: 2 },
+
+  identityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.xl,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.accentText,
+  },
+  name: { ...typography.h3, color: colors.textPrimary },
+  email: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+
+  planCard: {},
+  planCardPro: {
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+    backgroundColor: colors.accentDim,
+  },
+  planTag: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+  planTagPro: { color: colors.accentText, letterSpacing: 2 },
+  planName: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xs },
   planMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 4 },
-  settings: { gap: 2, borderRadius: 12, overflow: 'hidden' },
+
+  settings: { gap: 0 },
+  settingsCard: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.bgCard,
   },
   rowLabel: { ...typography.body, color: colors.textPrimary },
   rowChevron: { color: colors.textMuted, fontSize: 20 },
+  divider: { height: 1, backgroundColor: colors.border },
   logout: {
     padding: spacing.md,
+    borderRadius: radii.lg,
     backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.dangerBorder,
     alignItems: 'center',
   },
-  logoutText: { ...typography.bodyBold, color: colors.danger },
-  version: { ...typography.tiny, color: colors.textMuted, textAlign: 'center', marginTop: spacing.xl },
+  logoutText: { ...typography.bodyBold, color: colors.dangerText },
+  version: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.xl,
+  },
 });

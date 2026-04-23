@@ -42,7 +42,15 @@ export default function Gallery() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Text style={styles.title}>Your Gallery</Text>
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.sectionLabel}>Archive</Text>
+          <Text style={styles.title}>Your Gallery</Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{flat.length}</Text>
+        </View>
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
         <FilterChip label="All" active={!filter} onPress={() => setFilter(null)} />
         {CATEGORIES.map((c) => (
@@ -60,8 +68,11 @@ export default function Gallery() {
       >
         {flat.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>✨</Text>
-            <Text style={styles.emptyText}>No generations yet — try your first What If!</Text>
+            <View style={styles.emptyIconTile}>
+              <Text style={styles.emptyIcon}>✦</Text>
+            </View>
+            <Text style={styles.emptyTitle}>Nothing here yet</Text>
+            <Text style={styles.emptyText}>Your generated transformations will appear here.</Text>
           </View>
         ) : (
           <View style={styles.gridInner}>
@@ -91,7 +102,29 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  title: { ...typography.h1, color: colors.textPrimary, padding: spacing.xl },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  sectionLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    marginBottom: spacing.xs,
+  },
+  title: { ...typography.h1, color: colors.textPrimary },
+  countBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+  },
+  countText: { ...typography.label, color: colors.accentText, fontSize: 11 },
   filters: { paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md },
   chip: {
     paddingHorizontal: spacing.md,
@@ -101,14 +134,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { ...typography.caption, color: colors.textSecondary },
-  chipTextActive: { color: colors.textPrimary, fontWeight: '700' },
+  chipActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+  },
+  chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  chipTextActive: { color: colors.accentText, fontWeight: '700' },
   grid: { padding: spacing.md, paddingBottom: spacing.xxxl },
   gridInner: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  thumb: { width: '32.8%', aspectRatio: 1, borderRadius: radii.sm, overflow: 'hidden', backgroundColor: colors.bgCard },
+  thumb: {
+    width: '32.8%',
+    aspectRatio: 1,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   thumbImage: { width: '100%', height: '100%' },
   empty: { alignItems: 'center', padding: spacing.xxxl, gap: spacing.md },
-  emptyEmoji: { fontSize: 56 },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  emptyIconTile: {
+    width: 64,
+    height: 64,
+    borderRadius: radii.xl,
+    backgroundColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+  },
+  emptyIcon: { fontSize: 28, color: colors.accentText, fontWeight: '900' },
+  emptyTitle: { ...typography.h3, color: colors.textPrimary },
+  emptyText: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
 });

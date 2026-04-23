@@ -67,7 +67,6 @@ export default function GenerateCategoryScreen() {
     setBusy(false);
     if (res) router.replace('/generate/results');
     else {
-      // start() returns null on error after setting store.error. Surface it.
       const err = useGenerationStore.getState().error;
       if (err) show(err, 'error');
     }
@@ -87,33 +86,57 @@ export default function GenerateCategoryScreen() {
         <Pressable onPress={() => router.back()} style={styles.back}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-        <Text style={styles.title}>
-          {category.emoji} {category.label}
-        </Text>
+        <View style={styles.headerTitle}>
+          <Text style={styles.headerLabel}>Category</Text>
+          <Text style={styles.title}>
+            {category.emoji} {category.label}
+          </Text>
+        </View>
         <View style={{ width: 40 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
-        {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.preview} /> : null}
+        {selectedPhotoUri ? (
+          <View style={styles.previewWrap}>
+            <Image source={{ uri: selectedPhotoUri }} style={styles.preview} />
+          </View>
+        ) : null}
 
         <View style={styles.row}>
-          <Text style={styles.section}>Pick variations</Text>
-          <Pressable onPress={toggleAll}>
-            <Text style={styles.allLink}>{allSelected ? 'Clear' : 'Select all'}</Text>
+          <View>
+            <Text style={styles.sectionLabel}>Variations</Text>
+            <Text style={styles.section}>Pick your transformations</Text>
+          </View>
+          <Pressable onPress={toggleAll} style={styles.allBtn}>
+            <Text style={styles.allLink}>{allSelected ? 'Clear' : 'All'}</Text>
           </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+
+        {/* FRAME pill chips — accent-muted (violet-600/15) bg with
+            violet-300 text when selected; surface-800 + border-subtle
+            when idle. Using a wrapping grid rather than a single-line
+            horizontal scroll so every option is visible at a glance. */}
+        <View style={styles.chipRow}>
           {category.subcategories.map((s) => {
             const active = selected.has(s.id);
             return (
-              <Pressable key={s.id} onPress={() => toggle(s.id)} style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{s.label}</Text>
+              <Pressable
+                key={s.id}
+                onPress={() => toggle(s.id)}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {s.label}
+                </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
-        <View style={{ height: spacing.xl }} />
-        <Button label={`Generate ${selected.size > 0 ? `(${selected.size})` : ''}`} onPress={handleGenerate} />
+        <View style={{ height: spacing.lg }} />
+        <Button
+          label={`Generate ${selected.size > 0 ? `· ${selected.size}` : ''}`}
+          onPress={handleGenerate}
+        />
         {!isPro ? (
           <Text style={styles.hint}>Counts as 1 free generation regardless of count.</Text>
         ) : null}
@@ -131,23 +154,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { alignItems: 'center' },
+  headerLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    fontSize: 10,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   backText: { color: colors.textPrimary, fontSize: 26 },
-  title: { ...typography.h2, color: colors.textPrimary },
+  title: { ...typography.h3, color: colors.textPrimary },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
-  preview: {
+  previewWrap: {
     width: '100%',
     maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
-    aspectRatio: 1,
-    borderRadius: radii.lg,
+    borderRadius: radii.xxl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.bgCard,
   },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  preview: {
+    width: '100%',
+    aspectRatio: 1,
+  },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  sectionLabel: {
+    ...typography.label,
+    color: colors.textLabel,
+    marginBottom: spacing.xs,
+  },
   section: { ...typography.h3, color: colors.textPrimary },
-  allLink: { ...typography.caption, color: colors.accent, fontWeight: '700' },
-  chipRow: { gap: spacing.sm },
+  allBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+  },
+  allLink: { ...typography.label, color: colors.textSecondary, fontSize: 10 },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -156,8 +210,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { ...typography.caption, color: colors.textSecondary },
-  chipTextActive: { color: colors.textPrimary, fontWeight: '700' },
-  hint: { ...typography.tiny, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm },
+  chipActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+  },
+  chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  chipTextActive: { color: colors.accentText, fontWeight: '700' },
+  hint: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
 });

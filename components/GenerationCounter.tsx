@@ -1,23 +1,23 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useGeneration } from '@/hooks/useGeneration';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { config } from '@/constants/config';
 
+/**
+ * FRAME label-tag — a compact pill rendered in violet-600/15 with
+ * violet-300 text. PRO users see the accent-tinted tag; free users see
+ * the same tag shape in a neutral surface-800 tone so it still fits the
+ * top bar without shouting for attention.
+ */
 export function GenerationCounter() {
   const { remaining, isPro } = useGeneration();
 
   if (isPro) {
     return (
-      <LinearGradient
-        colors={[colors.gradientStart, colors.gradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.proBadge}
-      >
+      <View style={styles.proBadge}>
         <Text style={styles.proText}>PRO ✦</Text>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -25,7 +25,7 @@ export function GenerationCounter() {
   return (
     <View style={styles.badge}>
       <Text style={styles.text}>
-        {used}/{config.freeGenerationCap} free
+        {used}/{config.freeGenerationCap} FREE
       </Text>
     </View>
   );
@@ -34,13 +34,29 @@ export function GenerationCounter() {
 const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs + 1,
     borderRadius: radii.pill,
     backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  text: { ...typography.tiny, color: colors.textPrimary },
-  proBadge: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radii.pill },
-  proText: { ...typography.tiny, color: colors.textPrimary, letterSpacing: 2 },
+  text: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+  proBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 1,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+  },
+  proText: {
+    ...typography.label,
+    color: colors.accentText,
+    fontSize: 10,
+    letterSpacing: 1.5,
+  },
 });

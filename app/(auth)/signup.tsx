@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { signUpWithEmail } from '@/lib/auth';
-import { colors, radii, spacing, typography } from '@/constants/theme';
+import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 export default function Signup() {
   const { show } = useToast();
@@ -28,38 +28,56 @@ export default function Signup() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.logo}>Create account</Text>
-        <Text style={styles.tagline}>Join the multiverse.</Text>
+        <View style={styles.brand}>
+          <Text style={styles.logo}>
+            What<Text style={styles.logoAccent}>If</Text>
+          </Text>
+          <Text style={styles.tagline}>Join the multiverse.</Text>
+        </View>
 
-        <View style={styles.form}>
-          <TextInput
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-          />
-          <TextInput
-            placeholder="Password"
-            placeholderTextColor={colors.textMuted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            style={styles.input}
-          />
-          <TextInput
-            placeholder="Confirm password"
-            placeholderTextColor={colors.textMuted}
-            value={confirm}
-            onChangeText={setConfirm}
-            secureTextEntry
-            style={styles.input}
-          />
-          <Button label="Sign up" onPress={handleSubmit} loading={loading} />
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>Create account</Text>
+          <Text style={styles.cardTitle}>Get started</Text>
+
+          <View style={styles.form}>
+            <View>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                placeholder="you@example.com"
+                placeholderTextColor={colors.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+              />
+            </View>
+            <View>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                placeholder="At least 6 characters"
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
+            <View>
+              <Text style={styles.inputLabel}>Confirm password</Text>
+              <TextInput
+                placeholder="••••••••"
+                placeholderTextColor={colors.textMuted}
+                value={confirm}
+                onChangeText={setConfirm}
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
+            <Button label="Sign up" onPress={handleSubmit} loading={loading} />
+          </View>
         </View>
 
         <Text style={styles.fine}>
@@ -82,17 +100,42 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: spacing.xl,
-    paddingTop: spacing.xxxl * 2,
+    paddingTop: spacing.xxxl * 1.5,
     gap: spacing.xl,
     backgroundColor: colors.bg,
   },
-  logo: { ...typography.display, color: colors.textPrimary, textAlign: 'center' },
+  brand: { alignItems: 'center', gap: spacing.sm },
+  logo: {
+    fontFamily: fontFamily.mono,
+    fontSize: 40,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    letterSpacing: -1.5,
+  },
+  logoAccent: { color: colors.accent },
   tagline: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-  form: { gap: spacing.md, marginTop: spacing.xl },
-  input: {
+  card: {
     backgroundColor: colors.bgCard,
-    borderRadius: radii.md,
-    padding: spacing.md,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
+  sectionLabel: { ...typography.label, color: colors.textLabel },
+  cardTitle: { ...typography.h2, color: colors.textPrimary },
+  form: { gap: spacing.md },
+  inputLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: colors.bgInput,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     color: colors.textPrimary,
     borderWidth: 1,
     borderColor: colors.border,

@@ -8,6 +8,9 @@ interface ResultCardProps {
   onPress: () => void;
 }
 
+// FRAME result thumbnail — rounded-xl card on surface-800 with a subtle
+// border. Label rides along the bottom in a gradient-less dark bar so
+// the image itself keeps the visual weight.
 export function ResultCard({ imageURL, label, onPress }: ResultCardProps) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
@@ -22,8 +25,16 @@ export function ResultCard({ imageURL, label, onPress }: ResultCardProps) {
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, aspectRatio: 1, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.bgCard },
-  pressed: { opacity: 0.9 },
+  card: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   image: { width: '100%', height: '100%' },
   overlay: {
     position: 'absolute',
@@ -31,7 +42,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(9,9,13,0.85)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   label: { ...typography.caption, color: colors.textPrimary, fontWeight: '700' },
 });
