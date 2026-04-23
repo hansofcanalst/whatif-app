@@ -87,7 +87,18 @@ export default function Gallery() {
           <Text style={styles.countText}>{flat.length}</Text>
         </View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      {/* Horizontal filter bar. `style={styles.filterBar}` pins the outer
+          box to its natural height — without flexGrow:0 the ScrollView
+          stretches vertically on web (React Native Web's default) and
+          the chips get pulled with it. `alignItems: 'center'` on the
+          content container is belt-and-braces: even if the outer box
+          ever grows, the chips themselves won't. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterBar}
+        contentContainerStyle={styles.filters}
+      >
         <FilterChip label="All" active={!filter} onPress={() => setFilter(null)} />
         {CATEGORIES.map((c) => (
           <FilterChip
@@ -161,7 +172,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(124, 58, 237, 0.3)',
   },
   countText: { ...typography.label, color: colors.accentText, fontSize: 11 },
-  filters: { paddingHorizontal: spacing.xl, gap: spacing.sm, paddingBottom: spacing.md },
+  // Outer box for the horizontal filter ScrollView. `flexGrow: 0` +
+  // `flexShrink: 0` prevents RNW from stretching it to fill the flex
+  // column; `alignSelf: 'stretch'` lets it span the full page width so
+  // it can scroll horizontally when the chip row overflows. Height is
+  // natural — determined by the chip padding inside.
+  filterBar: { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch' },
+  filters: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+    alignItems: 'center',
+  },
   chip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
