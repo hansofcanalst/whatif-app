@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
@@ -18,6 +18,8 @@ export default function Home() {
   const router = useRouter();
   const { show } = useToast();
   const {
+    selectedPhotoUri,
+    selectedPhotoBase64,
     setPhoto,
     detectionStatus,
     detectedPeople,
@@ -28,8 +30,35 @@ export default function Home() {
     setAllPersonSelection,
   } = useGenerationStore();
   const { isActive: isPro } = useSubscriptionStore();
-  const [image, setImage] = useState<PickedImage | null>(null);
   const [paywall, setPaywall] = useState(false);
+
+  // Derive `image` from the store rather than holding it in local useState.
+  //
+  // Why: Home unmounts when the user navigates into /generate/[id] and the
+  // result screen, but the store retains the photo + detectedPeople. When
+  // the user navigates back and Home remounts, local state resets to null
+  // while the store still says detectionStatus === 'ready' with detectedPeople
+  // in it. The old `image!.uri` inside the PeopleSelector JSX then threw
+  // "Cannot read properties of null (reading 'uri')" because showSelector
+  // evaluated true but `image` was null.
+  //
+  // Making `image` a derived view over the store means: (a) remounts show
+  // the correct UI immediately, and (b) there's one source of truth for
+  // "what photo are we working with" — no more sync drift between local
+  // state and store state.
+  //
+  // width/height are 0 here because the store doesn't persist them and
+  // nothing downstream of Home actually reads them (PhotoUploader only
+  // reads .uri; runDetection only reads .base64). Keeping PickedImage's
+  // shape lets the existing props on PhotoUploader / runDetection keep
+  // their types without widening them.
+  const image = useMemo<PickedImage | null>(
+    () =>
+      selectedPhotoUri && selectedPhotoBase64
+        ? { uri: selectedPhotoUri, base64: selectedPhotoBase64, width: 0, height: 0 }
+        : null,
+    [selectedPhotoUri, selectedPhotoBase64],
+  );
 
   // Run detection against the in-memory base64. Exported as a callback so
   // the "Try again" button on the failure state can re-run it without
@@ -67,14 +96,25 @@ export default function Home() {
   // which runs the previous effect's cleanup (cancelled = true) before the
   // fetch resolves, so the success handler bails out and the UI sticks on
   // "Detecting people…" forever.
+  //
+  // On remount (e.g. user navigated back from /result), the store may already
+  // hold a completed or in-flight detection for this exact photo. Running
+  // detection again in that case would burn a redundant Gemini call and
+  // flash the "Detecting people…" spinner over a result we already have.
+  // Read status from the store imperatively (getState, not a subscription)
+  // so it doesn't get added to the deps and re-introduce the race above.
   useEffect(() => {
     if (!image) return;
+    const status = useGenerationStore.getState().detectionStatus;
+    if (status === 'ready' || status === 'detecting') return;
     const cancel = runDetection(image);
     return cancel;
   }, [image, runDetection]);
 
   const handlePicked = (img: PickedImage | null) => {
-    setImage(img);
+    // Store is the single source of truth now; setPhoto also resets
+    // detectionStatus/detectedPeople when the uri actually changes (see
+    // generationStore.setPhoto).
     setPhoto(img?.uri ?? null, img?.base64 ?? null);
   };
 
@@ -104,7 +144,12 @@ export default function Home() {
     router.push(`/generate/${category.id}`);
   };
 
-  const showSelector = detectionStatus === 'ready' && detectedPeople.length > 1;
+  // Gate on `image` too, not just detection state. With `image` now derived
+  // from the store this is technically redundant (setPhoto(null) clears
+  // detectionStatus), but keeping it makes the JSX below type-narrow cleanly
+  // — `image.uri` inside the conditional no longer needs a non-null assertion.
+  const showSelector =
+    !!image && detectionStatus === 'ready' && detectedPeople.length > 1;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -156,14 +201,14 @@ export default function Home() {
           </Text>
         ) : null}
 
-        {showSelector ? (
+        {showSelector && image ? (
           <View style={styles.selectorWrap}>
             <Text style={styles.sectionLabel}>
               People · {detectedPeople.length} detected
             </Text>
             <Text style={styles.selectorTitle}>Pick who to transform</Text>
             <PeopleSelector
-              imageUri={image!.uri}
+              imageUri={image.uri}
               people={detectedPeople}
               selectedIds={selectedPersonIds}
               onToggle={togglePersonSelected}
