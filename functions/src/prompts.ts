@@ -26,8 +26,12 @@ export const PROMPTS: CategoryPromptMap = {
       prompt: `${BASE} Transform the person to appear of White/European descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
     },
     latino: {
+      // See lib/prompts.ts for the rationale — Latino/Hispanic is
+      // phenotypically ambiguous vs. Southeast Asian sources, so the
+      // old generic wording came back under-edited. Keep this in sync
+      // with lib/prompts.ts.
       label: 'Latino',
-      prompt: `${BASE} Transform the person to appear of Latino/Hispanic descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Latino/Hispanic descent — think mestizo Latin American heritage such as Mexican, Colombian, or Peruvian. Shift their features in a direction that is distinctly Latino rather than East/Southeast Asian, Black, or White: warm olive-to-tan skin, dark brown or black hair that often has a wave or slight curl, dark brown eyes, and a mestizo facial bone structure (rounder or slightly broader face, defined cheekbones, warm undertones). The change must be strong enough that a viewer looking only at the edited image would identify the person as Latino without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     'middle-eastern': {
       label: 'Middle Eastern',

@@ -33,8 +33,22 @@ export const PROMPTS: CategoryPromptMap = {
       prompt: `${BASE} Transform the person to appear of White/European descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
     },
     latino: {
+      // Latino/Hispanic is phenotypically ambiguous in a way the other
+      // race-swap targets are not — it overlaps with Southeast Asian
+      // (tan skin, dark hair, dark eyes) and with Mediterranean
+      // European. Generic wording like "warm tan skin, dark hair" — the
+      // shape earlier versions of this prompt produced — is already
+      // true of many source photos, so the image model would barely
+      // edit and the result came back looking essentially unchanged.
+      //
+      // Fix: spell out distinctive mestizo features explicitly, tell
+      // the model to shift AWAY from whatever the source is, and gate
+      // the edit on the result being *recognizably* Latino rather than
+      // "a subtle tan". The composer uses this text as transformation
+      // intent, so the more concrete the target description, the more
+      // specific the per-person instructions it writes for Nano Banana.
       label: 'Latino',
-      prompt: `${BASE} Transform the person to appear of Latino/Hispanic descent. Adjust skin tone, facial features, hair color and texture naturally. Keep clothing, accessories, and background identical.`,
+      prompt: `${BASE} Transform the person so they appear clearly and recognizably of Latino/Hispanic descent — think mestizo Latin American heritage such as Mexican, Colombian, or Peruvian. Shift their features in a direction that is distinctly Latino rather than East/Southeast Asian, Black, or White: warm olive-to-tan skin, dark brown or black hair that often has a wave or slight curl, dark brown eyes, and a mestizo facial bone structure (rounder or slightly broader face, defined cheekbones, warm undertones). The change must be strong enough that a viewer looking only at the edited image would identify the person as Latino without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
     },
     'middle-eastern': {
       label: 'Middle Eastern',
