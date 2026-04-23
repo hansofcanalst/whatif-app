@@ -121,6 +121,10 @@ export async function POST(request: Request): Promise<Response> {
           body.selectedPeopleLabels,
           body.totalPeopleInImage,
         );
+        console.log('[api/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
+        console.log('[api/generate] subId:', subId, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
+        console.log(scopedPrompt);
+        console.log('[api/generate] ▲▲▲ END PROMPT ▲▲▲');
         const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.

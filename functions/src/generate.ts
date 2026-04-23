@@ -165,6 +165,10 @@ export const generate = functions
             body.selectedPeopleLabels,
             body.totalPeopleInImage,
           );
+          console.log('[fn/generate] ▼▼▼ PROMPT SENT TO NANO BANANA ▼▼▼');
+          console.log('[fn/generate] subId:', subId, '| total:', body.totalPeopleInImage, '| selected:', body.selectedPeopleLabels);
+          console.log(scopedPrompt);
+          console.log('[fn/generate] ▲▲▲ END PROMPT ▲▲▲');
           const resultB64 = await generateOne(body.imageBase64, scopedPrompt);
           const url = await uploadImage(uid, generationId, `result_${i}`, resultB64);
           // Store the base (unwrapped) prompt — the gallery shows the
