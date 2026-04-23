@@ -59,10 +59,31 @@ async function generateOne(imageBase64: string, prompt: string): Promise<string>
 
   const candidate = result.response.candidates?.[0];
   const parts = candidate?.content?.parts ?? [];
-
-  for (const part of parts) {
-    const inline = (part as any).inlineData;
-    if (inline?.data) return inline.data as string;
+  // Diagnostic: log what came back even on the success path. The image
+  // model sometimes silently returns the original image (or a near-copy)
+  // when it declines to make an edit — comparing byte sizes + first/last
+  // bytes catches that, which the old "throw on missing image" path
+  // couldn't.
+  const finishReasonOk = candidate?.finishReason;
+  const textOnSuccess = parts.find((p: any) => typeof p?.text === 'string')?.text;
+  const inlinePart = parts.find((p: any) => p?.inlineData?.data);
+  if (inlinePart) {
+    const outB64 = (inlinePart as any).inlineData.data as string;
+    const sameLength = outB64.length === imageBase64.length;
+    const samePrefix = outB64.slice(0, 64) === imageBase64.slice(0, 64);
+    console.log(
+      '[api/generate] ◆ Nano Banana response:',
+      JSON.stringify({
+        finishReason: finishReasonOk,
+        inBytes: imageBase64.length,
+        outBytes: outB64.length,
+        sameLength,
+        samePrefix,
+        looksEchoed: sameLength && samePrefix,
+        textAlongside: textOnSuccess ? String(textOnSuccess).slice(0, 200) : null,
+      }),
+    );
+    return outB64;
   }
 
   // No image in response — diagnose why. Common causes:
