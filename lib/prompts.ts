@@ -94,26 +94,57 @@ export function isPremiumCategory(category: string): boolean {
 }
 
 /**
- * Wraps a base subcategory prompt with a "transform only these people" scope
- * when the user has selected a subset. Nano Banana has no mask/region API, so
- * we steer it with descriptive labels from the detection step.
+ * Wraps a base subcategory prompt with multi-person scoping when the image
+ * has more than one subject. Nano Banana has no mask/region API, so we steer
+ * it with descriptive labels from the detection step.
  *
- * If `selectedLabels` is empty or undefined, returns the prompt unchanged
- * (whole-image transformation, original behavior).
+ * Three cases:
+ *  1. 0 or 1 people → return the base prompt unchanged. The singular "the
+ *     person" phrasing is correct.
+ *  2. 2+ people, user picked a subset → scope to ONLY those people and
+ *     instruct the model to leave the others untouched.
+ *  3. 2+ people, all selected → scope to ALL N people. This is the case
+ *     that used to bail out to the base prompt, which misfired: the base
+ *     prompt says "the person" (singular), so the model transformed only
+ *     the most prominent subject and left everyone else alone. Now we
+ *     explicitly tell the model there are N people and all of them must
+ *     receive the transformation.
+ *
+ * If the caller can't supply `totalPeopleInImage` (detection failed / not
+ * run), we fall back to the subset-scoping path whenever labels are
+ * present — that's safe because the subset text also lists the people
+ * explicitly.
  */
 export function buildScopedPrompt(
   basePrompt: string,
   selectedLabels: string[] | undefined,
   totalPeopleInImage: number | undefined,
 ): string {
-  if (!selectedLabels || selectedLabels.length === 0) return basePrompt;
-  // If "all" people are selected there's no scoping to do.
-  if (totalPeopleInImage != null && selectedLabels.length >= totalPeopleInImage) {
-    return basePrompt;
+  const total = totalPeopleInImage ?? selectedLabels?.length ?? 0;
+
+  // Case 1 — solo subject (or detection didn't find anyone). Original
+  // behavior: the singular base prompt is correct.
+  if (total <= 1) return basePrompt;
+
+  const hasSelection = selectedLabels && selectedLabels.length > 0;
+
+  // Case 3 — 2+ people, all selected (or no explicit selection but we know
+  // the count). Tell the model: transform every one of the N people.
+  const allSelected =
+    !hasSelection ||
+    (totalPeopleInImage != null && selectedLabels!.length >= totalPeopleInImage);
+  if (allSelected) {
+    const scope =
+      `This image contains ${total} people. Apply the transformation to EVERY SINGLE ONE of the ${total} people in the image — not just the most prominent subject, not just the person in the foreground. All ${total} individuals must be transformed.\n\n` +
+      `Preserve the full original background, composition, poses, expressions, clothing, and positions. Only the specified transformation should change; every other visual element must remain identical.\n\n` +
+      `Transformation to apply to all ${total} people:\n`;
+    return `${scope}${basePrompt}`;
   }
-  const list = selectedLabels.map((l) => `- ${l}`).join('\n');
+
+  // Case 2 — 2+ people, subset selected. Scope to only the listed people.
+  const list = selectedLabels!.map((l) => `- ${l}`).join('\n');
   const scope =
-    `This image contains multiple people. Apply the transformation ONLY to the following person or people:\n${list}\n\n` +
+    `This image contains ${total} people. Apply the transformation ONLY to the following person or people:\n${list}\n\n` +
     `CRITICAL: Every other person in the image must be left COMPLETELY UNCHANGED — identical face, skin tone, hair, expression, clothing, pose, and position. Do not edit, retouch, or alter anyone not in the list above. Preserve the full original background and composition.\n\n` +
     `Transformation to apply to the listed person/people only:\n`;
   return `${scope}${basePrompt}`;

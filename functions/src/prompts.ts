@@ -87,18 +87,35 @@ export function isPremiumCategory(category: string): boolean {
 }
 
 // Keep in sync with lib/prompts.ts.
+// Kept in sync with lib/prompts.ts — see that file for rationale.
+//
+// 0/1 person → unchanged; 2+ and subset selected → scope to listed people;
+// 2+ and all selected → explicit "transform all N" scope (fixes a bug
+// where the base prompt's singular "the person" made Nano Banana edit
+// only the most prominent subject).
 export function buildScopedPrompt(
   basePrompt: string,
   selectedLabels: string[] | undefined,
   totalPeopleInImage: number | undefined,
 ): string {
-  if (!selectedLabels || selectedLabels.length === 0) return basePrompt;
-  if (totalPeopleInImage != null && selectedLabels.length >= totalPeopleInImage) {
-    return basePrompt;
+  const total = totalPeopleInImage ?? selectedLabels?.length ?? 0;
+  if (total <= 1) return basePrompt;
+
+  const hasSelection = selectedLabels && selectedLabels.length > 0;
+  const allSelected =
+    !hasSelection ||
+    (totalPeopleInImage != null && selectedLabels!.length >= totalPeopleInImage);
+  if (allSelected) {
+    const scope =
+      `This image contains ${total} people. Apply the transformation to EVERY SINGLE ONE of the ${total} people in the image — not just the most prominent subject, not just the person in the foreground. All ${total} individuals must be transformed.\n\n` +
+      `Preserve the full original background, composition, poses, expressions, clothing, and positions. Only the specified transformation should change; every other visual element must remain identical.\n\n` +
+      `Transformation to apply to all ${total} people:\n`;
+    return `${scope}${basePrompt}`;
   }
-  const list = selectedLabels.map((l) => `- ${l}`).join('\n');
+
+  const list = selectedLabels!.map((l) => `- ${l}`).join('\n');
   const scope =
-    `This image contains multiple people. Apply the transformation ONLY to the following person or people:\n${list}\n\n` +
+    `This image contains ${total} people. Apply the transformation ONLY to the following person or people:\n${list}\n\n` +
     `CRITICAL: Every other person in the image must be left COMPLETELY UNCHANGED — identical face, skin tone, hair, expression, clothing, pose, and position. Do not edit, retouch, or alter anyone not in the list above. Preserve the full original background and composition.\n\n` +
     `Transformation to apply to the listed person/people only:\n`;
   return `${scope}${basePrompt}`;
