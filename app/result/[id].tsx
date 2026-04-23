@@ -6,6 +6,7 @@ import { ShareSheet } from '@/components/ShareSheet';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGenerationStore } from '@/stores/generationStore';
 import { getGeneration, GenerationDoc } from '@/lib/firestore';
+import { getLocalGeneration } from '@/lib/localGallery';
 import { getCategory } from '@/constants/categories';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
@@ -18,16 +19,35 @@ export default function ResultScreen() {
 
   useEffect(() => {
     if (!id) return;
+    // If the Zustand in-memory results already match the URL id, skip the
+    // lookup — we already have everything we need from the just-completed
+    // generation. This is the hot path after clicking a ResultsGrid tile.
     if (id === currentGenerationId && currentResults.length > 0) {
       return;
     }
     (async () => {
-      const d = await getGeneration(id);
-      if (d) setDoc(d);
+      // Try Firestore first for production-synced entries, then fall back
+      // to the local AsyncStorage gallery. Dev-only `dev_...` ids will
+      // never exist in Firestore, so without this fallback clicking a
+      // dev-generated thumbnail in the gallery would spin forever on the
+      // LoadingSpinner below.
+      const remote = await getGeneration(id);
+      if (remote) {
+        setDoc(remote);
+        return;
+      }
+      const local = await getLocalGeneration(id);
+      if (local) setDoc(local);
     })();
   }, [id, currentGenerationId, currentResults.length]);
 
   const results = doc?.results ?? currentResults;
+  // Prefer the doc's originalImageURL (always a self-contained data URI
+  // for local entries, https URL for Firestore entries) over the store's
+  // selectedPhotoUri, which only reflects whatever photo the user most
+  // recently picked — not necessarily the one this result was generated
+  // from. Without the preference, navigating from Gallery to an old
+  // result would show the current home-screen photo as "before".
   const original = doc?.originalImageURL ?? useGenerationStore.getState().selectedPhotoUri;
   const categoryId = doc?.categoryId ?? useGenerationStore.getState().currentCategoryId ?? '';
   const current = results[idxNum];

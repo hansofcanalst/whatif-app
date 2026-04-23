@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { GenerationDoc, GenerationResult } from '@/lib/firestore';
 import type { DetectedPerson } from '@/lib/detect';
+import {
+  appendLocalGeneration,
+  listLocalGallery,
+  type AppendLocalGenerationArgs,
+  type LocalGenerationDoc,
+} from '@/lib/localGallery';
 
 type DetectionStatus = 'idle' | 'detecting' | 'ready' | 'failed';
 
@@ -26,6 +32,14 @@ interface GenerationState {
   error: string | null;
   history: GenerationDoc[];
 
+  // AsyncStorage-backed gallery for dev (where the local /api/generate
+  // route skips Firestore writes) and as a resilient fallback for
+  // production. Hydrated once at app startup via `hydrateLocalGallery`
+  // and kept in sync via `appendLocalGeneration`. Gallery + Result
+  // screens read from this in addition to Firestore and dedupe by id.
+  localGallery: LocalGenerationDoc[];
+  localGalleryHydrated: boolean;
+
   setPhoto: (uri: string | null, base64?: string | null) => void;
   clearPhoto: () => void;
 
@@ -39,6 +53,10 @@ interface GenerationState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setHistory: (history: GenerationDoc[]) => void;
+
+  hydrateLocalGallery: () => Promise<void>;
+  appendLocalGeneration: (args: AppendLocalGenerationArgs) => Promise<void>;
+
   reset: () => void;
 }
 
@@ -56,6 +74,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   loading: false,
   error: null,
   history: [],
+
+  localGallery: [],
+  localGalleryHydrated: false,
 
   setPhoto: (uri, base64) => {
     // If the same photo is being re-set (a common pattern across screen
@@ -112,6 +133,31 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setHistory: (history) => set({ history }),
+
+  // One-shot hydration called at app startup. Safe to call multiple times;
+  // re-hydration is a read-only AsyncStorage op and does not clobber any
+  // in-memory entries because we replace wholesale with the canonical
+  // persisted list.
+  hydrateLocalGallery: async () => {
+    try {
+      const docs = await listLocalGallery();
+      set({ localGallery: docs, localGalleryHydrated: true });
+    } catch (e) {
+      console.warn('[generationStore] hydrateLocalGallery failed', e);
+      // Mark hydrated anyway so the UI doesn't stall on first paint.
+      set({ localGalleryHydrated: true });
+    }
+  },
+
+  // Single write path: persist to AsyncStorage, then mirror the returned
+  // trimmed list back into the store so subscribers re-render with the
+  // new entry at the top. Callers should await this so the UI is
+  // consistent by the time they navigate to the gallery.
+  appendLocalGeneration: async (args) => {
+    const next = await appendLocalGeneration(args);
+    set({ localGallery: next, localGalleryHydrated: true });
+  },
+
   reset: () =>
     set({
       selectedPhotoUri: null,

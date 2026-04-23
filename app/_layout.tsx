@@ -6,6 +6,7 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { ToastProvider } from '@/components/ui/Toast';
+import { useGenerationStore } from '@/stores/generationStore';
 import { colors, spacing, typography } from '@/constants/theme';
 import { assertFirebaseConfigured } from '@/constants/config';
 
@@ -14,6 +15,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useSubscription();
   const segments = useSegments();
   const router = useRouter();
+  const hydrateLocalGallery = useGenerationStore((s) => s.hydrateLocalGallery);
+
+  // Hydrate the AsyncStorage-backed gallery once per app launch. Runs
+  // independent of auth state because the local gallery exists even for
+  // signed-out dev sessions (the local /api/generate route doesn't
+  // require auth). We deliberately don't gate this on `loading` — the
+  // hydration is non-blocking and we want the Gallery tab to show
+  // persisted entries the instant the user opens it.
+  useEffect(() => {
+    hydrateLocalGallery();
+  }, [hydrateLocalGallery]);
 
   useEffect(() => {
     if (loading) return;

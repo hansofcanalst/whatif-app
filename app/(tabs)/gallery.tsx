@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, Pressable, Image, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
+import { useGenerationStore } from '@/stores/generationStore';
 import { listGenerations } from '@/lib/firestore';
 import type { GenerationDoc } from '@/lib/firestore';
 import { CATEGORIES } from '@/constants/categories';
@@ -10,19 +11,30 @@ import { colors, radii, spacing, typography } from '@/constants/theme';
 export default function Gallery() {
   const { user } = useAuthStore();
   const router = useRouter();
-  const [docs, setDocs] = useState<GenerationDoc[]>([]);
+  // Local gallery is kept hydrated and appended-to reactively by the
+  // generation hook, so subscribing via Zustand means the tab refreshes
+  // automatically as soon as a new generation completes — no pull-to-
+  // refresh required.
+  const localGallery = useGenerationStore((s) => s.localGallery);
+  const hydrateLocalGallery = useGenerationStore((s) => s.hydrateLocalGallery);
+  const [remoteDocs, setRemoteDocs] = useState<GenerationDoc[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    // Re-hydrate local gallery alongside remote refetch so pull-to-
+    // refresh can recover from a write that landed while the screen was
+    // mounted but before the in-memory slice was updated (rare — usually
+    // the store update is instantaneous — but cheap to do anyway).
+    await hydrateLocalGallery();
     if (!user) return;
     try {
       const items = await listGenerations(user.uid);
-      setDocs(items);
+      setRemoteDocs(items);
     } catch (e) {
       console.warn('gallery load failed', e);
     }
-  }, [user]);
+  }, [user, hydrateLocalGallery]);
 
   useEffect(() => {
     load();
@@ -33,6 +45,30 @@ export default function Gallery() {
     await load();
     setRefreshing(false);
   };
+
+  // Merge the two sources and dedupe by id. Remote wins on collision
+  // because its `results[].imageURL` is an https URL (smaller, cacheable)
+  // rather than an inline base64 data URI. Local entries appear first
+  // within the merged list because they're typically newer than what has
+  // been synced to Firestore, and the sort below finishes the job.
+  const docs = useMemo(() => {
+    const byId = new Map<string, GenerationDoc>();
+    for (const d of localGallery) byId.set(d.id, d);
+    for (const d of remoteDocs) byId.set(d.id, d);
+    const merged = Array.from(byId.values());
+    // Sort: anything with a Firestore Timestamp wins over locals (null
+    // createdAt); within the same bucket, newer first. Firestore's
+    // Timestamp has a numeric `seconds` field — use it directly without
+    // reaching for Timestamp.fromDate or similar, so this file stays
+    // dependency-free on the web build where firebase/firestore is a
+    // heavy import.
+    merged.sort((a, b) => {
+      const as = a.createdAt?.seconds ?? 0;
+      const bs = b.createdAt?.seconds ?? 0;
+      return bs - as;
+    });
+    return merged;
+  }, [localGallery, remoteDocs]);
 
   const visible = filter ? docs.filter((d) => d.categoryId === filter) : docs;
   const flat: Array<{ docId: string; resultIdx: number; url: string }> = [];
