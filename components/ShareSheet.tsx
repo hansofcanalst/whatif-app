@@ -25,31 +25,53 @@ function buildFilename(categoryLabel: string, subcategoryLabel: string): string 
 /**
  * Trigger a browser-native download of an image URL (or data URI) on web.
  * Works with Firebase Storage download URLs AND `data:` URIs.
+ *
+ * Returns `"download"` when we successfully triggered a same-origin download
+ * (blob URL or data URI — browser honors the `download` attribute), or
+ * `"newtab"` when we had to fall back to opening the raw URL in a new tab
+ * because fetch was blocked by CORS. The caller uses this to pick the right
+ * toast copy — claiming "Saved to Downloads" after a new-tab open would be
+ * a lie.
  */
-async function downloadOnWeb(imageURL: string, filename: string): Promise<void> {
-  // Fetch first so we can force a `download` attribute regardless of
-  // cross-origin headers. If the fetch fails (CORS), fall back to a
-  // direct anchor click — browser will at least open the image.
-  let href = imageURL;
-  let objectUrl: string | null = null;
+type DownloadOutcome = 'download' | 'newtab';
+
+async function downloadOnWeb(imageURL: string, filename: string): Promise<DownloadOutcome> {
+  // Preferred path: fetch the bytes ourselves, wrap in a blob URL, and use
+  // an anchor with `download` set. Blob URLs are same-origin to the page,
+  // so the `download` attribute is honored and the file lands in Downloads
+  // with the name we picked. This also handles `data:` URIs transparently
+  // (fetch supports them).
   try {
     const res = await fetch(imageURL);
     const blob = await res.blob();
-    objectUrl = URL.createObjectURL(blob);
-    href = objectUrl;
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+    return 'download';
   } catch {
-    // keep href = imageURL; anchor download still works for same-origin + data URIs
+    // Fetch failed — almost always CORS on Firebase Storage download URLs
+    // (the bucket doesn't send permissive CORS headers for the page's
+    // origin). Falling back to an anchor pointed at the raw URL is NOT
+    // safe: browsers ignore the `download` attribute on cross-origin
+    // hrefs, so clicking navigates the current tab to the image URL and
+    // the user loses the app (no back button in a packaged web view).
+    //
+    // Instead, open it in a NEW tab. The user can right-click → Save As
+    // from there, and their app session stays intact.
+    const win = window.open(imageURL, '_blank', 'noopener,noreferrer');
+    if (!win) {
+      // Popup blocked. Surface as an error so the caller can toast.
+      throw new Error('Pop-up blocked — allow pop-ups to save this image.');
+    }
+    return 'newtab';
   }
-
-  const a = document.createElement('a');
-  a.href = href;
-  a.download = filename;
-  a.rel = 'noopener';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
 }
 
 export function ShareSheet({ imageURL, categoryLabel, subcategoryLabel }: ShareSheetProps) {
@@ -60,8 +82,13 @@ export function ShareSheet({ imageURL, categoryLabel, subcategoryLabel }: ShareS
 
     if (Platform.OS === 'web') {
       try {
-        await downloadOnWeb(imageURL, filename);
-        show('Saved to Downloads', 'success');
+        const outcome = await downloadOnWeb(imageURL, filename);
+        show(
+          outcome === 'download'
+            ? 'Saved to Downloads'
+            : 'Opened in a new tab — right-click the image and choose Save As',
+          'success',
+        );
       } catch (e) {
         show(
           'Save failed: ' + (e instanceof Error ? e.message : 'unknown error'),
@@ -110,8 +137,13 @@ export function ShareSheet({ imageURL, categoryLabel, subcategoryLabel }: ShareS
       }
       // Fallback: just download it so the user has something to share.
       try {
-        await downloadOnWeb(imageURL, filename);
-        show('Downloaded — share from your Downloads folder', 'success');
+        const outcome = await downloadOnWeb(imageURL, filename);
+        show(
+          outcome === 'download'
+            ? 'Downloaded — share from your Downloads folder'
+            : 'Opened in a new tab — right-click the image and choose Save As',
+          'success',
+        );
       } catch (e) {
         show(
           'Share failed: ' + (e instanceof Error ? e.message : 'unknown error'),
