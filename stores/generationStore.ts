@@ -57,15 +57,26 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   error: null,
   history: [],
 
-  setPhoto: (uri, base64) =>
+  setPhoto: (uri, base64) => {
+    // If the same photo is being re-set (a common pattern across screen
+    // transitions), do NOT wipe detection state. An earlier bug routed
+    // through here and silently cleared detectedPeople between the home
+    // screen and generate screen, which made multi-person transforms
+    // collapse back to single-subject behaviour on the server.
+    const prev = get().selectedPhotoUri;
+    if (uri && prev === uri) {
+      set({ selectedPhotoBase64: base64 ?? get().selectedPhotoBase64 });
+      return;
+    }
     set({
       selectedPhotoUri: uri,
       selectedPhotoBase64: base64 ?? null,
-      // Picking a new photo invalidates any prior detection.
+      // Genuinely new photo (or cleared) invalidates prior detection.
       detectionStatus: 'idle',
       detectedPeople: [],
       selectedPersonIds: [],
-    }),
+    });
+  },
   clearPhoto: () =>
     set({
       selectedPhotoUri: null,

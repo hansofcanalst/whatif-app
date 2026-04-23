@@ -83,7 +83,12 @@ export default function Home() {
       show('Pick at least one person to transform.', 'error');
       return;
     }
-    setPhoto(image.uri, image.base64);
+    // NOTE: do NOT call setPhoto here. The photo already went into the store
+    // in handlePicked; calling setPhoto again wipes detectedPeople + selection
+    // (see generationStore.setPhoto), which then makes useGeneration send
+    // totalPeopleInImage:undefined and the server falls back to the singular
+    // BASE prompt — the root cause of "only one person transforms" in
+    // multi-person photos.
     router.push(`/generate/${category.id}`);
   };
 
