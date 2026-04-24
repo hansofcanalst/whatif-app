@@ -13,6 +13,7 @@ import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Category } from '@/constants/categories';
 import { PickedImage } from '@/hooks/useImagePicker';
 import { requestDetection } from '@/lib/detect';
+import { hashBase64, getCachedDetection, cacheDetection } from '@/lib/detectionCache';
 import { colors, fontFamily, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
@@ -84,20 +85,42 @@ export default function Home() {
   // forcing the user to re-pick the file. The cancellation token makes the
   // currently-in-flight run a no-op if a newer one starts before it
   // resolves — same guarantee as the useEffect version.
+  //
+  // Cache lookup: when the user re-picks the same photo (different tempfile
+  // uri, identical bytes — common when trying multiple categories), we
+  // short-circuit to the cached result. Skips the Gemini call *and* the
+  // "Detecting people…" spinner, which would otherwise flash over a result
+  // we already have. `force` bypasses the cache — used by the "Try again"
+  // button after a failure, so a genuinely broken detection run can be
+  // retried without getting served a cached empty/partial result.
   const runDetection = useCallback(
-    (img: PickedImage) => {
+    (img: PickedImage, force = false) => {
       let cancelled = false;
+      const hash = hashBase64(img.base64);
+      if (!force) {
+        const cached = getCachedDetection(hash);
+        if (cached) {
+          // Apply synchronously, same tick — no spinner flash.
+          setDetectedPeople(cached);
+          setDetectionStatus('ready');
+          return () => {
+            cancelled = true;
+          };
+        }
+      }
       setDetectionStatus('detecting');
       requestDetection(img.base64)
         .then((res) => {
           if (cancelled) return;
+          cacheDetection(hash, res.people);
           setDetectedPeople(res.people);
           setDetectionStatus('ready');
         })
         .catch((e) => {
           if (cancelled) return;
           // Detection failure is non-fatal — user can still generate on the
-          // full image. Log + mark failed; the UI offers a retry.
+          // full image. Log + mark failed; the UI offers a retry. We do
+          // NOT cache the failure — next attempt should go to the network.
           console.warn('[home] detection failed', e);
           setDetectedPeople([]);
           setDetectionStatus('failed');
@@ -252,7 +275,7 @@ export default function Home() {
               Couldn't detect people. Try again — this usually clears in a few seconds.
             </Text>
             <Pressable
-              onPress={() => runDetection(image)}
+              onPress={() => runDetection(image, true)}
               style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
             >
               <Text style={styles.retryButtonText}>Try again</Text>
