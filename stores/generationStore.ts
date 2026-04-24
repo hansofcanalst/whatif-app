@@ -10,6 +10,25 @@ import {
 
 type DetectionStatus = 'idle' | 'detecting' | 'ready' | 'failed';
 
+/**
+ * A single in-flight or recently-completed result tile. The streaming
+ * generate endpoint emits events that move each slot through
+ * pending → complete (or → failed). The /generate/results screen
+ * renders directly from this list while the stream is running, showing
+ * a skeleton for pending slots and the image for complete ones.
+ *
+ * Order is stable: the server preserves the caller's subcategoryIds order
+ * by emitting `{index}` matching its position in the request.
+ */
+export interface GenerationSlot {
+  index: number;
+  subcategoryId: string;
+  label: string;
+  status: 'pending' | 'complete' | 'failed';
+  result?: GenerationResult;
+  error?: string;
+}
+
 interface GenerationState {
   selectedPhotoUri: string | null;
   // Base64 body of the selected photo (no data: prefix). Kept in-memory only,
@@ -32,6 +51,15 @@ interface GenerationState {
   error: string | null;
   history: GenerationDoc[];
 
+  // Progressive generation state. `generationSlots` drives the
+  // /generate/results screen while a stream is in flight; each slot moves
+  // pending → complete|failed as the server emits per-result events.
+  // `generationInFlight` lets the UI distinguish "still streaming" from
+  // "stream completed (with possible failures)" — a user-facing retry
+  // affordance should only appear on the latter.
+  generationSlots: GenerationSlot[];
+  generationInFlight: boolean;
+
   // AsyncStorage-backed gallery for dev (where the local /api/generate
   // route skips Firestore writes) and as a resilient fallback for
   // production. Hydrated once at app startup via `hydrateLocalGallery`
@@ -53,6 +81,18 @@ interface GenerationState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setHistory: (history: GenerationDoc[]) => void;
+
+  // Slot streaming actions. initSlots is called when the user kicks off
+  // a generation (synchronously — so the UI can navigate to /results
+  // and immediately show skeletons). resolveSlot / failSlot are called
+  // by the stream consumer as events arrive. finishStream flips the
+  // in-flight flag off; clearSlots wipes the list when the user starts
+  // a new run or navigates away.
+  initSlots: (slots: GenerationSlot[]) => void;
+  resolveSlot: (index: number, result: GenerationResult) => void;
+  failSlot: (index: number, error: string) => void;
+  finishStream: () => void;
+  clearSlots: () => void;
 
   hydrateLocalGallery: () => Promise<void>;
   appendLocalGeneration: (args: AppendLocalGenerationArgs) => Promise<void>;
@@ -77,6 +117,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   localGallery: [],
   localGalleryHydrated: false,
+
+  generationSlots: [],
+  generationInFlight: false,
 
   setPhoto: (uri, base64) => {
     // If the same photo is being re-set (a common pattern across screen
@@ -134,6 +177,27 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   setError: (error) => set({ error }),
   setHistory: (history) => set({ history }),
 
+  initSlots: (generationSlots) =>
+    set({ generationSlots, generationInFlight: true, currentResults: [] }),
+  resolveSlot: (index, result) => {
+    const { generationSlots } = get();
+    set({
+      generationSlots: generationSlots.map((s) =>
+        s.index === index ? { ...s, status: 'complete' as const, result, error: undefined } : s,
+      ),
+    });
+  },
+  failSlot: (index, error) => {
+    const { generationSlots } = get();
+    set({
+      generationSlots: generationSlots.map((s) =>
+        s.index === index ? { ...s, status: 'failed' as const, error } : s,
+      ),
+    });
+  },
+  finishStream: () => set({ generationInFlight: false }),
+  clearSlots: () => set({ generationSlots: [], generationInFlight: false }),
+
   // One-shot hydration called at app startup. Safe to call multiple times;
   // re-hydration is a read-only AsyncStorage op and does not clobber any
   // in-memory entries because we replace wholesale with the canonical
@@ -170,5 +234,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       currentGenerationId: null,
       loading: false,
       error: null,
+      generationSlots: [],
+      generationInFlight: false,
     }),
 }));

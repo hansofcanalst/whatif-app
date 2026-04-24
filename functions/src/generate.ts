@@ -88,19 +88,51 @@ async function checkQuotaAndCategory(uid: string, category: string): Promise<voi
   }
 }
 
+// Retry transient Google failures (429 rate-limit, 5xx, brief network
+// blips) with bounded exponential backoff. Matches the policy in the local
+// /api/generate route, /api/detect, and lib/composePrompt.ts — every
+// Gemini call in the pipeline retries the same way. Non-retryable
+// failures (prompt blocks, "no image" responses) throw on the first
+// attempt so we don't waste a full retry budget on errors that won't
+// self-resolve.
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_GENERATE_ATTEMPTS = 3;
+
 async function generateOne(imageBase64: string, prompt: string): Promise<string> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
-  const result = await model.generateContent([
-    { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-    { text: prompt },
-  ]);
-  const parts = result.response.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
-    const inline = (part as any).inlineData;
-    if (inline?.data) return inline.data as string;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_GENERATE_ATTEMPTS; attempt++) {
+    try {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+        { text: prompt },
+      ]);
+      const parts = result.response.candidates?.[0]?.content?.parts ?? [];
+      for (const part of parts) {
+        const inline = (part as any).inlineData;
+        if (inline?.data) {
+          if (attempt > 1) console.log(`[fn/generate] image-gen succeeded on attempt ${attempt}`);
+          return inline.data as string;
+        }
+      }
+      // "No image" is not a transient/retryable condition — the model
+      // responded with text or nothing, which means it declined the edit.
+      // Surface that immediately rather than burning retries.
+      throw new Error('Model returned no image.');
+    } catch (err) {
+      lastErr = err;
+      const status = (err as { status?: number })?.status;
+      const retryable = status != null && RETRYABLE_STATUSES.has(status);
+      if (!retryable || attempt === MAX_GENERATE_ATTEMPTS) throw err;
+      const delay = 500 * attempt + Math.floor(Math.random() * 250);
+      console.warn(
+        `[fn/generate] image-gen attempt ${attempt} failed (${status}); retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
-  throw new Error('Model returned no image.');
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 async function uploadImage(
@@ -209,11 +241,46 @@ export const generate = functions
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
+      // From this point on we stream NDJSON to the client instead of
+      // buffering a single JSON response. The client (lib/gemini.ts
+      // streamGeneration) renders each result tile as its `result` event
+      // lands — mirrors the local /api/generate route so the UX is
+      // identical in both environments.
+      //
+      // flushHeaders is important on Firebase HTTPS: without it, Gen1
+      // buffers the entire body before flushing, which defeats the
+      // streaming UX. Setting no-transform also prevents any intermediary
+      // compression layer from holding the response until end.
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.status(200);
+      if (typeof (res as any).flushHeaders === 'function') {
+        (res as any).flushHeaders();
+      }
+      const sendEvent = (obj: unknown) =>
+        new Promise<void>((resolve) => {
+          // res.write in Express returns a bool signaling backpressure.
+          // We don't bother awaiting the 'drain' event here because event
+          // payloads are small (< 2MB signed URLs) and few (≤6 per run).
+          res.write(JSON.stringify(obj) + '\n', () => resolve());
+        });
+
+      await sendEvent({ type: 'start', generationId, total: body.subcategoryIds.length });
+
       const results: Array<{ imageURL: string; prompt: string; label: string; subcategoryId: string }> = [];
+      let completedCount = 0;
+      let failedCount = 0;
       for (let i = 0; i < body.subcategoryIds.length; i++) {
         const subId = body.subcategoryIds[i];
         const meta = getPrompt(body.category, subId);
-        if (!meta) continue;
+        if (!meta) {
+          const reason = `unknown subcategory ${body.category}/${subId}`;
+          console.warn(`[fn/generate] ${reason}`);
+          await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          failedCount++;
+          continue;
+        }
         try {
           // Pipeline branching — see app/api/generate+api.ts for the full
           // rationale (kept in sync):
@@ -304,15 +371,22 @@ export const generate = functions
           console.log(`[fn/generate] ✓ subId=${subId} complete — source=${promptSource}`);
           // Store the base (unwrapped) prompt — the gallery shows the
           // transformation the user asked for, not the scoping preamble.
-          results.push({ imageURL: url, prompt: meta.prompt, label: meta.label, subcategoryId: subId });
-        } catch (err) {
+          const item = { imageURL: url, prompt: meta.prompt, label: meta.label, subcategoryId: subId };
+          results.push(item);
+          await sendEvent({ type: 'result', index: i, item });
+          completedCount++;
+        } catch (err: any) {
+          const reason = err?.message ?? String(err);
           console.warn(`Generation failed for ${subId}:`, err);
+          await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          failedCount++;
         }
       }
 
       if (results.length === 0) {
         await genRef.update({ status: 'failed' });
-        res.status(500).send("This one didn't work out — try a different photo or category!");
+        await sendEvent({ type: 'done', generationId, completed: 0, failed: failedCount });
+        res.end();
         return;
       }
 
@@ -331,10 +405,28 @@ export const generate = functions
         });
       }
 
-      res.status(200).json({ generationId, results });
+      await sendEvent({
+        type: 'done',
+        generationId,
+        completed: completedCount,
+        failed: failedCount,
+      });
+      res.end();
     } catch (e: any) {
       console.error('generate failed', e);
-      if (e instanceof functions.https.HttpsError) {
+      // If the stream hasn't started yet (pre-start failures: auth,
+      // quota, validation that slipped past), send the legacy
+      // status-code response so the client's HTTP-status error path
+      // still works. Once headers are sent, we can only emit a fatal
+      // event and close.
+      if (res.headersSent) {
+        try {
+          res.write(JSON.stringify({ type: 'fatal', message: e?.message ?? 'Internal error' }) + '\n');
+        } catch {
+          /* connection already torn down */
+        }
+        res.end();
+      } else if (e instanceof functions.https.HttpsError) {
         res.status(e.code === 'unauthenticated' ? 401 : 500).send(e.message);
       } else {
         res.status(500).send(e?.message ?? 'Internal error');

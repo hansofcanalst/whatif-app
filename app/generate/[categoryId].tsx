@@ -57,18 +57,35 @@ export default function GenerateCategoryScreen() {
       return;
     }
     if (selected.size === 0) return show('Select at least one transformation.', 'error');
+    // Track busy here for the brief window between click and the server
+    // opening the stream. Once `onReady` fires we navigate to /results,
+    // which renders its own skeleton UI while the stream fills in.
     setBusy(true);
+    let navigated = false;
     const res = await start({
       imageBase64: base64,
       categoryId: category.id,
       subcategoryIds: Array.from(selected),
       onPaywall: () => setPaywall(true),
+      onReady: () => {
+        // Defense against a racy double-navigation if `onReady` fires
+        // more than once (the hook guards against that, but a defensive
+        // check keeps navigation state sane regardless).
+        if (navigated) return;
+        navigated = true;
+        setBusy(false);
+        router.replace('/generate/results');
+      },
     });
-    setBusy(false);
-    if (res) router.replace('/generate/results');
-    else {
-      const err = useGenerationStore.getState().error;
-      if (err) show(err, 'error');
+    // If start returned before onReady ever fired (paywall, up-front
+    // rejection, fatal pre-stream error), clean up the busy overlay
+    // here. Otherwise onReady already handled it.
+    if (!navigated) {
+      setBusy(false);
+      if (!res) {
+        const err = useGenerationStore.getState().error;
+        if (err) show(err, 'error');
+      }
     }
   };
 

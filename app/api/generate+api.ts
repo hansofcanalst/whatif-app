@@ -63,14 +63,50 @@ function getGenAI(): GoogleGenerativeAI {
   return new GoogleGenerativeAI(key);
 }
 
-async function generateOne(imageBase64: string, prompt: string): Promise<string> {
+// Retry the transient Google failures (429 rate-limit, 5xx, brief network
+// blips) with bounded exponential backoff. Non-retryable failures — prompt
+// blocks, safety finish reasons, "model returned no image" — throw on the
+// first attempt so we surface the actual cause quickly instead of sitting
+// in a backoff loop. Matches the policy in lib/composePrompt.ts and
+// app/api/detect+api.ts so every Gemini call in the pipeline behaves the
+// same way.
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_GENERATE_ATTEMPTS = 3;
+
+async function callModelWithRetry(
+  imageBase64: string,
+  prompt: string,
+): Promise<{ result: any; attempt: number }> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_GENERATE_ATTEMPTS; attempt++) {
+    try {
+      const result = await model.generateContent([
+        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+        { text: prompt },
+      ]);
+      return { result, attempt };
+    } catch (err) {
+      lastErr = err;
+      const status = (err as { status?: number })?.status;
+      const retryable = status != null && RETRYABLE_STATUSES.has(status);
+      if (!retryable || attempt === MAX_GENERATE_ATTEMPTS) throw err;
+      const delay = 500 * attempt + Math.floor(Math.random() * 250);
+      console.warn(
+        `[api/generate] image-gen attempt ${attempt} failed (${status}); retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  // Unreachable — the loop either returns or throws.
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+async function generateOne(imageBase64: string, prompt: string): Promise<string> {
   console.log(`[api/generate] → image model: ${MODEL_ID}`);
-  const result = await model.generateContent([
-    { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
-    { text: prompt },
-  ]);
+  const { result, attempt } = await callModelWithRetry(imageBase64, prompt);
+  if (attempt > 1) console.log(`[api/generate] image-gen succeeded on attempt ${attempt}`);
 
   const candidate = result.response.candidates?.[0];
   const parts = candidate?.content?.parts ?? [];
@@ -147,37 +183,55 @@ export async function POST(request: Request): Promise<Response> {
     return new Response('Too many subcategories (max 6)', { status: 400 });
   }
 
-  try {
-    const generationId = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    // Dev-only audit line. In prod the Cloud Function writes a structured
-    // entry to the moderation_log Firestore collection; here we just
-    // emit to stdout so a tailing dev can see the same fields. Format
-    // is intentionally grep-friendly.
-    console.log(
-      '[api/generate] moderation_log',
-      JSON.stringify({
-        generationId,
-        categoryId: body.category,
-        subcategoryIds: body.subcategoryIds,
-        totalPeopleInImage: body.totalPeopleInImage ?? null,
-        selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
-        containsMinor: body.containsMinor ?? null,
-        source: 'local-dev',
-        timestamp: new Date().toISOString(),
-      }),
-    );
-    const results: Array<{ imageURL: string; prompt: string; label: string; subcategoryId: string }> = [];
-    const failures: Array<{ subId: string; reason: string }> = [];
+  const generationId = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  // Dev-only audit line. In prod the Cloud Function writes a structured
+  // entry to the moderation_log Firestore collection; here we just
+  // emit to stdout so a tailing dev can see the same fields.
+  console.log(
+    '[api/generate] moderation_log',
+    JSON.stringify({
+      generationId,
+      categoryId: body.category,
+      subcategoryIds: body.subcategoryIds,
+      totalPeopleInImage: body.totalPeopleInImage ?? null,
+      selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
+      containsMinor: body.containsMinor ?? null,
+      source: 'local-dev',
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
-    for (const subId of body.subcategoryIds) {
-      const meta = getPrompt(body.category, subId);
-      if (!meta) {
-        const reason = `unknown subcategory ${body.category}/${subId}`;
-        console.warn(`[api/generate] ${reason}`);
-        failures.push({ subId, reason });
-        continue;
-      }
-      try {
+  // NDJSON streaming: one {type, ...} JSON object per line. The client
+  // (see lib/gemini.ts streamGeneration) updates per-subcategory tiles
+  // as `result` / `error` events arrive, so a 5-variant run starts
+  // showing images after ~10s instead of making the user stare at a
+  // spinner for 60s. See also the mirror in functions/src/generate.ts.
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = writable.getWriter();
+  const send = (obj: unknown) =>
+    writer.write(encoder.encode(JSON.stringify(obj) + '\n'));
+
+  // Drive the generation work in the background. `POST` returns the
+  // readable half of the stream immediately so the client can start
+  // reading while we run model calls.
+  (async () => {
+    let completed = 0;
+    let failed = 0;
+    try {
+      await send({ type: 'start', generationId, total: body.subcategoryIds.length });
+
+      for (let i = 0; i < body.subcategoryIds.length; i++) {
+        const subId = body.subcategoryIds[i];
+        const meta = getPrompt(body.category, subId);
+        if (!meta) {
+          const reason = `unknown subcategory ${body.category}/${subId}`;
+          console.warn(`[api/generate] ${reason}`);
+          await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          failed++;
+          continue;
+        }
+        try {
         // Pipeline branching:
         //
         //  (A) Solo subject (or detection didn't run): single-pass with the
@@ -287,28 +341,51 @@ export async function POST(request: Request): Promise<Response> {
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.
         const imageURL = `data:image/jpeg;base64,${resultB64}`;
-        // Store the base (unwrapped) prompt so the gallery/history shows
-        // the user what transformation they asked for, not the scoping boilerplate.
         console.log(`[api/generate] ✓ subId=${subId} complete — source=${promptSource}`);
-        results.push({ imageURL, prompt: meta.prompt, label: meta.label, subcategoryId: subId });
+        await send({
+          type: 'result',
+          index: i,
+          // Store the base (unwrapped) prompt so the gallery/history shows
+          // what the user asked for, not the scoping boilerplate.
+          item: { imageURL, prompt: meta.prompt, label: meta.label, subcategoryId: subId },
+        });
+        completed++;
       } catch (err: any) {
         const reason = err?.message ?? String(err);
         console.warn(`[api/generate] ${subId} failed:`, err);
-        failures.push({ subId, reason });
+        await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
+        failed++;
+      }
+      }
+
+      await send({ type: 'done', generationId, completed, failed });
+    } catch (e: any) {
+      // Fatal = the loop itself threw, not a per-subcategory failure
+      // (those are handled inline above). Emit a fatal event so the
+      // client can surface it, then close the stream.
+      console.error('[api/generate] fatal', e);
+      try {
+        await send({ type: 'fatal', message: e?.message ?? 'Internal error' });
+      } catch {
+        /* writer already closed */
+      }
+    } finally {
+      try {
+        await writer.close();
+      } catch {
+        /* already closed */
       }
     }
+  })();
 
-    if (results.length === 0) {
-      // Surface the actual reason(s) so the client can display something
-      // useful. The generic "try a different photo" message is useless for
-      // debugging config/model errors.
-      const detail = failures.map((f) => `${f.subId}: ${f.reason}`).join(' | ') || 'no results';
-      return new Response(`All variations failed — ${detail}`, { status: 500 });
-    }
-
-    return Response.json({ generationId, results });
-  } catch (e: any) {
-    console.error('[api/generate] error', e);
-    return new Response(e?.message ?? 'Internal error', { status: 500 });
-  }
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      // Defeat proxy/middleware buffering. Expo's dev server shouldn't
+      // compress this, but setting no-transform is cheap insurance.
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }

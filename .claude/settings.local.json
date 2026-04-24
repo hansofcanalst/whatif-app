@@ -16,7 +16,8 @@
       "Bash(node -p \"require\\('./package.json'\\).dependencies['expo-router']\")",
       "Bash(node -e \"const {PROMPTS} = require\\('./lib/prompts.ts'.replace\\(/\\\\.ts$/,''\\)\\);\")",
       "Bash(npx --yes tsc --noEmit --target es2020 --module esnext --moduleResolution bundler --jsx preserve --allowJs lib/prompts.ts functions/src/prompts.ts)",
-      "Bash(npx --yes tsc --noEmit --target es2020 --module esnext --moduleResolution bundler lib/prompts.ts functions/src/prompts.ts app/api/generate+api.ts functions/src/generate.ts app/api/detect+api.ts)"
+      "Bash(npx --yes tsc --noEmit --target es2020 --module esnext --moduleResolution bundler lib/prompts.ts functions/src/prompts.ts app/api/generate+api.ts functions/src/generate.ts app/api/detect+api.ts)",
+      "Bash(node -e \"console.log\\(typeof TransformStream, typeof ReadableStream, typeof TextEncoder\\)\")"
     ]
   },
   "hooks": {

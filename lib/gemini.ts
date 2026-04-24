@@ -44,6 +44,20 @@ export class QuotaExceededError extends Error {
   }
 }
 
+// NDJSON event shape emitted by the streaming /api/generate endpoint and
+// the Cloud Function mirror. Events arrive one per line; each event
+// corresponds to either a lifecycle boundary (`start`, `done`, `fatal`)
+// or a per-subcategory outcome (`result`, `error`). The `index` field on
+// `result` / `error` matches the subcategoryIds position in the request,
+// so the client can show a stable grid of tiles that fill in as events
+// land.
+export type GenerationEvent =
+  | { type: 'start'; generationId: string; total: number }
+  | { type: 'result'; index: number; item: GenerateResponseItem }
+  | { type: 'error'; index: number; subcategoryId: string; message: string }
+  | { type: 'done'; generationId: string; completed: number; failed: number }
+  | { type: 'fatal'; message: string };
+
 /**
  * Build the target URL for the generate endpoint.
  *
@@ -61,13 +75,34 @@ function resolveEndpoint(): { url: string; isLocalDev: boolean } {
   return { url: '/api/generate', isLocalDev: true };
 }
 
-export async function requestGeneration(req: GenerateRequest): Promise<GenerateResponse> {
+/**
+ * Open a streaming generation. The server emits one NDJSON line per
+ * event; we parse them as they land and invoke `onEvent` for each one.
+ *
+ * The returned promise resolves after the stream closes cleanly. It
+ * REJECTS on:
+ *   - Non-OK HTTP status before the stream body starts (auth 401, quota
+ *     402 → QuotaExceededError, size 413, model 5xx before first event).
+ *   - A `fatal` event mid-stream (re-thrown so the caller's catch runs).
+ *   - A transport error tearing down the reader.
+ *
+ * Per-subcategory failures (`error` events) are NOT treated as errors at
+ * this layer — they're normal data and flow through `onEvent` like any
+ * other event. Callers decide how to surface them.
+ *
+ * Cancellation: pass an AbortSignal to abandon the stream mid-flight.
+ * The server keeps running server-side (no way to reach into the
+ * Gemini call), but the client stops consuming.
+ */
+export async function streamGeneration(
+  req: GenerateRequest,
+  onEvent: (event: GenerationEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
   const { url, isLocalDev } = resolveEndpoint();
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
   if (!isLocalDev) {
-    // Deployed Cloud Function verifies Firebase ID token server-side.
     const user = auth.currentUser;
     if (!user) throw new Error('Not authenticated.');
     const token = await user.getIdToken();
@@ -78,6 +113,7 @@ export async function requestGeneration(req: GenerateRequest): Promise<GenerateR
     method: 'POST',
     headers,
     body: JSON.stringify(req),
+    signal,
   });
 
   if (res.status === 402) throw new QuotaExceededError();
@@ -86,21 +122,99 @@ export async function requestGeneration(req: GenerateRequest): Promise<GenerateR
     throw new Error(`Generation failed (${res.status}): ${body}`);
   }
 
-  const response = (await res.json()) as GenerateResponse;
+  // Expo Router's dev server + Node both give us a ReadableStream body.
+  // If that's missing (e.g. a non-streaming legacy server), fall back
+  // to aggregating the full body — callers still get the same events.
+  if (!res.body) {
+    const text = await res.text();
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        onEvent(JSON.parse(trimmed) as GenerationEvent);
+      } catch (e) {
+        console.warn('[gemini] skipping malformed NDJSON line:', trimmed.slice(0, 200));
+      }
+    }
+    return;
+  }
 
-  // Local dev: persist to Firebase Storage + Firestore so Gallery works.
-  // The production Cloud Function does this server-side, so we skip it there.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // Split on newline; keep any trailing partial line in the buffer.
+      let newlineIdx: number;
+      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIdx).trim();
+        buffer = buffer.slice(newlineIdx + 1);
+        if (!line) continue;
+        let ev: GenerationEvent;
+        try {
+          ev = JSON.parse(line) as GenerationEvent;
+        } catch {
+          console.warn('[gemini] skipping malformed NDJSON line:', line.slice(0, 200));
+          continue;
+        }
+        onEvent(ev);
+        // Fatal events halt the stream on the server; surface as an
+        // exception so callers' catch blocks fire.
+        if (ev.type === 'fatal') {
+          throw new Error(ev.message || 'Generation failed.');
+        }
+      }
+    }
+    // Flush any trailing event that didn't end with a newline.
+    const rest = buffer.trim();
+    if (rest) {
+      try {
+        onEvent(JSON.parse(rest) as GenerationEvent);
+      } catch {
+        console.warn('[gemini] skipping malformed trailing NDJSON:', rest.slice(0, 200));
+      }
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+}
+
+/**
+ * Backward-compatible non-streaming wrapper. Consumes the stream and
+ * resolves with an aggregated GenerateResponse once the server emits
+ * `done`. Kept so any caller that still wants a single promise can stay
+ * unchanged; new UI (the /generate/results screen) should use
+ * streamGeneration directly for progressive rendering.
+ */
+export async function requestGeneration(req: GenerateRequest): Promise<GenerateResponse> {
+  const { isLocalDev } = resolveEndpoint();
+
+  let generationId = '';
+  const resultsByIndex: Record<number, GenerateResponseItem> = {};
+
+  await streamGeneration(req, (ev) => {
+    if (ev.type === 'start') generationId = ev.generationId;
+    else if (ev.type === 'result') resultsByIndex[ev.index] = ev.item;
+    else if (ev.type === 'done' && !generationId) generationId = ev.generationId;
+  });
+
+  // Reassemble into the original order the caller asked for.
+  const results: GenerateResponseItem[] = [];
+  const indices = Object.keys(resultsByIndex).map(Number).sort((a, b) => a - b);
+  for (const i of indices) results.push(resultsByIndex[i]);
+  const response: GenerateResponse = { generationId, results };
+
   if (isLocalDev) {
     try {
       return await persistLocalGeneration(req, response);
     } catch (e) {
-      // Persistence failure shouldn't block showing the user their results.
-      // They just won't appear in the Gallery tab. Log so dev knows why.
       console.warn('[gemini] local persistence failed, results will not appear in Gallery:', e);
       return response;
     }
   }
-
   return response;
 }
 
@@ -111,7 +225,7 @@ export async function requestGeneration(req: GenerateRequest): Promise<GenerateR
  *
  * Returns the response with Storage download URLs replacing the data URIs.
  */
-async function persistLocalGeneration(
+export async function persistLocalGeneration(
   req: GenerateRequest,
   response: GenerateResponse,
 ): Promise<GenerateResponse> {
