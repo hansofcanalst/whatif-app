@@ -19,5 +19,15 @@ service cloud.firestore {
     match /rateLimits/{uid} {
       allow read, write: if false;
     }
+    // Per-variant telemetry. Written exclusively server-side by the
+    // generate Cloud Function (Admin SDK bypasses these rules). No
+    // client access — inspect via the Firebase console or a server-side
+    // admin-tool query. Schema:
+    //   generationId, userId, categoryId, subcategoryId,
+    //   status ('complete' | 'failed'), errorMessage?, durationMs,
+    //   promptSource, attempts, modelId, source, timestamp
+    match /logs/{id} {
+      allow read, write: if false;
+    }
   }
 }

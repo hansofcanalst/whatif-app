@@ -103,7 +103,10 @@ async function callModelWithRetry(
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
-async function generateOne(imageBase64: string, prompt: string): Promise<string> {
+async function generateOne(
+  imageBase64: string,
+  prompt: string,
+): Promise<{ b64: string; attempts: number }> {
   console.log(`[api/generate] → image model: ${MODEL_ID}`);
   const { result, attempt } = await callModelWithRetry(imageBase64, prompt);
   if (attempt > 1) console.log(`[api/generate] image-gen succeeded on attempt ${attempt}`);
@@ -134,7 +137,7 @@ async function generateOne(imageBase64: string, prompt: string): Promise<string>
         textAlongside: textOnSuccess ? String(textOnSuccess).slice(0, 200) : null,
       }),
     );
-    return outB64;
+    return { b64: outB64, attempts: attempt };
   }
 
   // No image in response — diagnose why. Common causes:
@@ -223,14 +226,50 @@ export async function POST(request: Request): Promise<Response> {
 
       for (let i = 0; i < body.subcategoryIds.length; i++) {
         const subId = body.subcategoryIds[i];
+        // Per-variant telemetry: every settled variant (success or failure)
+        // emits one JSON line prefixed [telemetry] so a tail can grep them
+        // out easily. Schema matches the Cloud Function's `logs/` Firestore
+        // writes in functions/src/generate.ts, so if you later pipe stdout
+        // into a collector the shapes line up. Local dev has no Firestore
+        // admin, so stdout is as far as we go here — same approach as the
+        // existing moderation_log stdout line above.
+        const variantStartedAt = Date.now();
+        const emitTelemetry = (entry: Record<string, unknown>) => {
+          console.log(
+            '[telemetry]',
+            JSON.stringify({
+              ...entry,
+              generationId,
+              userId: null,
+              categoryId: body.category,
+              subcategoryId: subId,
+              modelId: MODEL_ID,
+              source: 'local-dev',
+              durationMs: Date.now() - variantStartedAt,
+              timestamp: new Date().toISOString(),
+            }),
+          );
+        };
         const meta = getPrompt(body.category, subId);
         if (!meta) {
           const reason = `unknown subcategory ${body.category}/${subId}`;
           console.warn(`[api/generate] ${reason}`);
+          emitTelemetry({
+            status: 'failed',
+            errorMessage: reason,
+            promptSource: null,
+            attempts: 0,
+          });
           await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
           failed++;
           continue;
         }
+        // Hoisted so the catch below can see partial progress on failure:
+        // a sequential variant that dies on pass 4 of 5 has still
+        // committed real work (prompt source + ~12 attempts), and
+        // telemetry should reflect that rather than reporting nulls.
+        let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential' | null = null;
+        let totalAttempts = 0;
         try {
         // Pipeline branching:
         //
@@ -263,7 +302,8 @@ export async function POST(request: Request): Promise<Response> {
         const shouldSequence = isMultiPerson && selected.length >= 2;
 
         let resultB64: string;
-        let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential';
+        // promptSource + totalAttempts are hoisted above the try — the
+        // catch needs to see in-progress values on a failure.
 
         if (shouldSequence) {
           // (C) Sequential per-person editing.
@@ -298,7 +338,9 @@ export async function POST(request: Request): Promise<Response> {
             );
             console.log(personPrompt);
             console.log('[api/generate] ▲ end pass prompt');
-            current = await generateOne(current, personPrompt);
+            const pass = await generateOne(current, personPrompt);
+            current = pass.b64;
+            totalAttempts += pass.attempts;
           }
           resultB64 = current;
           promptSource = 'sequential';
@@ -335,13 +377,21 @@ export async function POST(request: Request): Promise<Response> {
           console.log('[api/generate] subId:', subId, '| source:', promptSource, '| total:', total, '| selected:', selected);
           console.log(finalPrompt);
           console.log('[api/generate] ▲▲▲ END PROMPT ▲▲▲');
-          resultB64 = await generateOne(body.imageBase64, finalPrompt);
+          const pass = await generateOne(body.imageBase64, finalPrompt);
+          resultB64 = pass.b64;
+          totalAttempts = pass.attempts;
         }
 
         // Return a data URI so the client <Image> can render it without
         // needing Cloud Storage. Large but fine for dev.
         const imageURL = `data:image/jpeg;base64,${resultB64}`;
         console.log(`[api/generate] ✓ subId=${subId} complete — source=${promptSource}`);
+        emitTelemetry({
+          status: 'complete',
+          errorMessage: null,
+          promptSource,
+          attempts: totalAttempts,
+        });
         await send({
           type: 'result',
           index: i,
@@ -353,6 +403,12 @@ export async function POST(request: Request): Promise<Response> {
       } catch (err: any) {
         const reason = err?.message ?? String(err);
         console.warn(`[api/generate] ${subId} failed:`, err);
+        emitTelemetry({
+          status: 'failed',
+          errorMessage: reason,
+          promptSource,
+          attempts: totalAttempts,
+        });
         await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
         failed++;
       }

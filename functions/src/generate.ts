@@ -98,7 +98,10 @@ async function checkQuotaAndCategory(uid: string, category: string): Promise<voi
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const MAX_GENERATE_ATTEMPTS = 3;
 
-async function generateOne(imageBase64: string, prompt: string): Promise<string> {
+async function generateOne(
+  imageBase64: string,
+  prompt: string,
+): Promise<{ b64: string; attempts: number }> {
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: MODEL_ID });
   let lastErr: unknown;
@@ -113,7 +116,9 @@ async function generateOne(imageBase64: string, prompt: string): Promise<string>
         const inline = (part as any).inlineData;
         if (inline?.data) {
           if (attempt > 1) console.log(`[fn/generate] image-gen succeeded on attempt ${attempt}`);
-          return inline.data as string;
+          // Return the attempt count so the caller can report it via the
+          // `logs/` telemetry write. Summed across sequential passes.
+          return { b64: inline.data as string, attempts: attempt };
         }
       }
       // "No image" is not a transient/retryable condition — the model
@@ -273,10 +278,47 @@ export const generate = functions
       let failedCount = 0;
       for (let i = 0; i < body.subcategoryIds.length; i++) {
         const subId = body.subcategoryIds[i];
+        // Per-variant telemetry: every settled variant (success or failure)
+        // writes one entry to the `logs/` Firestore collection. Admin SDK
+        // bypasses rules so the client is never trusted to produce these.
+        // Logging failures are swallowed — losing a log row must not
+        // break the user's generation.
+        const variantStartedAt = Date.now();
+        const writeLog = async (entry: Record<string, unknown>) => {
+          try {
+            await admin
+              .firestore()
+              .collection('logs')
+              .add({
+                ...entry,
+                generationId,
+                userId: uid,
+                categoryId: body.category,
+                subcategoryId: subId,
+                modelId: MODEL_ID,
+                source: 'cloud-function',
+                durationMs: Date.now() - variantStartedAt,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              });
+          } catch (logErr) {
+            console.warn('[fn/generate] logs write failed:', logErr);
+          }
+        };
+        // Hoisted above the try so the catch can report partial progress
+        // on failure (e.g. sequential variant that died on pass 4 of 5
+        // already committed real work worth reporting).
+        let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential' | null = null;
+        let totalAttempts = 0;
         const meta = getPrompt(body.category, subId);
         if (!meta) {
           const reason = `unknown subcategory ${body.category}/${subId}`;
           console.warn(`[fn/generate] ${reason}`);
+          await writeLog({
+            status: 'failed',
+            errorMessage: reason,
+            promptSource: null,
+            attempts: 0,
+          });
           await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
           failedCount++;
           continue;
@@ -295,7 +337,8 @@ export const generate = functions
           const shouldSequence = isMultiPerson && selected.length >= 2;
 
           let resultB64: string;
-          let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential';
+          // promptSource + totalAttempts are hoisted above the try — see
+          // comment where they're declared.
 
           if (shouldSequence) {
             // (C) Sequential per-person editing. Bumping the function's
@@ -328,7 +371,9 @@ export const generate = functions
               );
               console.log(personPrompt);
               console.log('[fn/generate] ▲ end pass prompt');
-              current = await generateOne(current, personPrompt);
+              const pass = await generateOne(current, personPrompt);
+              current = pass.b64;
+              totalAttempts += pass.attempts;
             }
             resultB64 = current;
             promptSource = 'sequential';
@@ -364,7 +409,9 @@ export const generate = functions
             console.log('[fn/generate] subId:', subId, '| source:', promptSource, '| total:', total, '| selected:', selected);
             console.log(finalPrompt);
             console.log('[fn/generate] ▲▲▲ END PROMPT ▲▲▲');
-            resultB64 = await generateOne(body.imageBase64, finalPrompt);
+            const pass = await generateOne(body.imageBase64, finalPrompt);
+            resultB64 = pass.b64;
+            totalAttempts = pass.attempts;
           }
 
           const url = await uploadImage(uid, generationId, `result_${i}`, resultB64);
@@ -373,11 +420,23 @@ export const generate = functions
           // transformation the user asked for, not the scoping preamble.
           const item = { imageURL: url, prompt: meta.prompt, label: meta.label, subcategoryId: subId };
           results.push(item);
+          await writeLog({
+            status: 'complete',
+            errorMessage: null,
+            promptSource,
+            attempts: totalAttempts,
+          });
           await sendEvent({ type: 'result', index: i, item });
           completedCount++;
         } catch (err: any) {
           const reason = err?.message ?? String(err);
           console.warn(`Generation failed for ${subId}:`, err);
+          await writeLog({
+            status: 'failed',
+            errorMessage: reason,
+            promptSource,
+            attempts: totalAttempts,
+          });
           await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
           failedCount++;
         }
