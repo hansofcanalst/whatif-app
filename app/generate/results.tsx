@@ -1,11 +1,23 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ResultsGrid } from '@/components/ResultsGrid';
 import { Button } from '@/components/ui/Button';
 import { useGenerationStore } from '@/stores/generationStore';
 import { getCategory } from '@/constants/categories';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+
+// Rotating flavor copy shown while the stream is open. Mirrors the set
+// on LoadingSpinner so the brand voice is consistent across the two
+// loading surfaces — the pre-stream spinner on the category screen and
+// this streaming-progress block. Cadence (2.2s) also matches.
+const FLAVOR_TAGLINES = [
+  'Rewriting your DNA…',
+  'Consulting the multiverse…',
+  'Breaking the space-time continuum…',
+  'Your other self is loading…',
+  'Shuffling timelines…',
+];
 
 export default function ResultsScreen() {
   const router = useRouter();
@@ -30,8 +42,29 @@ export default function ResultsScreen() {
     const total = generationSlots.length;
     const complete = generationSlots.filter((s) => s.status === 'complete').length;
     const failed = generationSlots.filter((s) => s.status === 'failed').length;
-    return { total, complete, failed };
+    // Both complete and failed tiles count toward "bar filled" — we don't
+    // want the bar to stall on a failed variant since the remaining work
+    // has moved on. The text below preserves the complete/failed split.
+    const settled = complete + failed;
+    const pct = total > 0 ? Math.max(0.04, settled / total) : 0.04;
+    return { total, complete, failed, settled, pct };
   }, [generationSlots]);
+
+  // Rotating flavor copy. Pinned to idx 0 when the stream is idle so a
+  // remount after completion doesn't flash a mid-rotation phrase for one
+  // frame before the block unmounts.
+  const [taglineIdx, setTaglineIdx] = useState(0);
+  useEffect(() => {
+    if (!generationInFlight) {
+      setTaglineIdx(0);
+      return;
+    }
+    const t = setInterval(
+      () => setTaglineIdx((i) => (i + 1) % FLAVOR_TAGLINES.length),
+      2200,
+    );
+    return () => clearInterval(t);
+  }, [generationInFlight]);
 
   const onSelect = (idx: number) => {
     // Defer tile taps until the stream is done. Mid-stream, the
@@ -64,14 +97,24 @@ export default function ResultsScreen() {
         </View>
       ) : null}
 
-      {/* Streaming progress strip. Shown only while the NDJSON stream
+      {/* Streaming progress block. Shown only while the NDJSON stream
           is still open. Disappears once the server sends `done`, at
-          which point the grid itself communicates the final state. */}
+          which point the grid itself communicates the final state.
+          Carries three pieces of information in one surface:
+            - Rotating flavor line ("Rewriting your DNA…") so the user
+              has something to read during the 8-15s per-tile wait.
+            - Proportional progress bar — a discrete bar snaps between
+              states rather than animating, which reads correctly for
+              a stream of discrete completion events.
+            - Numeric "X of N" with a failed-count tail when relevant. */}
       {generationInFlight ? (
-        <View style={styles.progressStrip}>
-          <ActivityIndicator color={colors.accent} />
+        <View style={styles.progressBlock}>
+          <Text style={styles.progressTagline}>{FLAVOR_TAGLINES[taglineIdx]}</Text>
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${progress.pct * 100}%` }]} />
+          </View>
           <Text style={styles.progressText}>
-            {progress.complete}/{progress.total} ready
+            {progress.complete} of {progress.total} ready
             {progress.failed > 0 ? ` · ${progress.failed} failed` : ''}
           </Text>
         </View>
@@ -134,21 +177,43 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   categoryText: { ...typography.caption, color: colors.accentText, fontWeight: '700' },
-  progressStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  progressBlock: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 420,
     gap: spacing.sm,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.xl,
     backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.border,
-    alignSelf: 'center',
     marginTop: spacing.md,
+    marginHorizontal: spacing.xl,
   },
-  progressText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  progressTagline: {
+    ...typography.body,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  progressBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+  },
+  progressText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
 });
