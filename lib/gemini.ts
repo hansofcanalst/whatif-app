@@ -1,4 +1,4 @@
-import { collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { fetchAsBlob, uploadImage, pathForOriginal, pathForResult } from './storage';
 import { config } from '@/constants/config';
@@ -16,6 +16,13 @@ export interface GenerateRequest {
   // Total people count from detection — lets the server skip scoping
   // when selectedPeopleLabels covers everyone.
   totalPeopleInImage?: number;
+  // Detection flagged at least one visible person as under 18. Forwarded
+  // to the server for moderation_log bookkeeping. The home screen already
+  // hard-blocks premium categories when this is true, so it should never
+  // be true for a premium generation that reaches the endpoint — we log
+  // it anyway so anomalies (bypass attempts, detector disagreements) are
+  // auditable after the fact.
+  containsMinor?: boolean;
 }
 
 export interface GenerateResponseItem {
@@ -152,6 +159,29 @@ async function persistLocalGeneration(
     });
   } catch (e) {
     console.warn('[gemini] could not increment freeGenerationsUsed:', e);
+  }
+
+  // Moderation audit trail. No photos, no labels — just the decision
+  // inputs we'd need to defend a takedown or review a report: who, what
+  // transformation, how many people in the image, whether the detector
+  // flagged any of them as a minor. In prod this is mirrored server-side
+  // in functions/src/generate.ts; this client write exists so the local
+  // /api/generate route (which has no Firestore access) still produces a
+  // log entry when a signed-in dev session hits it.
+  try {
+    await addDoc(collection(db, 'moderation_log'), {
+      uid,
+      generationId,
+      categoryId: req.category,
+      subcategoryIds: req.subcategoryIds,
+      totalPeopleInImage: req.totalPeopleInImage ?? null,
+      selectedPeopleCount: req.selectedPeopleLabels?.length ?? null,
+      containsMinor: req.containsMinor ?? null,
+      source: 'client-local-dev',
+      timestamp: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn('[gemini] moderation_log write failed:', e);
   }
 
   return { generationId, results: uploadedResults };

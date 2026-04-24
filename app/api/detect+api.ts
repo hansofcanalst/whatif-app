@@ -24,6 +24,12 @@ interface DetectedPerson {
   id: number;
   label: string;
   box: { ymin: number; xmin: number; ymax: number; xmax: number };
+  // Minor-moderation flag. True when the person visually appears to be
+  // under 18. Drives a hard block on premium categories (celebrity /
+  // political mashups, ethnicity blending) — see app/(tabs)/home.tsx.
+  // We ask the same model that already has the image in context rather
+  // than running a second pass; the cost is one extra JSON field.
+  appearsUnder18: boolean;
 }
 
 const DETECTION_PROMPT = `You are a people detector. Look at this image and locate every distinct human person that is at least partially visible.
@@ -31,11 +37,12 @@ const DETECTION_PROMPT = `You are a people detector. Look at this image and loca
 For each person, produce:
 - "label": a short (3-8 word) UNIQUE description that could be used to tell this person apart from the others in the image. Use distinguishing details like visible clothing (colors, logos, text on shirts), position (left/center/right, foreground/background), approximate age bracket (child / teen / adult / elderly), or accessories (glasses, hat, necklace). AVOID ethnicity, race, gender, or other identity assumptions — use clothing and position instead.
 - "box_2d": [ymin, xmin, ymax, xmax] integer pixel coordinates normalized to 0-1000 (so the full image is 1000x1000). The box should tightly enclose the person's head AND visible body.
+- "appears_under_18": boolean. True if the person visually appears to be a minor (under 18 — infant, child, or teenager). When in doubt between "young adult" and "teen", err on the side of true. This flag is used to block certain transformations on minors, so false negatives are worse than false positives.
 
 Return ONLY a JSON array. No prose, no explanation, no markdown code fences. If no people are visible, return [].
 
 Example output:
-[{"label":"child in MIAMI jersey on left","box_2d":[150,20,820,280]},{"label":"woman with long hair in center","box_2d":[180,380,900,660]}]`;
+[{"label":"child in MIAMI jersey on left","box_2d":[150,20,820,280],"appears_under_18":true},{"label":"woman with long hair in center","box_2d":[180,380,900,660],"appears_under_18":false}]`;
 
 function getGenAI(): GoogleGenerativeAI {
   const key = process.env.GEMINI_API_KEY;
@@ -76,10 +83,26 @@ function normalizePeople(raw: unknown[]): DetectedPerson[] {
     if ([ymin, xmin, ymax, xmax].some((n) => !Number.isFinite(n))) return;
     // Clamp to [0, 1000] in case the model returns slight overshoot.
     const clamp = (n: number) => Math.max(0, Math.min(1000, n));
+    // Accept either the prompt's snake_case key or an accidental camelCase.
+    // Fail-closed: treat anything truthy that isn't explicitly `false` as
+    // "under 18" when the field is missing and the label mentions a child
+    // age bracket. This is the moderation-safe default — better to surface
+    // a consent modal the user dismisses than to miss a minor.
+    const rawFlag = r.appears_under_18 ?? r.appearsUnder18;
+    const labelSuggestsMinor = /\b(child|kid|baby|infant|toddler|teen|teenager|boy|girl)\b/i.test(label);
+    let appearsUnder18: boolean;
+    if (typeof rawFlag === 'boolean') {
+      appearsUnder18 = rawFlag;
+    } else if (typeof rawFlag === 'string') {
+      appearsUnder18 = rawFlag.toLowerCase() === 'true';
+    } else {
+      appearsUnder18 = labelSuggestsMinor;
+    }
     people.push({
       id: idx + 1,
       label,
       box: { ymin: clamp(ymin), xmin: clamp(xmin), ymax: clamp(ymax), xmax: clamp(xmax) },
+      appearsUnder18,
     });
   });
   return people;

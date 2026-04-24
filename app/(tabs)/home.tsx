@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
@@ -6,6 +6,7 @@ import { CategoryGrid } from '@/components/CategoryGrid';
 import { GenerationCounter } from '@/components/GenerationCounter';
 import { PeopleSelector } from '@/components/PeopleSelector';
 import { PaywallModal } from '@/components/ui/PaywallModal';
+import { ConsentModal } from '@/components/ConsentModal';
 import { useToast } from '@/components/ui/Toast';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
@@ -31,6 +32,24 @@ export default function Home() {
   } = useGenerationStore();
   const { isActive: isPro } = useSubscriptionStore();
   const [paywall, setPaywall] = useState(false);
+
+  // Consent gate for premium (likeness-remix) categories. Tracked in a
+  // useRef rather than state because the acknowledgment shouldn't cause a
+  // re-render when flipped, and it's deliberately component-local (not
+  // persisted) — a fresh launch re-prompts the user. See ConsentModal.tsx
+  // for the rationale.
+  const hasConsentedRef = useRef(false);
+  const [consentVisible, setConsentVisible] = useState(false);
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+
+  // True when the detection step flagged any visible person as a minor.
+  // Premium categories (celebrity/political mashups, ethnicity blending)
+  // are hard-blocked when this is true — no paywall bypass, no consent
+  // override. Non-premium categories (race/gender/age) remain available.
+  const containsMinor = useMemo(
+    () => detectedPeople.some((p) => p.appearsUnder18),
+    [detectedPeople],
+  );
 
   // Derive `image` from the store rather than holding it in local useState.
   //
@@ -118,13 +137,22 @@ export default function Home() {
     setPhoto(img?.uri ?? null, img?.base64 ?? null);
   };
 
+  const navigateToCategory = useCallback(
+    (categoryId: string) => {
+      // NOTE: do NOT call setPhoto here. The photo already went into the store
+      // in handlePicked; calling setPhoto again wipes detectedPeople + selection
+      // (see generationStore.setPhoto), which then makes useGeneration send
+      // totalPeopleInImage:undefined and the server falls back to the singular
+      // BASE prompt — the root cause of "only one person transforms" in
+      // multi-person photos.
+      router.push(`/generate/${categoryId}`);
+    },
+    [router],
+  );
+
   const handleSelect = (category: Category) => {
     if (!image) {
       show('Upload a photo first.', 'error');
-      return;
-    }
-    if (category.isPremium && !isPro) {
-      setPaywall(true);
       return;
     }
     if (detectionStatus === 'detecting') {
@@ -135,13 +163,50 @@ export default function Home() {
       show('Pick at least one person to transform.', 'error');
       return;
     }
-    // NOTE: do NOT call setPhoto here. The photo already went into the store
-    // in handlePicked; calling setPhoto again wipes detectedPeople + selection
-    // (see generationStore.setPhoto), which then makes useGeneration send
-    // totalPeopleInImage:undefined and the server falls back to the singular
-    // BASE prompt — the root cause of "only one person transforms" in
-    // multi-person photos.
-    router.push(`/generate/${category.id}`);
+
+    // Premium-category gates, applied in strict order:
+    //   1. Minor hard-block: celebrity/political/ethnicity mashups on a
+    //      photo that contains anyone the detector flagged as under-18 is
+    //      never allowed, regardless of subscription status.
+    //   2. Paywall: non-Pro users hit the upsell first, same as before.
+    //   3. Consent modal: once per session, confirm they have the rights
+    //      and intent to re-mix the depicted person's likeness.
+    // The order matters — we don't want a non-Pro user acknowledging
+    // consent and then hitting the paywall, and we don't want any user
+    // paying for Pro only to discover the minor block after.
+    if (category.isPremium) {
+      if (containsMinor) {
+        show(
+          'Celebrity, political, and ethnicity-blend transformations aren\'t available when the photo includes a minor.',
+          'error',
+        );
+        return;
+      }
+      if (!isPro) {
+        setPaywall(true);
+        return;
+      }
+      if (!hasConsentedRef.current) {
+        setPendingCategoryId(category.id);
+        setConsentVisible(true);
+        return;
+      }
+    }
+
+    navigateToCategory(category.id);
+  };
+
+  const handleConsentConfirm = () => {
+    hasConsentedRef.current = true;
+    setConsentVisible(false);
+    const id = pendingCategoryId;
+    setPendingCategoryId(null);
+    if (id) navigateToCategory(id);
+  };
+
+  const handleConsentClose = () => {
+    setConsentVisible(false);
+    setPendingCategoryId(null);
   };
 
   // Gate on `image` too, not just detection state. With `image` now derived
@@ -226,6 +291,11 @@ export default function Home() {
         </View>
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />
+      <ConsentModal
+        visible={consentVisible}
+        onConfirm={handleConsentConfirm}
+        onClose={handleConsentClose}
+      />
     </SafeAreaView>
   );
 }

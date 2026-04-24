@@ -10,6 +10,12 @@ export interface DetectedPerson {
     ymax: number;
     xmax: number;
   };
+  // Moderation flag from the detect step. True when the person visually
+  // appears to be under 18. Consumed by the home screen to block premium
+  // categories (celebrity / political mashups, ethnicity blending) and by
+  // the moderation_log Firestore writes. See app/api/detect+api.ts for
+  // the source and fail-closed fallback behavior.
+  appearsUnder18: boolean;
 }
 
 export interface DetectResponse {

@@ -46,6 +46,12 @@ export function useGeneration() {
                 .filter((p) => selectedPersonIds.includes(p.id))
                 .map((p) => p.label)
             : undefined;
+        // Forwarded to the server solely for the moderation_log entry.
+        // The home screen already hard-blocks premium categories when
+        // any person is flagged under-18, so this should always be false
+        // for premium generations that actually reach the endpoint —
+        // logging it lets us catch bypass attempts after the fact.
+        const containsMinor = detectedPeople.some((p) => p.appearsUnder18);
 
         const res = await requestGeneration({
           imageBase64,
@@ -53,6 +59,7 @@ export function useGeneration() {
           subcategoryIds,
           selectedPeopleLabels,
           totalPeopleInImage: detectedPeople.length || undefined,
+          containsMinor,
         });
         setResults(res.generationId, res.results);
 

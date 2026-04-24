@@ -25,6 +25,14 @@ interface GenerateBody {
   // transform the whole image (original behavior).
   selectedPeopleLabels?: string[];
   totalPeopleInImage?: number;
+  // Client-forwarded moderation flag — the detect step flagged at least
+  // one person as under 18. Written to the moderation_log Firestore
+  // collection for audit. The client already hard-blocks premium
+  // categories when this is true, so a premium generation reaching this
+  // endpoint with containsMinor=true indicates either a client bypass
+  // attempt or a detector disagreement between this session and a past
+  // one; either way we want it on the record.
+  containsMinor?: boolean;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -160,6 +168,33 @@ export const generate = functions
 
       const generationId = admin.firestore().collection('generations').doc().id;
       const genRef = admin.firestore().collection('generations').doc(generationId);
+
+      // Moderation audit log — written before the generation runs so the
+      // entry exists even if the model call later errors out. No photos,
+      // no labels, no prompt text — just the decision inputs we'd need to
+      // reconstruct a specific request for a takedown review: who, what,
+      // how many people, whether any were flagged as a minor.
+      try {
+        await admin
+          .firestore()
+          .collection('moderation_log')
+          .add({
+            uid,
+            generationId,
+            categoryId: body.category,
+            subcategoryIds: body.subcategoryIds,
+            totalPeopleInImage: body.totalPeopleInImage ?? null,
+            selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
+            containsMinor: body.containsMinor ?? null,
+            source: 'cloud-function',
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          });
+      } catch (e) {
+        // Logging failure must not block the user's generation. We still
+        // have the `generations/{id}` doc with uid+categoryId as a
+        // backstop audit record.
+        console.warn('[fn/generate] moderation_log write failed:', e);
+      }
 
       const originalURL = await uploadImage(uid, generationId, 'original', body.imageBase64);
 

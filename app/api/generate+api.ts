@@ -46,6 +46,11 @@ interface GenerateBody {
   // transform the whole image (original behavior).
   selectedPeopleLabels?: string[];
   totalPeopleInImage?: number;
+  // Client-forwarded moderation flag — the detect step flagged at least
+  // one person as under 18. The dev route can't write Firestore, but we
+  // log every request here so stdout captures the audit trail during
+  // local testing. Prod mirror lives in functions/src/generate.ts.
+  containsMinor?: boolean;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -144,6 +149,23 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const generationId = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    // Dev-only audit line. In prod the Cloud Function writes a structured
+    // entry to the moderation_log Firestore collection; here we just
+    // emit to stdout so a tailing dev can see the same fields. Format
+    // is intentionally grep-friendly.
+    console.log(
+      '[api/generate] moderation_log',
+      JSON.stringify({
+        generationId,
+        categoryId: body.category,
+        subcategoryIds: body.subcategoryIds,
+        totalPeopleInImage: body.totalPeopleInImage ?? null,
+        selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
+        containsMinor: body.containsMinor ?? null,
+        source: 'local-dev',
+        timestamp: new Date().toISOString(),
+      }),
+    );
     const results: Array<{ imageURL: string; prompt: string; label: string; subcategoryId: string }> = [];
     const failures: Array<{ subId: string; reason: string }> = [];
 
