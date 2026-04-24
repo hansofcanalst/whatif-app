@@ -32,9 +32,15 @@ interface ResultsGridProps {
    */
   onSelect: (index: number) => void;
   columns?: number;
+  /**
+   * Caption shown under the spinner on pending tiles. Plumbed from
+   * /generate/results so every in-flight tile shares the same rotating
+   * flavor line ("Consulting the multiverse…") in sync.
+   */
+  pendingCaption?: string;
 }
 
-export function ResultsGrid({ results, slots, onSelect, columns = 2 }: ResultsGridProps) {
+export function ResultsGrid({ results, slots, onSelect, columns = 2, pendingCaption }: ResultsGridProps) {
   // Normalize both inputs to the same shape so the layout code below
   // doesn't care which one the caller passed.
   const items: GridItem[] = slots
@@ -68,6 +74,7 @@ export function ResultsGrid({ results, slots, onSelect, columns = 2 }: ResultsGr
               label={item.label}
               status={item.status}
               error={item.error}
+              pendingCaption={pendingCaption}
               onPress={() => onSelect(i)}
             />
           ))}

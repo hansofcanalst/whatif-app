@@ -14,6 +14,13 @@ interface ResultCardProps {
   status?: 'pending' | 'complete' | 'failed';
   /** Error message shown on failed tiles. */
   error?: string;
+  /**
+   * Text shown under the spinner on pending tiles. The streaming results
+   * screen passes a rotating flavor line ("Consulting the multiverse…")
+   * so the waiting tile has some personality; when omitted we fall back
+   * to the plain "Generating…" label used by the gallery/detail screens.
+   */
+  pendingCaption?: string;
   onPress: () => void;
 }
 
@@ -25,14 +32,16 @@ interface ResultCardProps {
 // place of the image (still pressable but the press is a no-op — the
 // parent should early-return on tap). When 'failed', a subdued error
 // glyph plus the error message replaces the image.
-export function ResultCard({ imageURL, label, status = 'complete', error, onPress }: ResultCardProps) {
+export function ResultCard({ imageURL, label, status = 'complete', error, pendingCaption, onPress }: ResultCardProps) {
   const disabled = status !== 'complete';
   const content = (() => {
     if (status === 'pending') {
       return (
         <View style={styles.placeholder}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={styles.placeholderCaption}>Generating…</Text>
+          <Text style={styles.placeholderCaption} numberOfLines={2}>
+            {pendingCaption ?? 'Generating…'}
+          </Text>
         </View>
       );
     }

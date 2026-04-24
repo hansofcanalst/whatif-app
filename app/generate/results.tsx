@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable } from 'react-native';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { ResultsGrid } from '@/components/ResultsGrid';
 import { Button } from '@/components/ui/Button';
@@ -46,8 +54,13 @@ export default function ResultsScreen() {
     // want the bar to stall on a failed variant since the remaining work
     // has moved on. The text below preserves the complete/failed split.
     const settled = complete + failed;
-    const pct = total > 0 ? Math.max(0.04, settled / total) : 0.04;
-    return { total, complete, failed, settled, pct };
+    // Honest limitation: Gemini doesn't emit sub-call progress, so we
+    // can't track work inside a single Nano Banana pass. When nothing
+    // has settled yet, we fall back to an indeterminate shimmer (handled
+    // below). Once the first tile lands, switch to proportional fill.
+    const indeterminate = settled === 0;
+    const pct = total > 0 ? settled / total : 0;
+    return { total, complete, failed, settled, pct, indeterminate };
   }, [generationSlots]);
 
   // Rotating flavor copy. Pinned to idx 0 when the stream is idle so a
@@ -65,6 +78,31 @@ export default function ResultsScreen() {
     );
     return () => clearInterval(t);
   }, [generationInFlight]);
+
+  // Indeterminate-shimmer driver. A narrow bar (30% of track width)
+  // slides left → right continuously while we're waiting on the first
+  // completion. Stops and resets as soon as any tile settles — past that
+  // point the fixed proportional fill is more informative than motion.
+  //
+  // Using marginLeft with a percentage string works reliably on RN
+  // web + native; translateX with percent strings is less portable.
+  const shimmer = useSharedValue(-30);
+  useEffect(() => {
+    if (generationInFlight && progress.indeterminate) {
+      shimmer.value = -30;
+      shimmer.value = withRepeat(
+        withTiming(100, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        false,
+      );
+    } else {
+      cancelAnimation(shimmer);
+      shimmer.value = 0;
+    }
+  }, [generationInFlight, progress.indeterminate, shimmer]);
+  const shimmerStyle = useAnimatedStyle(() => ({
+    marginLeft: `${shimmer.value}%`,
+  }));
 
   const onSelect = (idx: number) => {
     // Defer tile taps until the stream is done. Mid-stream, the
@@ -100,18 +138,21 @@ export default function ResultsScreen() {
       {/* Streaming progress block. Shown only while the NDJSON stream
           is still open. Disappears once the server sends `done`, at
           which point the grid itself communicates the final state.
-          Carries three pieces of information in one surface:
-            - Rotating flavor line ("Rewriting your DNA…") so the user
-              has something to read during the 8-15s per-tile wait.
-            - Proportional progress bar — a discrete bar snaps between
-              states rather than animating, which reads correctly for
-              a stream of discrete completion events.
-            - Numeric "X of N" with a failed-count tail when relevant. */}
+          Header is a static "Generating" — the rotating flavor copy
+          ("Consulting the multiverse…") lives on the pending tiles
+          themselves, where there's more visual space and the spinner
+          gives it a natural home. The bar is indeterminate (sliding
+          shimmer) until the first tile settles, then switches to a
+          proportional fill for the rest of the run. */}
       {generationInFlight ? (
         <View style={styles.progressBlock}>
-          <Text style={styles.progressTagline}>{FLAVOR_TAGLINES[taglineIdx]}</Text>
+          <Text style={styles.progressTagline}>Generating</Text>
           <View style={styles.progressBarTrack}>
-            <View style={[styles.progressBarFill, { width: `${progress.pct * 100}%` }]} />
+            {progress.indeterminate ? (
+              <Animated.View style={[styles.progressBarShimmer, shimmerStyle]} />
+            ) : (
+              <View style={[styles.progressBarFill, { width: `${progress.pct * 100}%` }]} />
+            )}
           </View>
           <Text style={styles.progressText}>
             {progress.complete} of {progress.total} ready
@@ -122,7 +163,11 @@ export default function ResultsScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         {usingSlots ? (
-          <ResultsGrid slots={generationSlots} onSelect={onSelect} />
+          <ResultsGrid
+            slots={generationSlots}
+            onSelect={onSelect}
+            pendingCaption={generationInFlight ? FLAVOR_TAGLINES[taglineIdx] : undefined}
+          />
         ) : (
           <ResultsGrid results={currentResults} onSelect={onSelect} />
         )}
@@ -204,6 +249,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+  },
+  progressBarShimmer: {
+    // Narrow bar that slides across the track via an animated marginLeft.
+    // 30% width is wide enough to read as motion without looking like a
+    // genuine fill. Height fills the track.
+    width: '30%',
     height: '100%',
     borderRadius: 3,
     backgroundColor: colors.accent,
