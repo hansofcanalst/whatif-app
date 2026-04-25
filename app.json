@@ -37,7 +37,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow What If to access your photos."
+          "photosPermission": "Allow What If to access your photos.",
+          "cameraPermission": "Allow What If to use your camera so you can take a photo to transform."
         }
       ]
     ],

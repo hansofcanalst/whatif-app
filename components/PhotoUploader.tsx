@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, View, Text, Image, StyleSheet } from 'react-native';
+import { Pressable, View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useImagePicker, PickedImage } from '@/hooks/useImagePicker';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
@@ -8,15 +8,31 @@ interface PhotoUploaderProps {
   onPicked: (image: PickedImage | null) => void;
 }
 
+// Camera capture is hidden on web because launchCameraAsync there
+// shells to a hidden <input capture> element whose behavior varies
+// wildly across browsers — some open the camera, some open the file
+// picker, some no-op. Rather than ship a button that misbehaves on
+// half the desktop targets, native-only.
+const CAMERA_AVAILABLE = Platform.OS === 'ios' || Platform.OS === 'android';
+
 // FRAME drop-zone: rounded-2xl surface, dashed muted border, an accent
 // icon tile above a stack of title / hint / format badges. The whole
 // surface is tappable; the change / remove actions live below the
 // preview once a photo has been picked.
 export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
-  const { pick } = useImagePicker();
+  const { pick, capture } = useImagePicker();
 
   const handlePress = async () => {
     const res = await pick();
+    if (res) onPicked(res);
+  };
+
+  // Camera button — wired to a separate handler so taps on the empty
+  // drop-zone background continue to open the gallery (existing
+  // behavior). Press events on the inner camera pill are stopped at
+  // the pill and don't bubble up to trigger the gallery picker.
+  const handleCapture = async () => {
+    const res = await capture();
     if (res) onPicked(res);
   };
 
@@ -40,6 +56,11 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
           <Pressable onPress={handlePress} style={styles.actionBtn}>
             <Text style={styles.actionText}>Change photo</Text>
           </Pressable>
+          {CAMERA_AVAILABLE ? (
+            <Pressable onPress={handleCapture} style={styles.actionBtn}>
+              <Text style={styles.actionText}>Take photo</Text>
+            </Pressable>
+          ) : null}
           <Pressable onPress={handleRemove} style={[styles.actionBtn, styles.removeActionBtn]}>
             <Text style={[styles.actionText, styles.removeActionText]}>Remove</Text>
           </Pressable>
@@ -56,7 +77,9 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
         <Text style={styles.iconGlyph}>↑</Text>
       </View>
       <Text style={styles.emptyTitle}>Drop your photo here</Text>
-      <Text style={styles.emptySub}>or tap to browse your camera roll</Text>
+      <Text style={styles.emptySub}>
+        {CAMERA_AVAILABLE ? 'or browse — or take a new one below' : 'or tap to browse your camera roll'}
+      </Text>
       <View style={styles.formats}>
         <View style={styles.formatBadge}>
           <Text style={styles.formatText}>JPG</Text>
@@ -68,6 +91,24 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
           <Text style={styles.formatText}>HEIC</Text>
         </View>
       </View>
+      {/* Camera CTA inside the drop-zone. We stop press propagation so
+          tapping it doesn't double-fire the parent's gallery handler.
+          Sits below the format badges so the existing "drop to upload"
+          metaphor stays visually primary. */}
+      {CAMERA_AVAILABLE ? (
+        <Pressable
+          onPress={(e) => {
+            // Prevent the outer drop-zone Pressable from also firing.
+            e.stopPropagation?.();
+            handleCapture();
+          }}
+          style={styles.cameraPill}
+          accessibilityLabel="Take photo with camera"
+        >
+          <Text style={styles.cameraGlyph}>◉</Text>
+          <Text style={styles.cameraText}>Take photo</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -182,5 +223,30 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 10,
     letterSpacing: 1,
+  },
+  // Camera CTA inside the empty drop-zone — sits a step down in the
+  // visual hierarchy from the icon tile so "drop your photo" still
+  // reads as primary. Accent-tinted pill rather than a full button to
+  // keep the drop-zone uncluttered.
+  cameraPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.4)',
+  },
+  cameraGlyph: {
+    fontSize: 14,
+    color: colors.accentText,
+    fontWeight: '900',
+  },
+  cameraText: {
+    ...typography.bodyBold,
+    color: colors.accentText,
   },
 });
