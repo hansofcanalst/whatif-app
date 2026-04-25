@@ -23,6 +23,13 @@ export interface GenerateRequest {
   // it anyway so anomalies (bypass attempts, detector disagreements) are
   // auditable after the fact.
   containsMinor?: boolean;
+  // Optional opt-in styling add-ons keyed by subcategoryId. Each entry's
+  // value is an array of accessory ids (e.g. ['durag']) that the user
+  // ticked on the category screen. The server resolves these to prompt
+  // snippets via appendAccessoryPrompt() and appends them to the base
+  // subcategory prompt before all the scoping/branching logic. Unknown
+  // ids are silently skipped server-side.
+  modifiers?: Record<string, string[]>;
 }
 
 export interface GenerateResponseItem {

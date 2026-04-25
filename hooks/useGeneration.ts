@@ -16,6 +16,10 @@ export interface StartGenerationArgs {
   imageBase64: string;
   categoryId: string;
   subcategoryIds: string[];
+  // Optional opt-in styling add-ons. Keyed by subcategoryId, value is
+  // the list of accessory ids the user ticked. Forwarded to the server
+  // verbatim and resolved into prompt snippets there.
+  modifiers?: Record<string, string[]>;
   onPaywall: () => void;
   // Invoked as soon as the server accepts the request and the NDJSON
   // stream has opened. The caller uses this to navigate to the results
@@ -78,6 +82,7 @@ export function useGeneration() {
       imageBase64,
       categoryId,
       subcategoryIds,
+      modifiers,
       onPaywall,
       onReady,
     }: StartGenerationArgs) => {
@@ -117,6 +122,7 @@ export function useGeneration() {
         selectedPeopleLabels,
         totalPeopleInImage: detectedPeople.length || undefined,
         containsMinor,
+        modifiers,
       };
 
       let generationId = '';

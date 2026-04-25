@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt, isPremiumCategory, buildScopedPrompt } from './prompts';
+import { getPrompt, isPremiumCategory, buildScopedPrompt, appendAccessoryPrompt } from './prompts';
 import { composePrompt } from './composePrompt';
 
 const FREE_CAP = 3;
@@ -33,6 +33,12 @@ interface GenerateBody {
   // attempt or a detector disagreement between this session and a past
   // one; either way we want it on the record.
   containsMinor?: boolean;
+  // Per-subcategory opt-in styling add-ons. Keyed by subcategoryId,
+  // value is the list of accessory ids the user ticked client-side.
+  // Server resolves to prompt snippets via appendAccessoryPrompt and
+  // appends to the base prompt before scoping/branching. See
+  // lib/prompts.ts for the framing note (opt-in only, never auto-applied).
+  modifiers?: Record<string, string[]>;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -336,6 +342,18 @@ export const generate = functions
           const isMultiPerson = total > 1;
           const shouldSequence = isMultiPerson && selected.length >= 2;
 
+          // Append optional accessory snippets ONCE at the variant level.
+          // See app/api/generate+api.ts for the rationale (kept in sync):
+          // every prompt branch carries the same accessory instructions
+          // because we splice them into the base prompt before any
+          // scoping/composing happens.
+          const accessoryIds = body.modifiers?.[subId];
+          const accessorySuffix = appendAccessoryPrompt(body.category, subId, accessoryIds);
+          const basePrompt = meta.prompt + accessorySuffix;
+          if (accessorySuffix) {
+            console.log(`[fn/generate] ⊕ accessories for ${subId}:`, accessoryIds);
+          }
+
           let resultB64: string;
           // promptSource + totalAttempts are hoisted above the try — see
           // comment where they're declared.
@@ -355,7 +373,7 @@ export const generate = functions
               try {
                 personPrompt = await composePrompt({
                   imageBase64: current,
-                  transformation: meta.prompt,
+                  transformation: basePrompt,
                   selectedPeopleLabels: [person],
                   totalPeopleInImage: total,
                 });
@@ -364,7 +382,7 @@ export const generate = functions
                   `[fn/generate] composer failed on pass ${j + 1}/${selected.length}, using static scoped prompt:`,
                   composeErr,
                 );
-                personPrompt = buildScopedPrompt(meta.prompt, [person], total);
+                personPrompt = buildScopedPrompt(basePrompt, [person], total);
               }
               console.log(
                 `[fn/generate] ▼ pass ${j + 1}/${selected.length} — target: "${person}" — subId: ${subId}`,
@@ -383,7 +401,7 @@ export const generate = functions
               try {
                 finalPrompt = await composePrompt({
                   imageBase64: body.imageBase64,
-                  transformation: meta.prompt,
+                  transformation: basePrompt,
                   selectedPeopleLabels: body.selectedPeopleLabels,
                   totalPeopleInImage: body.totalPeopleInImage,
                 });
@@ -391,7 +409,7 @@ export const generate = functions
               } catch (composeErr) {
                 console.warn('[fn/generate] composer failed, falling back to static prompt:', composeErr);
                 finalPrompt = buildScopedPrompt(
-                  meta.prompt,
+                  basePrompt,
                   body.selectedPeopleLabels,
                   body.totalPeopleInImage,
                 );
@@ -399,7 +417,7 @@ export const generate = functions
               }
             } else {
               finalPrompt = buildScopedPrompt(
-                meta.prompt,
+                basePrompt,
                 body.selectedPeopleLabels,
                 body.totalPeopleInImage,
               );

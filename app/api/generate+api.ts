@@ -18,7 +18,7 @@
 // that pulls in React Native modules. This file is server-only.
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt, buildScopedPrompt } from '@/lib/prompts';
+import { getPrompt, buildScopedPrompt, appendAccessoryPrompt } from '@/lib/prompts';
 import { composePrompt } from '@/lib/composePrompt';
 
 // Image edit/generation model. Overridable via .env so we can try newer
@@ -51,6 +51,11 @@ interface GenerateBody {
   // log every request here so stdout captures the audit trail during
   // local testing. Prod mirror lives in functions/src/generate.ts.
   containsMinor?: boolean;
+  // Per-subcategory accessory selections. Keyed by subcategoryId, value
+  // is the list of accessory ids the user ticked (e.g. ['durag']). The
+  // server resolves these to prompt snippets via appendAccessoryPrompt
+  // and appends to the base prompt before scoping/branching.
+  modifiers?: Record<string, string[]>;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -301,6 +306,25 @@ export async function POST(request: Request): Promise<Response> {
         const isMultiPerson = total > 1;
         const shouldSequence = isMultiPerson && selected.length >= 2;
 
+        // Splice in optional accessory snippets ONCE at the variant level
+        // before all branching. This way every prompt path (composer,
+        // sequential per-person, static fallback) carries the same
+        // accessory instructions — the composer treats them as part of
+        // the transformation intent, the static path appends them as
+        // override clauses. Sequential mode applies them on every pass,
+        // which is fine because Nano Banana's "preserve everything not
+        // mentioned" instruction keeps the accessory consistent across
+        // passes once it's there.
+        const accessoryIds = body.modifiers?.[subId];
+        const accessorySuffix = appendAccessoryPrompt(body.category, subId, accessoryIds);
+        const basePrompt = meta.prompt + accessorySuffix;
+        if (accessorySuffix) {
+          console.log(
+            `[api/generate] ⊕ accessories for ${subId}:`,
+            accessoryIds,
+          );
+        }
+
         let resultB64: string;
         // promptSource + totalAttempts are hoisted above the try — the
         // catch needs to see in-progress values on a failure.
@@ -322,7 +346,7 @@ export async function POST(request: Request): Promise<Response> {
                 // subjects as "already transformed, leave them as they are"
                 // without us having to say so explicitly.
                 imageBase64: current,
-                transformation: meta.prompt,
+                transformation: basePrompt,
                 selectedPeopleLabels: [person],
                 totalPeopleInImage: total,
               });
@@ -331,7 +355,7 @@ export async function POST(request: Request): Promise<Response> {
                 `[api/generate] composer failed on pass ${i + 1}/${selected.length}, using static scoped prompt:`,
                 composeErr,
               );
-              personPrompt = buildScopedPrompt(meta.prompt, [person], total);
+              personPrompt = buildScopedPrompt(basePrompt, [person], total);
             }
             console.log(
               `[api/generate] ▼ pass ${i + 1}/${selected.length} — target: "${person}" — subId: ${subId}`,
@@ -351,7 +375,7 @@ export async function POST(request: Request): Promise<Response> {
             try {
               finalPrompt = await composePrompt({
                 imageBase64: body.imageBase64,
-                transformation: meta.prompt,
+                transformation: basePrompt,
                 selectedPeopleLabels: body.selectedPeopleLabels,
                 totalPeopleInImage: body.totalPeopleInImage,
               });
@@ -359,7 +383,7 @@ export async function POST(request: Request): Promise<Response> {
             } catch (composeErr) {
               console.warn('[api/generate] composer failed, falling back to static prompt:', composeErr);
               finalPrompt = buildScopedPrompt(
-                meta.prompt,
+                basePrompt,
                 body.selectedPeopleLabels,
                 body.totalPeopleInImage,
               );
@@ -367,7 +391,7 @@ export async function POST(request: Request): Promise<Response> {
             }
           } else {
             finalPrompt = buildScopedPrompt(
-              meta.prompt,
+              basePrompt,
               body.selectedPeopleLabels,
               body.totalPeopleInImage,
             );

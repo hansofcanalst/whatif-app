@@ -1,8 +1,17 @@
 const BASE = `Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation:`;
 
+// Accessory shape mirrors lib/prompts.ts. See that file for the framing
+// note: opt-in only, never auto-applied based on detected ethnicity.
+interface Accessory {
+  id: string;
+  label: string;
+  promptSnippet: string;
+}
+
 interface SubcategoryMeta {
   label: string;
   prompt: string;
+  accessories?: Accessory[];
 }
 
 type CategoryPromptMap = Record<string, Record<string, SubcategoryMeta>>;
@@ -19,10 +28,34 @@ export const PROMPTS: CategoryPromptMap = {
     'south-asian': {
       label: 'South Asian',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of South Asian descent — think Indian, Pakistani, Bangladeshi, or Sri Lankan heritage. Shift their features in a direction that is distinctly South Asian rather than East/Southeast Asian, Middle Eastern, Latino, Black, or White: warm medium-to-deep brown skin with golden undertones, very dark thick hair that is often wavy, deep brown eyes under thicker eyebrows, a pronounced brow ridge and defined nose bridge, and strong cheekbones. The change must be strong enough that a viewer looking only at the edited image would identify the person as South Asian without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'turban-sikh',
+          label: 'Sikh Turban',
+          promptSnippet: ` Additionally, add a neatly wrapped Sikh dastaar (turban) on the head in a solid color such as orange, navy blue, or black. The turban must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'bindi',
+          label: 'Bindi',
+          promptSnippet: ` Additionally, add a small decorative bindi (a colored or jeweled dot) centered on the forehead between the eyebrows, in the traditional South Asian style. The bindi must be clearly visible.`,
+        },
+      ],
     },
     black: {
       label: 'Black',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of Black/African descent. Shift their features in a direction that is distinctly Black rather than East/Southeast Asian, South Asian, Latino, Middle Eastern, or White: warm medium-brown to deep-brown skin, tightly coiled or curly natural hair texture (or an equivalently Black hairstyle that matches the original cut length), fuller lips, a broader nose with a more rounded tip, and warm undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as Black/African-descended without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'durag',
+          label: 'Durag',
+          promptSnippet: ` Additionally, place a black silk durag tied snugly around the head in the traditional style, with the long ties hanging down the back. The durag must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'headwrap',
+          label: 'Headwrap',
+          promptSnippet: ` Additionally, add a colorful patterned African-style headwrap (gele) tied around the head. The headwrap must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+      ],
     },
     'white-european': {
       label: 'White/European',
@@ -35,6 +68,18 @@ export const PROMPTS: CategoryPromptMap = {
     'middle-eastern': {
       label: 'Middle Eastern',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of Middle Eastern descent — think Arab, Persian, Turkish, or Levantine heritage such as Lebanese, Iranian, or Egyptian. Shift their features in a direction that is distinctly Middle Eastern rather than East/Southeast Asian, South Asian, Latino, Black, or European: warm olive to medium-brown skin, thick dark wavy or curly hair, dark brown eyes under thick full brows, a strong defined brow ridge and nose bridge, and warm undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as Middle Eastern without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'hijab',
+          label: 'Hijab',
+          promptSnippet: ` Additionally, drape a hijab head covering naturally and modestly around the head, framing the face. The hijab must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'keffiyeh',
+          label: 'Keffiyeh',
+          promptSnippet: ` Additionally, drape a traditional checkered keffiyeh (black-and-white or red-and-white) over the head and shoulders in the traditional Arab style. The keffiyeh must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+      ],
     },
   },
   'gender-swap': {
@@ -56,8 +101,28 @@ export const PROMPTS: CategoryPromptMap = {
     child: { label: 'Child (8yr)', prompt: `${BASE} Transform the person to look like an 8-year-old child version of themselves.` },
     teen: { label: 'Teen (16yr)', prompt: `${BASE} Transform the person to look like a 16-year-old teen version of themselves.` },
     'young-adult': { label: 'Young Adult (25yr)', prompt: `${BASE} Transform the person to look like a 25-year-old version of themselves.` },
-    'middle-aged': { label: 'Middle Aged (50yr)', prompt: `${BASE} Transform the person to look like a 50-year-old version of themselves with natural aging.` },
-    elderly: { label: 'Elderly (80yr)', prompt: `${BASE} Transform the person to look like an 80-year-old version of themselves with natural aging (wrinkles, grey hair, aged skin).` },
+    'middle-aged': {
+      label: 'Middle Aged (50yr)',
+      prompt: `${BASE} Transform the person to look like a 50-year-old version of themselves with natural aging.`,
+      accessories: [
+        {
+          id: 'reading-glasses',
+          label: 'Reading glasses',
+          promptSnippet: ` Additionally, add a pair of subtle reading glasses on the face in a frame style that suits the person.`,
+        },
+      ],
+    },
+    elderly: {
+      label: 'Elderly (80yr)',
+      prompt: `${BASE} Transform the person to look like an 80-year-old version of themselves with natural aging (wrinkles, grey hair, aged skin).`,
+      accessories: [
+        {
+          id: 'reading-glasses',
+          label: 'Reading glasses',
+          promptSnippet: ` Additionally, add a pair of reading glasses on the face in a frame style that suits an elderly person.`,
+        },
+      ],
+    },
   },
   'political-mashup': {
     'trump-child': { label: "Trump's Kid", prompt: `${BASE} Blend this person's features with the Trump family to create a photorealistic Trump-family portrait.` },
@@ -83,6 +148,24 @@ const PREMIUM_CATEGORIES = new Set(['political-mashup', 'celebrity-mashup', 'eth
 
 export function getPrompt(category: string, subcategory: string): SubcategoryMeta | null {
   return PROMPTS[category]?.[subcategory] ?? null;
+}
+
+// Mirrors lib/prompts.ts. Resolves accessory ids → concatenated prompt
+// snippets. Unknown ids are silently skipped — server doesn't trust the
+// client to send only valid ids.
+export function appendAccessoryPrompt(
+  category: string,
+  subcategory: string,
+  accessoryIds: string[] | undefined,
+): string {
+  if (!accessoryIds?.length) return '';
+  const meta = getPrompt(category, subcategory);
+  if (!meta?.accessories?.length) return '';
+  const byId = new Map(meta.accessories.map((a) => [a.id, a]));
+  return accessoryIds
+    .map((id) => byId.get(id)?.promptSnippet ?? '')
+    .filter((s) => s.length > 0)
+    .join('');
 }
 
 export function isPremiumCategory(category: string): boolean {

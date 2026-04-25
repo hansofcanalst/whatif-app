@@ -70,10 +70,31 @@ export default function Gallery() {
     return merged;
   }, [localGallery, remoteDocs]);
 
+  // 'results' = current behavior (single-image thumb showing the
+  // transformed result). 'compare' = split-tile thumb showing the
+  // original on the left and the result on the right, divided by the
+  // accent line. The original lives on the parent generation doc, so
+  // each tile in compare mode pulls from `d.originalImageURL` plus its
+  // own `r.imageURL`. Falls back to results-only if a doc somehow
+  // lacks an original (legacy local entries).
+  const [viewMode, setViewMode] = useState<'results' | 'compare'>('results');
+
   const visible = filter ? docs.filter((d) => d.categoryId === filter) : docs;
-  const flat: Array<{ docId: string; resultIdx: number; url: string }> = [];
+  const flat: Array<{
+    docId: string;
+    resultIdx: number;
+    url: string;
+    originalURL?: string;
+  }> = [];
   visible.forEach((d) => {
-    d.results.forEach((r, i) => flat.push({ docId: d.id, resultIdx: i, url: r.imageURL }));
+    d.results.forEach((r, i) =>
+      flat.push({
+        docId: d.id,
+        resultIdx: i,
+        url: r.imageURL,
+        originalURL: d.originalImageURL,
+      }),
+    );
   });
 
   return (
@@ -83,8 +104,32 @@ export default function Gallery() {
           <Text style={styles.sectionLabel}>Archive</Text>
           <Text style={styles.title}>Your Gallery</Text>
         </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{flat.length}</Text>
+        <View style={styles.topBarRight}>
+          {/* Compact two-state toggle. Lives next to the count badge so
+              the top bar density stays the same as before. The compare
+              mode reveals the original alongside each result — the
+              gallery's most direct answer to "show before and after". */}
+          <View style={styles.modeSwitch}>
+            <Pressable
+              onPress={() => setViewMode('results')}
+              style={[styles.modeBtn, viewMode === 'results' && styles.modeBtnActive]}
+            >
+              <Text style={[styles.modeText, viewMode === 'results' && styles.modeTextActive]}>
+                Results
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setViewMode('compare')}
+              style={[styles.modeBtn, viewMode === 'compare' && styles.modeBtnActive]}
+            >
+              <Text style={[styles.modeText, viewMode === 'compare' && styles.modeTextActive]}>
+                Compare
+              </Text>
+            </Pressable>
+          </View>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{flat.length}</Text>
+          </View>
         </View>
       </View>
       {/* Horizontal filter bar. `style={styles.filterBar}` pins the outer
@@ -123,15 +168,32 @@ export default function Gallery() {
           </View>
         ) : (
           <View style={styles.gridInner}>
-            {flat.map((item) => (
-              <Pressable
-                key={`${item.docId}-${item.resultIdx}`}
-                onPress={() => router.push(`/result/${item.docId}?idx=${item.resultIdx}`)}
-                style={styles.thumb}
-              >
-                <Image source={{ uri: item.url }} style={styles.thumbImage} />
-              </Pressable>
-            ))}
+            {flat.map((item) => {
+              const showCompare = viewMode === 'compare' && !!item.originalURL;
+              return (
+                <Pressable
+                  key={`${item.docId}-${item.resultIdx}`}
+                  onPress={() => router.push(`/result/${item.docId}?idx=${item.resultIdx}`)}
+                  style={styles.thumb}
+                >
+                  {showCompare ? (
+                    // Split tile: original | result. Each half takes 50%
+                    // and uses cover scaling so the visual focus stays on
+                    // the subject regardless of source aspect ratio. The
+                    // accent stripe down the middle echoes the result-
+                    // detail BeforeAfterSlider's divider, so the two
+                    // surfaces feel like a single visual language.
+                    <View style={styles.compareWrap}>
+                      <Image source={{ uri: item.originalURL }} style={styles.compareHalf} />
+                      <View style={styles.compareDivider} />
+                      <Image source={{ uri: item.url }} style={styles.compareHalf} />
+                    </View>
+                  ) : (
+                    <Image source={{ uri: item.url }} style={styles.thumbImage} />
+                  )}
+                </Pressable>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -210,6 +272,39 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   thumbImage: { width: '100%', height: '100%' },
+  // Top-bar right cluster — Compare/Results mode switch + count pill.
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  modeSwitch: {
+    flexDirection: 'row',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 2,
+  },
+  modeBtn: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+  },
+  modeBtnActive: {
+    backgroundColor: colors.accentDim,
+  },
+  modeText: {
+    ...typography.label,
+    color: colors.textSecondary,
+    fontSize: 10,
+  },
+  modeTextActive: {
+    color: colors.accentText,
+    fontWeight: '700',
+  },
+  // Compare-mode split tile: two halves divided by a thin accent stripe.
+  // resizeMode defaults to 'cover' on RN <Image>, which is what we want
+  // here so each half stays subject-focused regardless of source ratio.
+  compareWrap: { flex: 1, flexDirection: 'row' },
+  compareHalf: { flex: 1, height: '100%' },
+  compareDivider: { width: 1, backgroundColor: colors.accent },
   empty: { alignItems: 'center', padding: spacing.xxxl, gap: spacing.md },
   emptyIconTile: {
     width: 64,
