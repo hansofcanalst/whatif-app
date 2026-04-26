@@ -7,6 +7,10 @@ service cloud.firestore {
       allow update: if request.auth != null && request.auth.uid == uid
         && !('subscriptionStatus' in request.resource.data.diff(resource.data).affectedKeys())
         && !('freeGenerationsUsed' in request.resource.data.diff(resource.data).affectedKeys());
+      // Owners can delete their own account (the Profile screen's
+      // "Delete Account" flow). Required for App Store policy and
+      // GDPR/CCPA right-to-erasure compliance.
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
     match /generations/{id} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;

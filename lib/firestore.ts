@@ -109,3 +109,35 @@ export async function getGeneration(id: string): Promise<GenerationDoc | null> {
 export async function deleteGeneration(id: string): Promise<void> {
   await deleteDoc(doc(db, 'generations', id));
 }
+
+/**
+ * Delete every generation owned by `uid`. Used by the account-deletion
+ * flow. Reads the full list first (Firestore has no native "delete
+ * where" client API) then issues parallel deletes. Errors on individual
+ * docs are logged but don't block the rest — partial deletion is
+ * better than no deletion if one row is in a weird state.
+ *
+ * Like `deleteGeneration`, this does NOT clean up Storage objects.
+ * A Cloud Function `onUserDelete` trigger is the right place for that.
+ */
+export async function deleteAllUserGenerations(uid: string): Promise<void> {
+  const docs = await listGenerations(uid);
+  const results = await Promise.allSettled(docs.map((d) => deleteGeneration(d.id)));
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.warn(
+      `[firestore] deleteAllUserGenerations: ${failures.length}/${docs.length} deletions failed`,
+      failures,
+    );
+  }
+}
+
+/**
+ * Delete the user doc itself. Rules allow owner-delete; called as part
+ * of the account-deletion flow AFTER deleting the user's generations.
+ * Doing it before would invalidate the auth context that
+ * `deleteAllUserGenerations` relies on.
+ */
+export async function deleteUserDoc(uid: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', uid));
+}

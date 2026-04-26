@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallModal } from '@/components/ui/PaywallModal';
-import { signOut } from '@/lib/auth';
+import { signOut, deleteAccount, ReauthRequiredError } from '@/lib/auth';
 import { config } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
@@ -19,6 +19,61 @@ export default function Profile() {
     Alert.alert('Log out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: () => signOut() },
+    ]);
+  };
+
+  // Tracks whether a delete is in flight, so we can disable the row
+  // and avoid double-fires if the user taps twice during the network
+  // round-trip (it can take a few seconds when there are many
+  // generations to delete).
+  const [deleting, setDeleting] = useState(false);
+
+  // Two-step destructive flow: a clear initial confirm explaining
+  // what will happen, then we kick off `deleteAccount`. On
+  // `ReauthRequiredError` we tell the user to log out and back in,
+  // which is what Firebase wants — implementing in-place reauth for
+  // every provider (email, Google, Apple) is more code than this
+  // edge case warrants right now.
+  const handleDeleteAccount = () => {
+    if (deleting) return;
+    const title = 'Delete account?';
+    const message =
+      'This permanently removes your account, your generated images, and your gallery. This cannot be undone.';
+    const proceed = async () => {
+      setDeleting(true);
+      try {
+        await deleteAccount();
+        // Auth listener will fire null and the AuthGate routes the
+        // user to /login — no manual navigation needed here.
+      } catch (e) {
+        if (e instanceof ReauthRequiredError) {
+          Alert.alert(
+            'Please log in again',
+            'For security, recent sign-in is required to delete your account. Log out, sign back in, then try again. (Your data has been removed; only your sign-in record remains.)',
+          );
+        } else {
+          console.warn('[profile] deleteAccount failed', e);
+          Alert.alert(
+            'Delete failed',
+            e instanceof Error ? e.message : 'Something went wrong. Please try again.',
+          );
+        }
+      } finally {
+        setDeleting(false);
+      }
+    };
+    if (Platform.OS === 'web') {
+      // RNW's Alert.alert collapses to OK/Cancel without honoring the
+      // destructive style — call window.confirm directly so the
+      // copy renders fully.
+      if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
+        proceed();
+      }
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: proceed },
     ]);
   };
 
@@ -85,7 +140,12 @@ export default function Profile() {
             <View style={styles.divider} />
             <SettingRow label="Terms of Service" />
             <View style={styles.divider} />
-            <SettingRow label="Delete Account" destructive />
+            <SettingRow
+              label={deleting ? 'Deleting…' : 'Delete Account'}
+              destructive
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+            />
           </View>
         </View>
 
@@ -100,9 +160,23 @@ export default function Profile() {
   );
 }
 
-function SettingRow({ label, destructive }: { label: string; destructive?: boolean }) {
+function SettingRow({
+  label,
+  destructive,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  destructive?: boolean;
+  onPress?: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <Pressable style={styles.row}>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || !onPress}
+      style={[styles.row, disabled && styles.rowDisabled]}
+    >
       <Text style={[styles.rowLabel, destructive && { color: colors.dangerText }]}>{label}</Text>
       <Text style={styles.rowChevron}>›</Text>
     </Pressable>
@@ -174,6 +248,10 @@ const styles = StyleSheet.create({
   },
   rowLabel: { ...typography.body, color: colors.textPrimary },
   rowChevron: { color: colors.textMuted, fontSize: 20 },
+  // Visual feedback for in-flight destructive actions — primarily the
+  // "Deleting…" state on the Delete Account row while the network
+  // operations resolve.
+  rowDisabled: { opacity: 0.5 },
   divider: { height: 1, backgroundColor: colors.border },
   logout: {
     padding: spacing.md,
