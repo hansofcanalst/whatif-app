@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert } from 'react-native';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallModal } from '@/components/ui/PaywallModal';
+import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { signOut, deleteAccount, ReauthRequiredError } from '@/lib/auth';
 import { config } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
@@ -22,59 +23,51 @@ export default function Profile() {
     ]);
   };
 
-  // Tracks whether a delete is in flight, so we can disable the row
-  // and avoid double-fires if the user taps twice during the network
-  // round-trip (it can take a few seconds when there are many
-  // generations to delete).
+  // Modal-driven destructive flow. The DeleteAccountModal requires the
+  // user to retype their email before the Delete button enables —
+  // stronger friction than a plain Alert.alert, and works identically
+  // across web + native (RNW's Alert.alert collapses to OK/Cancel and
+  // doesn't render destructive styling, which is why the previous
+  // implementation needed a Platform branch).
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Two-step destructive flow: a clear initial confirm explaining
-  // what will happen, then we kick off `deleteAccount`. On
-  // `ReauthRequiredError` we tell the user to log out and back in,
-  // which is what Firebase wants — implementing in-place reauth for
-  // every provider (email, Google, Apple) is more code than this
-  // edge case warrants right now.
   const handleDeleteAccount = () => {
     if (deleting) return;
-    const title = 'Delete account?';
-    const message =
-      'This permanently removes your account, your generated images, and your gallery. This cannot be undone.';
-    const proceed = async () => {
-      setDeleting(true);
-      try {
-        await deleteAccount();
-        // Auth listener will fire null and the AuthGate routes the
-        // user to /login — no manual navigation needed here.
-      } catch (e) {
-        if (e instanceof ReauthRequiredError) {
-          Alert.alert(
-            'Please log in again',
-            'For security, recent sign-in is required to delete your account. Log out, sign back in, then try again. (Your data has been removed; only your sign-in record remains.)',
-          );
-        } else {
-          console.warn('[profile] deleteAccount failed', e);
-          Alert.alert(
-            'Delete failed',
-            e instanceof Error ? e.message : 'Something went wrong. Please try again.',
-          );
-        }
-      } finally {
-        setDeleting(false);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    setDeleting(true);
+    try {
+      await deleteAccount();
+      // Auth listener will fire null and AuthGate routes to /login —
+      // no manual navigation needed. We close the modal eagerly so the
+      // brief moment between auth-listener firing and the route swap
+      // doesn't show a stale Profile-with-modal.
+      setDeleteModalOpen(false);
+    } catch (e) {
+      // Hide the modal so the alert is the focused affordance. The
+      // user's data is already gone at this point (the Firestore
+      // deletes succeed before user.delete() is called), so we don't
+      // want them to retype their email a second time — the alert
+      // tells them what to do next.
+      setDeleteModalOpen(false);
+      if (e instanceof ReauthRequiredError) {
+        Alert.alert(
+          'Please log in again',
+          'For security, recent sign-in is required to finish deleting your account. Log out, sign back in, then tap Delete Account once more. Your data has been removed; only your sign-in record remains.',
+        );
+      } else {
+        console.warn('[profile] deleteAccount failed', e);
+        Alert.alert(
+          'Delete failed',
+          e instanceof Error ? e.message : 'Something went wrong. Please try again.',
+        );
       }
-    };
-    if (Platform.OS === 'web') {
-      // RNW's Alert.alert collapses to OK/Cancel without honoring the
-      // destructive style — call window.confirm directly so the
-      // copy renders fully.
-      if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
-        proceed();
-      }
-      return;
+    } finally {
+      setDeleting(false);
     }
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: proceed },
-    ]);
   };
 
   const remaining = userDoc
@@ -156,6 +149,15 @@ export default function Profile() {
         <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />
+      <DeleteAccountModal
+        visible={deleteModalOpen}
+        email={user?.email ?? null}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => {
+          if (!deleting) setDeleteModalOpen(false);
+        }}
+        busy={deleting}
+      />
     </SafeAreaView>
   );
 }
