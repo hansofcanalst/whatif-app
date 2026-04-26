@@ -6,7 +6,11 @@
     "orientation": "portrait",
     "scheme": "whatif",
     "userInterfaceStyle": "dark",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#0B0B0F"
@@ -25,7 +29,11 @@
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0F"
       },
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -40,7 +48,8 @@
           "photosPermission": "Allow What If to access your photos.",
           "cameraPermission": "Allow What If to use your camera so you can take a photo to transform."
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

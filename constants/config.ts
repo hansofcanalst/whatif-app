@@ -24,6 +24,14 @@ export const config = {
   cloudFunctions: {
     baseURL: env('EXPO_PUBLIC_CLOUD_FUNCTIONS_URL', 'CLOUD_FUNCTIONS_URL'),
   },
+  // Sentry DSN. When unset, the Sentry init no-ops cleanly — local dev
+  // and contributors without an account see zero impact. Sign up at
+  // sentry.io to get a real DSN, then drop it into .env as
+  // EXPO_PUBLIC_SENTRY_DSN and restart the dev server (env vars are
+  // inlined at build time).
+  sentry: {
+    dsn: env('EXPO_PUBLIC_SENTRY_DSN', 'SENTRY_DSN'),
+  },
   freeGenerationCap: 3,
   maxImageSize: 1024,
   imageQuality: 0.8,
