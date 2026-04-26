@@ -57,7 +57,7 @@ export function initSentry(): void {
       // Don't ship dev errors to Sentry. They're noise — the developer
       // is already looking at the Metro terminal. Flip this to true
       // temporarily if you specifically want to test the integration.
-      enabled: true,
+      enabled: !__DEV__,
       // Send the SDK a hint that lets sentry.io group identical errors
       // across releases. expo-constants makes this trivial to read; we
       // fall back to 'unknown' so init never fails on a missing field.
