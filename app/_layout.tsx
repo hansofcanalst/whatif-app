@@ -148,6 +148,8 @@ export default function RootLayout() {
                 <Stack.Screen name="generate/[categoryId]" />
                 <Stack.Screen name="generate/results" />
                 <Stack.Screen name="result/[id]" />
+                <Stack.Screen name="privacy" />
+                <Stack.Screen name="terms" />
               </Stack>
             </AuthGate>
           </View>

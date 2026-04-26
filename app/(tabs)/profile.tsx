@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
@@ -12,6 +13,7 @@ import { config } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 export default function Profile() {
+  const router = useRouter();
   const { user, userDoc } = useAuthStore();
   const { isActive, plan, expiresAt } = useSubscriptionStore();
   const [paywall, setPaywall] = useState(false);
@@ -129,9 +131,20 @@ export default function Profile() {
             Settings
           </Text>
           <View style={styles.settingsCard}>
-            <SettingRow label="Privacy Policy" />
+            {/* Casts avoid a stale typed-routes diagnostic — Expo Router's
+                generated `.expo/types/router.d.ts` only learns about new
+                routes after the dev server runs once. The cast unblocks
+                typecheck pre-restart; once Metro regenerates, the cast
+                is a no-op. Standard Expo Router workaround. */}
+            <SettingRow
+              label="Privacy Policy"
+              onPress={() => router.push('/privacy' as never)}
+            />
             <View style={styles.divider} />
-            <SettingRow label="Terms of Service" />
+            <SettingRow
+              label="Terms of Service"
+              onPress={() => router.push('/terms' as never)}
+            />
             <View style={styles.divider} />
             <SettingRow
               label={deleting ? 'Deleting…' : 'Delete Account'}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,6 +11,17 @@ import {
   purchasePackage,
   restorePurchases,
 } from '@/lib/revenuecat';
+
+// react-native-purchases has no real implementation on the web target —
+// the module resolves but its methods are undefined, so calls like
+// Purchases.isConfigured() throw "Cannot read properties of undefined".
+// Web has no IAP path anyway (no App Store / Play Store on the web),
+// so we no-op the entire RevenueCat surface there. Pro status on web
+// is sourced from the user doc's `subscriptionStatus` field instead,
+// which `useAuth` already mirrors into the subscription store via
+// syncSubscriptionFromUserDoc — so Pro users still see correct
+// entitlements on web, just without the live purchase flow.
+const RC_AVAILABLE = Platform.OS === 'ios' || Platform.OS === 'android';
 
 function applyInfo(info: CustomerInfo, apply: (s: { plan: any; isActive: boolean; expiresAt: number | null }) => void) {
   const pro = info.entitlements.active['pro'];
@@ -30,6 +42,13 @@ export function useSubscription() {
 
   useEffect(() => {
     if (!user) return;
+    // Skip the entire RC init+listener dance on web. The previous
+    // version threw `TypeError: Cannot read properties of undefined
+    // (reading 'isConfigured')` on every page load and that was both
+    // user-invisible noise and a guaranteed Sentry pollutant once
+    // shipped to production web.
+    if (!RC_AVAILABLE) return;
+
     (async () => {
       setLoading(true);
       try {
@@ -50,9 +69,15 @@ export function useSubscription() {
     };
   }, [user, setSubscription, setLoading]);
 
-  const offerings = useCallback(() => getOfferings(), []);
+  const offerings = useCallback(async () => {
+    if (!RC_AVAILABLE) return null;
+    return getOfferings();
+  }, []);
   const purchase = useCallback(
     async (pkg: Parameters<typeof purchasePackage>[0]) => {
+      if (!RC_AVAILABLE) {
+        throw new Error('In-app purchases are not available on web. Open the app on iOS or Android to subscribe.');
+      }
       const info = await purchasePackage(pkg);
       applyInfo(info, setSubscription);
       return info;
@@ -60,6 +85,9 @@ export function useSubscription() {
     [setSubscription],
   );
   const restore = useCallback(async () => {
+    if (!RC_AVAILABLE) {
+      throw new Error('Restore is not available on web. Open the app on iOS or Android to restore purchases.');
+    }
     const info = await restorePurchases();
     applyInfo(info, setSubscription);
     return info;

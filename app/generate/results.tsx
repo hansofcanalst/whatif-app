@@ -207,6 +207,33 @@ export default function ResultsScreen() {
         ) : (
           <ResultsGrid results={currentResults} onSelect={onSelect} />
         )}
+
+        {/* Total-failure recovery banner. Shown only when:
+              - the stream has settled (not in-flight)
+              - we're using slots (the stream code path)
+              - the slot list is non-empty (we actually ran something)
+              - every slot is failed (no successes at all)
+            On a partial failure (some succeeded, some failed) we don't
+            show this — the user can tap the successful tiles and the
+            failed ones explain themselves with the red "!". This banner
+            is for the "nothing came back, what do I do" case. */}
+        {!generationInFlight &&
+        usingSlots &&
+        progress.total > 0 &&
+        progress.failed === progress.total ? (
+          <View style={styles.failureBlock}>
+            <Text style={styles.failureTitle}>All transformations failed</Text>
+            <Text style={styles.failureBody}>
+              This usually clears in a minute or two. The model is occasionally rate-limited or returns no image. Tap below to try again with the same selections — your photo and choices are still loaded.
+            </Text>
+            <Button
+              label="Try again"
+              onPress={() => router.back()}
+              style={{ marginTop: spacing.md }}
+            />
+          </View>
+        ) : null}
+
         <View style={styles.actions}>
           <Button
             label="Generate More"
@@ -297,4 +324,26 @@ const styles = StyleSheet.create({
   },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  // Total-failure recovery card. Danger-tinted (matching the red `!`
+  // tile glyph) so the user reads it as a clear failure state, not a
+  // generic info block. Sits between the grid and the action row so
+  // "Try again" is the most prominent affordance — Generate More /
+  // Done remain available below if the user wants to bail.
+  failureBlock: {
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    gap: spacing.xs,
+  },
+  failureTitle: {
+    ...typography.h3,
+    color: colors.dangerText,
+  },
+  failureBody: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
 });
