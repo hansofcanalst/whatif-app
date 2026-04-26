@@ -24,6 +24,13 @@ export const PROMPTS: CategoryPromptMap = {
     'east-asian': {
       label: 'East Asian',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of East Asian descent — think Chinese, Japanese, or Korean heritage. Shift their features in a direction that is distinctly East Asian rather than Southeast Asian, South Asian, Latino, Black, or White: cool-undertone fair to light-tan skin, straight black or very dark brown hair, eye shape with a defined epicanthic fold, a smaller refined nose with a lower bridge, and smoother less-angular facial bone structure with a softer brow ridge. The change must be strong enough that a viewer looking only at the edited image would identify the person as East Asian without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'conical-hat',
+          label: 'Conical sun hat',
+          promptSnippet: ` Additionally, place a traditional East Asian conical straw sun hat (dǒulì / non lá) on the head. The hat must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+      ],
     },
     'south-asian': {
       label: 'South Asian',
@@ -60,10 +67,44 @@ export const PROMPTS: CategoryPromptMap = {
     'white-european': {
       label: 'White/European',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of White/European descent — think Northern or Central European heritage such as British, German, Scandinavian, or Slavic. Shift their features in a direction that is distinctly White rather than East/Southeast Asian, South Asian, Middle Eastern, Latino, or Black: fair skin with pink or peach undertones, hair in the blond, light-brown, auburn, or medium-brown range (not jet black), lighter eye color where plausible (blue, green, hazel, or light brown), a narrower nose with a defined bridge, more angular European facial structure, and cool skin undertones. The change must be strong enough that a viewer looking only at the edited image would identify the person as White/European without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'cowboy-hat',
+          label: 'Cowboy hat',
+          promptSnippet: ` Additionally, place a classic brown leather cowboy hat with a curled brim on the head. The hat must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'beanie',
+          label: 'Beanie',
+          promptSnippet: ` Additionally, place a knitted beanie on the head in a neutral color (charcoal, black, or oatmeal) that suits the person. The beanie must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'newsboy-cap',
+          label: 'Newsboy cap',
+          promptSnippet: ` Additionally, place a tweed newsboy cap (flat cap) on the head in a brown or grey herringbone pattern. The cap must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'yamaka',
+          label: 'Yamaka',
+          promptSnippet: ` Additionally, place a small kippah (yamaka) on the crown of the head in a solid color such as black, navy, or maroon. The kippah must be clearly visible (sitting on top of the hair, not replacing it) and is in addition to the original hairstyle.`,
+        },
+      ],
     },
     latino: {
       label: 'Latino',
       prompt: `${BASE} Transform the person so they appear clearly and recognizably of Latino/Hispanic descent — think mestizo Latin American heritage such as Mexican, Colombian, or Peruvian. Shift their features in a direction that is distinctly Latino rather than East/Southeast Asian, South Asian, Middle Eastern, Black, or White: warm olive-to-tan skin, dark brown or black hair that often has a wave or slight curl, dark brown eyes, and a mestizo facial bone structure (rounder or slightly broader face, defined cheekbones, warm undertones). The change must be strong enough that a viewer looking only at the edited image would identify the person as Latino without ambiguity — a subtle skin-tone nudge is NOT enough. Keep clothing, accessories, pose, expression, and the background identical.`,
+      accessories: [
+        {
+          id: 'sombrero',
+          label: 'Sombrero',
+          promptSnippet: ` Additionally, place a traditional wide-brimmed Mexican sombrero on the head with decorative trim around the brim. The sombrero must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+        {
+          id: 'charro-hat',
+          label: 'Charro hat',
+          promptSnippet: ` Additionally, place a traditional Mexican charro hat (sombrero charro) on the head — a stiff felt hat with a wide flat brim and ornate embroidery. The hat must be clearly visible and replaces any existing headwear from the original photo.`,
+        },
+      ],
     },
     'middle-eastern': {
       label: 'Middle Eastern',
@@ -97,7 +138,17 @@ export const PROMPTS: CategoryPromptMap = {
     },
   },
   'age-transform': {
-    baby: { label: 'Baby (1yr)', prompt: `${BASE} Transform the person to look like a 1-year-old baby version of themselves. Maintain family resemblance.` },
+    baby: {
+      label: 'Baby (1yr)',
+      prompt: `${BASE} Transform the person to look like a 1-year-old baby version of themselves. Maintain family resemblance.`,
+      accessories: [
+        {
+          id: 'pacifier',
+          label: 'Pacifier',
+          promptSnippet: ` Additionally, the baby should have a pacifier in their mouth in a soft pastel color (white, blue, or pink). The pacifier must be clearly visible.`,
+        },
+      ],
+    },
     child: { label: 'Child (8yr)', prompt: `${BASE} Transform the person to look like an 8-year-old child version of themselves.` },
     teen: { label: 'Teen (16yr)', prompt: `${BASE} Transform the person to look like a 16-year-old teen version of themselves.` },
     'young-adult': { label: 'Young Adult (25yr)', prompt: `${BASE} Transform the person to look like a 25-year-old version of themselves.` },
@@ -120,6 +171,11 @@ export const PROMPTS: CategoryPromptMap = {
           id: 'reading-glasses',
           label: 'Reading glasses',
           promptSnippet: ` Additionally, add a pair of reading glasses on the face in a frame style that suits an elderly person.`,
+        },
+        {
+          id: 'cane',
+          label: 'Walking cane',
+          promptSnippet: ` Additionally, the elderly person should be holding a wooden walking cane in their hand. The cane must be clearly visible.`,
         },
       ],
     },

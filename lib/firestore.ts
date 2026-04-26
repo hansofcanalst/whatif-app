@@ -3,6 +3,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
   where,
@@ -90,4 +91,21 @@ export async function listGenerations(uid: string): Promise<GenerationDoc[]> {
 export async function getGeneration(id: string): Promise<GenerationDoc | null> {
   const snap = await getDoc(doc(db, 'generations', id));
   return snap.exists() ? ({ id: snap.id, ...(snap.data() as Omit<GenerationDoc, 'id'>) }) : null;
+}
+
+/**
+ * Delete a generation doc by id. Security rules enforce owner-only:
+ * trying to delete someone else's doc throws permission-denied.
+ *
+ * Storage objects (original + result images at users/{uid}/generations/{id}/*.jpg)
+ * are NOT cleaned up here. Doing so client-side would require listing
+ * the bucket prefix or remembering each result's storage path on the
+ * doc — both fragile compared to a server-side Firestore-trigger
+ * Cloud Function that watches `onDelete` and sweeps the prefix. That
+ * function is a follow-up; for now the orphaned bytes are acceptable
+ * because the visible gallery is the user's mental model and Storage
+ * cost at current scale is negligible.
+ */
+export async function deleteGeneration(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'generations', id));
 }

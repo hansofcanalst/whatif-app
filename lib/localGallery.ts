@@ -156,3 +156,24 @@ export async function clearLocalGallery(): Promise<void> {
     console.warn('[localGallery] clear failed', e);
   }
 }
+
+/**
+ * Remove a single entry by id and persist. Used by the gallery's
+ * long-press → delete flow. No-op if the id isn't in the list.
+ *
+ * Returns the new list (post-removal) so callers can update any
+ * in-memory copy without re-reading storage. Mirrors the
+ * `appendLocalGeneration` pattern.
+ */
+export async function removeLocalGeneration(id: string): Promise<LocalGenerationDoc[]> {
+  const existing = await listLocalGallery();
+  const next = existing.filter((d) => d.id !== id);
+  if (next.length === existing.length) return existing; // not present
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.warn('[localGallery] remove failed', e);
+    return existing;
+  }
+  return next;
+}

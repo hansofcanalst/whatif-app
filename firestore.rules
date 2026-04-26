@@ -10,7 +10,15 @@ service cloud.firestore {
     }
     match /generations/{id} {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow write: if false;
+      // Owners can delete their own entries (the Gallery's long-press flow).
+      // Create + update remain server-only — the Cloud Function writes
+      // generations via Admin SDK which bypasses these rules.
+      // Note: deleting the Firestore doc leaves the Storage objects
+      // (original + result images) orphaned. A periodic Cloud Function
+      // sweep is the right cleanup mechanism; not blocking on it for
+      // MVP because the storage cost is negligible at current scale.
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update: if false;
     }
     match /subscriptions/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;

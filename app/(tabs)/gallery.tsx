@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Pressable, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Pressable, Image, RefreshControl, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -17,6 +17,7 @@ export default function Gallery() {
   // refresh required.
   const localGallery = useGenerationStore((s) => s.localGallery);
   const hydrateLocalGallery = useGenerationStore((s) => s.hydrateLocalGallery);
+  const removeGeneration = useGenerationStore((s) => s.removeGeneration);
   const [remoteDocs, setRemoteDocs] = useState<GenerationDoc[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,6 +46,43 @@ export default function Gallery() {
     await load();
     setRefreshing(false);
   };
+
+  // Long-press → confirm → delete the entire generation (all its
+  // variants — the doc is the unit of persistence, individual results
+  // can't be deleted in isolation). Surfaces variant count in the
+  // confirm copy so the user knows the scope before tapping through.
+  //
+  // Web's Alert.alert in React Native Web uses window.confirm(), which
+  // only supports OK/Cancel — it ignores the third (destructive) button
+  // and returns false on Cancel. We branch on Platform so web users get
+  // a proper confirm() prompt rather than a button that silently
+  // dismisses with no destructive action.
+  const handleDelete = useCallback(
+    (docId: string, variantCount: number) => {
+      const title = 'Delete this set?';
+      const message =
+        variantCount > 1
+          ? `Removes all ${variantCount} variants from this generation. This can't be undone.`
+          : `Removes this transformation. This can't be undone.`;
+      const proceed = () => {
+        removeGeneration(docId).catch((e) =>
+          console.warn('[gallery] removeGeneration failed', e),
+        );
+      };
+      if (Platform.OS === 'web') {
+        // eslint-disable-next-line no-alert
+        if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
+          proceed();
+        }
+        return;
+      }
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: proceed },
+      ]);
+    },
+    [removeGeneration],
+  );
 
   // Merge the two sources and dedupe by id. Remote wins on collision
   // because its `results[].imageURL` is an https URL (smaller, cacheable)
@@ -85,6 +123,7 @@ export default function Gallery() {
     resultIdx: number;
     url: string;
     originalURL?: string;
+    variantCount: number;
   }> = [];
   visible.forEach((d) => {
     d.results.forEach((r, i) =>
@@ -93,6 +132,9 @@ export default function Gallery() {
         resultIdx: i,
         url: r.imageURL,
         originalURL: d.originalImageURL,
+        // Carried so the long-press confirm can say "Delete all 5
+        // variants…" without re-looking-up the parent doc.
+        variantCount: d.results.length,
       }),
     );
   });
@@ -174,6 +216,8 @@ export default function Gallery() {
                 <Pressable
                   key={`${item.docId}-${item.resultIdx}`}
                   onPress={() => router.push(`/result/${item.docId}?idx=${item.resultIdx}`)}
+                  onLongPress={() => handleDelete(item.docId, item.variantCount)}
+                  delayLongPress={400}
                   style={styles.thumb}
                 >
                   {showCompare ? (

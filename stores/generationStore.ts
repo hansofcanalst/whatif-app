@@ -4,9 +4,11 @@ import type { DetectedPerson } from '@/lib/detect';
 import {
   appendLocalGeneration,
   listLocalGallery,
+  removeLocalGeneration,
   type AppendLocalGenerationArgs,
   type LocalGenerationDoc,
 } from '@/lib/localGallery';
+import { deleteGeneration } from '@/lib/firestore';
 
 type DetectionStatus = 'idle' | 'detecting' | 'ready' | 'failed';
 
@@ -96,6 +98,12 @@ interface GenerationState {
 
   hydrateLocalGallery: () => Promise<void>;
   appendLocalGeneration: (args: AppendLocalGenerationArgs) => Promise<void>;
+  // Delete a generation from both Firestore (best-effort; permission
+  // errors swallowed so a local-only entry can still be removed) and
+  // the AsyncStorage-backed local gallery, then update the in-memory
+  // localGallery slice so subscribers re-render. Used by the gallery
+  // tab's long-press → delete flow.
+  removeGeneration: (id: string) => Promise<void>;
 
   reset: () => void;
 }
@@ -220,6 +228,30 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   appendLocalGeneration: async (args) => {
     const next = await appendLocalGeneration(args);
     set({ localGallery: next, localGalleryHydrated: true });
+  },
+
+  // Delete from both stores and prune the in-memory slice. Firestore
+  // failures (permission denied for local-only `dev_*` ids, network
+  // hiccups, doc already gone) are swallowed — losing the remote write
+  // shouldn't block the user from tidying their local gallery, and the
+  // result is at worst a stale row in Firestore that re-syncs as gone
+  // on next listGenerations().
+  removeGeneration: async (id) => {
+    try {
+      await deleteGeneration(id);
+    } catch (e) {
+      console.warn('[generationStore] firestore deleteGeneration failed', e);
+    }
+    try {
+      const next = await removeLocalGeneration(id);
+      set({ localGallery: next });
+    } catch (e) {
+      console.warn('[generationStore] removeLocalGeneration failed', e);
+      // Still try to update the in-memory slice so the UI reflects the
+      // user's intent even if persistence failed — a refresh would
+      // re-surface the entry, but at least the immediate UX is correct.
+      set((s) => ({ localGallery: s.localGallery.filter((d) => d.id !== id) }));
+    }
   },
 
   reset: () =>

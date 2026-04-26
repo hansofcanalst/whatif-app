@@ -19,7 +19,8 @@
       "Bash(npx --yes tsc --noEmit --target es2020 --module esnext --moduleResolution bundler lib/prompts.ts functions/src/prompts.ts app/api/generate+api.ts functions/src/generate.ts app/api/detect+api.ts)",
       "Bash(node -e \"console.log\\(typeof TransformStream, typeof ReadableStream, typeof TextEncoder\\)\")",
       "Bash(ls firestore.rules firestore.indexes.json)",
-      "Bash(ls functions/src/)"
+      "Bash(ls functions/src/)",
+      "Bash(npm test *)"
     ]
   },
   "hooks": {
