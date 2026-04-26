@@ -235,6 +235,27 @@ export default function Gallery() {
                   ) : (
                     <Image source={{ uri: item.url }} style={styles.thumbImage} />
                   )}
+                  {/* Web doesn't have a long-press habit (mouse users can
+                      technically hold-down but won't discover it), so on
+                      web we surface a small × badge in the corner of every
+                      tile. On mobile the badge is hidden — long-press is
+                      the convention there and a permanent × would invite
+                      mis-taps. stopPropagation prevents the parent
+                      Pressable from also firing its onPress (which would
+                      navigate to the result detail). */}
+                  {Platform.OS === 'web' ? (
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation?.();
+                        handleDelete(item.docId, item.variantCount);
+                      }}
+                      style={styles.removeBadge}
+                      accessibilityLabel="Remove this generation"
+                      hitSlop={4}
+                    >
+                      <Text style={styles.removeBadgeText}>×</Text>
+                    </Pressable>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -349,6 +370,31 @@ const styles = StyleSheet.create({
   compareWrap: { flex: 1, flexDirection: 'row' },
   compareHalf: { flex: 1, height: '100%' },
   compareDivider: { width: 1, backgroundColor: colors.accent },
+  // Corner remove badge — only rendered on web (see Platform check
+  // above). Sits over the top-right of each thumbnail with a darkened
+  // pill so it stays legible on bright result images.
+  removeBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(9,9,13,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeBadgeText: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '900',
+    lineHeight: 18,
+    // Nudge the glyph up a touch so the × is optically centered in the
+    // pill — its baseline sits low without this.
+    marginTop: -1,
+  },
   empty: { alignItems: 'center', padding: spacing.xxxl, gap: spacing.md },
   emptyIconTile: {
     width: 64,
