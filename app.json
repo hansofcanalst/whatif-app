@@ -30,9 +30,10 @@
         "backgroundColor": "#0B0B0F"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -57,7 +58,11 @@
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "9a0a3710-aa2a-498e-8162-6b7b9ae7a490"
       }
-    }
+    },
+    "owner": "olytoma"
   }
 }
