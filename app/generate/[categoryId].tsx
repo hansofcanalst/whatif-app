@@ -197,6 +197,13 @@ export default function GenerateCategoryScreen() {
                 onPress={() => toggle(s.id)}
                 style={[styles.chip, active && styles.chipActive]}
               >
+                {/* Explicit checkmark glyph on selected chips. Color
+                    alone wasn't enough of a signal — testing surfaced
+                    a confusion case where users tapped a second variant
+                    expecting the first to deselect (radio-style). The
+                    glyph makes the selected state unmistakable: empty
+                    chip = idle, ✓ chip = will-generate. */}
+                {active ? <Text style={styles.chipCheck}>✓</Text> : null}
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {s.label}
                 </Text>
@@ -318,6 +325,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   chip: {
+    // flexDirection + gap lets the optional check glyph sit inline
+    // before the label without affecting unchecked chip layout.
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
@@ -331,6 +343,15 @@ const styles = StyleSheet.create({
   },
   chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
+  // Inline check glyph for the selected state. Same color/weight as
+  // the active label so it reads as a single unit, not a separate
+  // affordance the user could try to tap.
+  chipCheck: {
+    ...typography.caption,
+    color: colors.accentText,
+    fontWeight: '900',
+    fontSize: 12,
+  },
   hint: {
     ...typography.tiny,
     color: colors.textMuted,
