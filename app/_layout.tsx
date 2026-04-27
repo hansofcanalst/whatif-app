@@ -10,6 +10,7 @@ import { useGenerationStore } from '@/stores/generationStore';
 import { colors, spacing, typography } from '@/constants/theme';
 import { assertFirebaseConfigured } from '@/constants/config';
 import { initSentry, setSentryUser, Sentry } from '@/lib/sentry';
+import { registerPushToken, setupNotificationListeners } from '@/lib/notifications';
 
 // Initialize Sentry as early as possible — at module evaluation time,
 // before any React tree is built. This way an error during the very
@@ -51,6 +52,37 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setSentryUser(user?.uid ?? null);
   }, [user]);
+
+  // Register the device's Expo push token whenever a user is signed in.
+  // No-ops on web, simulators, and signed-out sessions. We only need to
+  // run this once per (uid, device) pair, but registerPushToken is
+  // idempotent at the Firestore level so re-running on every effect
+  // tick is fine — it's a single setDoc with merge.
+  useEffect(() => {
+    if (!user) return;
+    registerPushToken(user.uid).catch((e) =>
+      console.warn('[layout] push registration failed', e),
+    );
+  }, [user]);
+
+  // Notification-tap deep-linking. When the user taps a "your
+  // generation is ready" push, the notification's data.route field
+  // points at /result/{id}?idx=0 — we navigate there. Listener
+  // lifecycle is gated by `user` so we don't try to push to gated
+  // routes when the user is signed out (the AuthGate would intercept
+  // and redirect anyway, but cleaner not to fire the navigation in
+  // the first place).
+  useEffect(() => {
+    if (!user) return;
+    const cleanup = setupNotificationListeners((data) => {
+      const route = typeof data.route === 'string' ? data.route : null;
+      if (!route) return;
+      // expo-router accepts string paths; cast through never to
+      // bypass typed-routes strictness for dynamic deep-links.
+      router.push(route as never);
+    });
+    return cleanup;
+  }, [user, router]);
 
   if (loading) {
     return (
