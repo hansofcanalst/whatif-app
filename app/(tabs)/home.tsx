@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
 import { GenerationCounter } from '@/components/GenerationCounter';
+import { HomeOnboardingCard } from '@/components/HomeOnboardingCard';
 import { PeopleSelector } from '@/components/PeopleSelector';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { ConsentModal } from '@/components/ConsentModal';
@@ -259,6 +260,12 @@ export default function Home() {
             Upload a photo and see yourself across the multiverse.
           </Text>
         </View>
+
+        {/* First-run welcome card. Self-gated by AsyncStorage — only
+            renders for users who haven't dismissed it before, otherwise
+            returns null. Lives between the hero and the photo uploader
+            so it points at the very next thing the user should do. */}
+        <HomeOnboardingCard />
 
         <PhotoUploader image={image} onPicked={handlePicked} />
 
