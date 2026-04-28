@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/Card';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
 import { signOut, deleteAccount, ReauthRequiredError } from '@/lib/auth';
+import { exportAccountData, type ExportProgress } from '@/lib/exportData';
+import { captureError } from '@/lib/sentry';
 import { config } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
@@ -33,6 +35,51 @@ export default function Profile() {
   // implementation needed a Platform branch).
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Download-my-data flow. `exportProgress` is null when idle; while
+  // export is running it carries a discriminated union describing the
+  // current phase (so the row label can say "Bundling 5 of 24…"
+  // rather than an unmoving spinner).
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const exporting = exportProgress !== null && exportProgress.step !== 'done';
+
+  const handleExportData = async () => {
+    if (!user || exporting) return;
+    setExportProgress({ step: 'fetching-meta' });
+    try {
+      await exportAccountData(user.uid, setExportProgress);
+      // Native: the system share sheet has already opened, the user
+      // is interacting with it — no extra confirmation needed here.
+      // Web: the browser has already triggered a download.
+      // Either way, success state is implicit; we just clear the
+      // progress so the row label flips back to "Download my data".
+    } catch (e) {
+      console.warn('[profile] exportAccountData failed', e);
+      captureError(e, { where: 'exportAccountData' });
+      Alert.alert(
+        'Export failed',
+        e instanceof Error ? e.message : 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setExportProgress(null);
+    }
+  };
+
+  const exportLabel = (() => {
+    if (!exportProgress) return 'Download my data';
+    switch (exportProgress.step) {
+      case 'fetching-meta':
+        return 'Preparing…';
+      case 'fetching-images':
+        return `Bundling ${exportProgress.loaded} of ${exportProgress.total}…`;
+      case 'zipping':
+        return 'Compressing…';
+      case 'saving':
+        return 'Saving…';
+      case 'done':
+        return 'Download my data';
+    }
+  })();
 
   const handleDeleteAccount = () => {
     if (deleting) return;
@@ -144,6 +191,12 @@ export default function Profile() {
             <SettingRow
               label="Terms of Service"
               onPress={() => router.push('/terms' as never)}
+            />
+            <View style={styles.divider} />
+            <SettingRow
+              label={exportLabel}
+              onPress={handleExportData}
+              disabled={exporting}
             />
             <View style={styles.divider} />
             <SettingRow
