@@ -11,6 +11,7 @@ import { colors, spacing, typography } from '@/constants/theme';
 import { assertFirebaseConfigured } from '@/constants/config';
 import { initSentry, setSentryUser, Sentry } from '@/lib/sentry';
 import { registerPushToken, setupNotificationListeners } from '@/lib/notifications';
+import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 
 // Initialize Sentry as early as possible — at module evaluation time,
 // before any React tree is built. This way an error during the very
@@ -93,7 +94,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  // Tutorial is rendered HERE (inside AuthGate) rather than at the
+  // RootLayout level so it has access to `user` without re-querying.
+  // It self-gates on AsyncStorage so it only renders once per fresh
+  // install + after a signed-in session is established.
+  return (
+    <>
+      {children}
+      <OnboardingTutorial signedIn={!!user} />
+    </>
+  );
 }
 
 function ConfigError({ message }: { message: string }) {

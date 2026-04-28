@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Pressable, Image, RefreshControl, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Pressable, Image, RefreshControl, Alert, Platform, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -196,72 +196,89 @@ export default function Gallery() {
           />
         ))}
       </ScrollView>
-      <ScrollView
+      {/* Switched from a ScrollView+map to a FlatList. The map version
+          rendered every tile up front, which scaled poorly: a user
+          with the local-gallery max (30 generations × up to 6 results
+          = 180 thumbnails) was instantiating that many <Image>
+          components on first paint. FlatList virtualizes — only the
+          tiles in or near the viewport render, the rest are
+          placeholder boxes until they scroll into view.
+          numColumns=3 gives the same 3-up grid as the original; each
+          item uses flex: 1 inside the column wrapper so they share
+          the row width evenly without the old 32.8% magic number. */}
+      <FlatList
+        data={flat}
+        keyExtractor={(item) => `${item.docId}-${item.resultIdx}`}
+        numColumns={3}
         contentContainerStyle={styles.grid}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-      >
-        {flat.length === 0 ? (
+        columnWrapperStyle={styles.gridRow}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+          />
+        }
+        // windowSize controls how many viewport-heights worth of items
+        // are kept rendered above + below the visible area. 5 is the
+        // default (~2.5 screens above + below) — explicit so future
+        // tuning is obvious.
+        windowSize={5}
+        // initialNumToRender keeps first paint cheap while still
+        // filling the visible viewport on most phone widths.
+        initialNumToRender={9}
+        // removeClippedSubviews boosts native perf by detaching
+        // off-screen views. Has historical bugs on Android in a few
+        // RN versions but works cleanly in 0.81.
+        removeClippedSubviews
+        ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconTile}>
               <Text style={styles.emptyIcon}>✦</Text>
             </View>
             <Text style={styles.emptyTitle}>Nothing here yet</Text>
-            <Text style={styles.emptyText}>Your generated transformations will appear here.</Text>
+            <Text style={styles.emptyText}>
+              Your generated transformations will appear here.
+            </Text>
           </View>
-        ) : (
-          <View style={styles.gridInner}>
-            {flat.map((item) => {
-              const showCompare = viewMode === 'compare' && !!item.originalURL;
-              return (
+        }
+        renderItem={({ item }) => {
+          const showCompare = viewMode === 'compare' && !!item.originalURL;
+          return (
+            <Pressable
+              onPress={() =>
+                router.push(`/result/${item.docId}?idx=${item.resultIdx}`)
+              }
+              onLongPress={() => handleDelete(item.docId, item.variantCount)}
+              delayLongPress={400}
+              style={styles.thumb}
+            >
+              {showCompare ? (
+                <View style={styles.compareWrap}>
+                  <Image source={{ uri: item.originalURL }} style={styles.compareHalf} />
+                  <View style={styles.compareDivider} />
+                  <Image source={{ uri: item.url }} style={styles.compareHalf} />
+                </View>
+              ) : (
+                <Image source={{ uri: item.url }} style={styles.thumbImage} />
+              )}
+              {Platform.OS === 'web' ? (
                 <Pressable
-                  key={`${item.docId}-${item.resultIdx}`}
-                  onPress={() => router.push(`/result/${item.docId}?idx=${item.resultIdx}`)}
-                  onLongPress={() => handleDelete(item.docId, item.variantCount)}
-                  delayLongPress={400}
-                  style={styles.thumb}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    handleDelete(item.docId, item.variantCount);
+                  }}
+                  style={styles.removeBadge}
+                  accessibilityLabel="Remove this generation"
+                  hitSlop={4}
                 >
-                  {showCompare ? (
-                    // Split tile: original | result. Each half takes 50%
-                    // and uses cover scaling so the visual focus stays on
-                    // the subject regardless of source aspect ratio. The
-                    // accent stripe down the middle echoes the result-
-                    // detail BeforeAfterSlider's divider, so the two
-                    // surfaces feel like a single visual language.
-                    <View style={styles.compareWrap}>
-                      <Image source={{ uri: item.originalURL }} style={styles.compareHalf} />
-                      <View style={styles.compareDivider} />
-                      <Image source={{ uri: item.url }} style={styles.compareHalf} />
-                    </View>
-                  ) : (
-                    <Image source={{ uri: item.url }} style={styles.thumbImage} />
-                  )}
-                  {/* Web doesn't have a long-press habit (mouse users can
-                      technically hold-down but won't discover it), so on
-                      web we surface a small × badge in the corner of every
-                      tile. On mobile the badge is hidden — long-press is
-                      the convention there and a permanent × would invite
-                      mis-taps. stopPropagation prevents the parent
-                      Pressable from also firing its onPress (which would
-                      navigate to the result detail). */}
-                  {Platform.OS === 'web' ? (
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        handleDelete(item.docId, item.variantCount);
-                      }}
-                      style={styles.removeBadge}
-                      accessibilityLabel="Remove this generation"
-                      hitSlop={4}
-                    >
-                      <Text style={styles.removeBadgeText}>×</Text>
-                    </Pressable>
-                  ) : null}
+                  <Text style={styles.removeBadgeText}>×</Text>
                 </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
+              ) : null}
+            </Pressable>
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -325,10 +342,15 @@ const styles = StyleSheet.create({
   },
   chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
-  grid: { padding: spacing.md, paddingBottom: spacing.xxxl },
-  gridInner: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  grid: { padding: spacing.md, paddingBottom: spacing.xxxl, gap: 4 },
+  // Each row of three tiles in the FlatList gets this style. The gap
+  // gives us the 4px gutter between tiles within a row; vertical gap
+  // between rows comes from `grid.gap` above.
+  gridRow: { gap: 4 },
   thumb: {
-    width: '32.8%',
+    // FlatList numColumns=3 + flex: 1 gives equal-width thirds of the
+    // row, replacing the explicit 32.8% width the old wrap layout used.
+    flex: 1,
     aspectRatio: 1,
     borderRadius: radii.md,
     overflow: 'hidden',

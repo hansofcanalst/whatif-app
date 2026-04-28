@@ -5,6 +5,9 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
   OAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
   User,
   onAuthStateChanged,
   updateProfile,
@@ -130,4 +133,83 @@ export async function deleteAccount(): Promise<void> {
 
 export function subscribeToAuth(callback: (user: AuthUser | null) => void) {
   return onAuthStateChanged(auth, callback);
+}
+
+// ───────────────────── Reauth helpers ──────────────────────
+//
+// Used by the ReauthModal flow — when account deletion (or any
+// sensitive operation) hits Firebase's `auth/requires-recent-login`,
+// we re-prove the user's identity inline rather than asking them to
+// manually log out and back in.
+
+/**
+ * The auth provider behind the currently-signed-in user. Read from the
+ * first entry in `providerData` — Firebase guarantees it's present and
+ * matches the most recent successful sign-in. Used by the reauth modal
+ * to pick the right re-prompt UI.
+ */
+export type AuthProviderId = 'password' | 'google.com' | 'apple.com' | 'other';
+
+export function getPrimaryProviderId(user: User): AuthProviderId {
+  const id = user.providerData[0]?.providerId;
+  if (id === 'password') return 'password';
+  if (id === 'google.com') return 'google.com';
+  if (id === 'apple.com') return 'apple.com';
+  return 'other';
+}
+
+/**
+ * Reauthenticate with email + password. Throws on wrong-password,
+ * disabled-account, etc — Firebase's error codes propagate up so the
+ * caller can branch on `auth/wrong-password` if it wants a friendly
+ * message.
+ */
+export async function reauthWithPassword(password: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    throw new Error('Not signed in with email/password.');
+  }
+  const credential = EmailAuthProvider.credential(user.email, password);
+  await reauthenticateWithCredential(user, credential);
+}
+
+/**
+ * Reauthenticate via Google's popup flow. Web-only — on native this
+ * relies on the @react-native-google-signin module which requires a
+ * dev build to function. Callers should branch on Platform.OS before
+ * invoking; on native, fall back to the "log out and back in" message.
+ */
+export async function reauthWithGooglePopup(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in.');
+  const provider = new GoogleAuthProvider();
+  await reauthenticateWithPopup(user, provider);
+}
+
+/**
+ * Reauthenticate via Apple's popup flow (web). Same caveat as Google
+ * — Sign in with Apple on native uses expo-apple-authentication and
+ * needs different glue.
+ */
+export async function reauthWithApplePopup(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in.');
+  const provider = new OAuthProvider('apple.com');
+  // Apple requires the email + name scopes to be requested up front
+  // even on reauth, otherwise some browsers reject the popup.
+  provider.addScope('email');
+  provider.addScope('name');
+  await reauthenticateWithPopup(user, provider);
+}
+
+/**
+ * Finish the account-delete flow after a successful reauth. The
+ * deleteAccount() function above already wiped Firestore + local
+ * storage by the time it threw ReauthRequiredError, so all that's
+ * left is to delete the Firebase Auth user.
+ */
+export async function finishAccountDeletion(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return; // already gone
+  await user.delete();
 }

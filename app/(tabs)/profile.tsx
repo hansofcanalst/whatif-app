@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { DeleteAccountModal } from '@/components/DeleteAccountModal';
-import { signOut, deleteAccount, ReauthRequiredError } from '@/lib/auth';
+import { ReauthModal } from '@/components/ReauthModal';
+import { signOut, deleteAccount, finishAccountDeletion, ReauthRequiredError } from '@/lib/auth';
 import { exportAccountData, type ExportProgress } from '@/lib/exportData';
 import { captureError } from '@/lib/sentry';
 import { config } from '@/constants/config';
@@ -35,6 +36,13 @@ export default function Profile() {
   // implementation needed a Platform branch).
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // ReauthModal is shown when deleteAccount() throws
+  // ReauthRequiredError. By that point the Firestore + local data
+  // wipes have already happened — the user just needs to re-prove
+  // their identity so Firebase will let us delete the auth principal.
+  // On success, we call finishAccountDeletion() (which is just
+  // user.delete()) to complete the flow.
+  const [reauthOpen, setReauthOpen] = useState(false);
 
   // Download-my-data flow. `exportProgress` is null when idle; while
   // export is running it carries a discriminated union describing the
@@ -91,22 +99,21 @@ export default function Profile() {
     try {
       await deleteAccount();
       // Auth listener will fire null and AuthGate routes to /login —
-      // no manual navigation needed. We close the modal eagerly so the
-      // brief moment between auth-listener firing and the route swap
-      // doesn't show a stale Profile-with-modal.
+      // no manual navigation needed. Close the modal so the brief
+      // moment between the listener firing and the route swap doesn't
+      // show a stale Profile-with-modal.
       setDeleteModalOpen(false);
     } catch (e) {
-      // Hide the modal so the alert is the focused affordance. The
-      // user's data is already gone at this point (the Firestore
-      // deletes succeed before user.delete() is called), so we don't
-      // want them to retype their email a second time — the alert
-      // tells them what to do next.
+      // Close the email-confirm modal — at this point the user has
+      // already done that step and we shouldn't ask them to do it
+      // again. ReauthRequiredError takes us into the inline reauth
+      // flow; other errors get a plain alert.
       setDeleteModalOpen(false);
       if (e instanceof ReauthRequiredError) {
-        Alert.alert(
-          'Please log in again',
-          'For security, recent sign-in is required to finish deleting your account. Log out, sign back in, then tap Delete Account once more. Your data has been removed; only your sign-in record remains.',
-        );
+        // Firestore + local data are already gone (they happen before
+        // user.delete() in the orchestrator). All that remains is the
+        // auth principal, which the reauth flow will let us drop.
+        setReauthOpen(true);
       } else {
         console.warn('[profile] deleteAccount failed', e);
         Alert.alert(
@@ -117,6 +124,39 @@ export default function Profile() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  // Called by ReauthModal after the user successfully re-proves their
+  // identity. The data deletes have already happened upstream, so we
+  // just need to close out the auth principal.
+  const handleReauthSuccess = async () => {
+    setReauthOpen(false);
+    setDeleting(true);
+    try {
+      await finishAccountDeletion();
+      // Auth listener fires null → AuthGate → /login.
+    } catch (e) {
+      console.warn('[profile] finishAccountDeletion failed', e);
+      Alert.alert(
+        'Delete failed',
+        e instanceof Error
+          ? e.message
+          : 'Something went wrong finishing the deletion. Please try again.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // User backed out of the reauth modal. Their data is already gone
+  // but their auth account still exists — the right move is to tell
+  // them so they aren't surprised next time they try anything.
+  const handleReauthCancel = () => {
+    setReauthOpen(false);
+    Alert.alert(
+      'Account partially deleted',
+      'Your photos and gallery have been removed, but your sign-in still exists. Log out and back in, then tap Delete Account again to finish.',
+    );
   };
 
   const remaining = userDoc
@@ -223,6 +263,11 @@ export default function Profile() {
           if (!deleting) setDeleteModalOpen(false);
         }}
         busy={deleting}
+      />
+      <ReauthModal
+        visible={reauthOpen}
+        onSuccess={handleReauthSuccess}
+        onClose={handleReauthCancel}
       />
     </SafeAreaView>
   );

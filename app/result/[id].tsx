@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BeforeAfterSlider } from '@/components/BeforeAfterSlider';
-import { ShareSheet } from '@/components/ShareSheet';
+import { FilteredResultPanel } from '@/components/FilteredResultPanel';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGenerationStore } from '@/stores/generationStore';
 import { getGeneration, GenerationDoc } from '@/lib/firestore';
@@ -84,7 +84,14 @@ export default function ResultScreen() {
             {category?.label ?? ''} <Text style={styles.captionArrow}>→</Text> {current.label}
           </Text>
         </View>
-        <ShareSheet
+        {/* FilteredResultPanel replaces the bare ShareSheet. It carries
+            the same save/share affordances, plus the AI-result image
+            re-rendered with one of five tinted filters and the chips
+            to switch between them. Save/share captures whatever filter
+            the user has selected. See components/FilteredResultPanel.tsx
+            for the design rationale (overlay-based filters rather than
+            shaders/native filter modules — no new native deps). */}
+        <FilteredResultPanel
           imageURL={current.imageURL}
           categoryLabel={category?.label ?? ''}
           subcategoryLabel={current.label}
