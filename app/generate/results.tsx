@@ -234,7 +234,17 @@ export default function ResultsScreen() {
           </View>
         ) : null}
 
-        <View style={styles.actions}>
+        {/* Three exit paths from the results screen, paired by intent:
+              - "Generate More": same photo, same category, just back one
+                screen so the user can re-pick variants.
+              - "New Photo": clear the photo and go to home — the user
+                explicitly wanted a different photo, so we land them on
+                the empty drop zone ready to upload immediately rather
+                than making them tap "Change photo" themselves.
+              - "Done": exit to gallery.
+            All disabled while the stream is still in flight so a stray
+            tap can't tear down the partially-rendered tile state. */}
+        <View style={styles.actionsRow}>
           <Button
             label="Generate More"
             variant="secondary"
@@ -242,6 +252,20 @@ export default function ResultsScreen() {
             style={{ flex: 1 }}
             disabled={generationInFlight}
           />
+          <Button
+            label="New Photo"
+            variant="secondary"
+            onPress={() => {
+              const store = useGenerationStore.getState();
+              store.clearPhoto();
+              store.clearSlots();
+              router.replace('/(tabs)/home');
+            }}
+            style={{ flex: 1 }}
+            disabled={generationInFlight}
+          />
+        </View>
+        <View style={styles.actionsRow}>
           <Button
             label="Done"
             onPress={() => router.replace('/(tabs)/gallery')}
@@ -323,7 +347,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxxl },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  // Action row used twice — once for the [Generate More] [New Photo]
+  // pair (same-intent "keep going" actions), once for the standalone
+  // primary [Done] button. Two rows reads cleaner than three buttons
+  // crammed into one cramped row at phone widths.
+  actionsRow: { flexDirection: 'row', gap: spacing.md },
   // Total-failure recovery card. Danger-tinted (matching the red `!`
   // tile glyph) so the user reads it as a clear failure state, not a
   // generic info block. Sits between the grid and the action row so
