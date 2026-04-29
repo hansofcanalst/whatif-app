@@ -180,6 +180,64 @@ export const PROMPTS: CategoryPromptMap = {
       ],
     },
   },
+  'military-forces': {
+    'us-military': {
+      label: 'US Military',
+      prompt: `${BASE} Transform the person to be wearing the US Army Combat Uniform (OCP / Operational Camouflage Pattern) — multi-cam pattern jacket and trousers, US ARMY name tape and a name tape on the chest, the subdued American flag patch on the right sleeve, and a patrol cap with rank insignia. The uniform should read clearly and accurately as modern US Army issue. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'us-police': {
+      label: 'US Police',
+      prompt: `${BASE} Transform the person to be wearing a standard American municipal police officer uniform — navy blue or black uniform shirt with shoulder patches and a metal badge over the left chest, dark trousers, a duty belt with holster and radio, and a peaked patrol cap. Should read clearly as US city police (NYPD / LAPD style). Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'british-military': {
+      label: 'British Military',
+      prompt: `${BASE} Transform the person to be wearing British Army uniform with MTP (Multi-Terrain Pattern) camouflage — MTP jacket and trousers, the Union Jack flag patch on the upper sleeve, a regimental beret in a recognizable color (sand for SAS, maroon for the Parachute Regiment, or rifleman green for general issue), and British Army insignia. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'british-police': {
+      label: 'British Police / Bobby',
+      prompt: `${BASE} Transform the person to be wearing the classic British Metropolitan Police uniform — black tunic with shoulder epaulettes, white shirt and black tie underneath, and the iconic custodian helmet (the tall domed bobby's helmet) with a chrome Metropolitan Police badge. No firearm visible — British police traditionally do not carry. Should read clearly as a traditional London bobby. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'chinese-pla': {
+      label: 'Chinese PLA',
+      prompt: `${BASE} Transform the person to be wearing a Chinese People's Liberation Army Type 07 service uniform — olive-green tunic with red collar tabs and gold buttons, red shoulder boards with PLA insignia, and a peaked service cap with a prominent red star and gold trim. Should read clearly as PRC PLA dress uniform. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'japanese-jsdf': {
+      label: 'Japanese JSDF',
+      prompt: `${BASE} Transform the person to be wearing the Japan Ground Self-Defense Force (JSDF) uniform — Type 2 camouflage (woodland-style green/brown digital pattern) jacket, JSDF chest patch with the Self-Defense Forces emblem, the Japanese flag patch on the sleeve, and a field cap or beret with the JSDF insignia. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'japanese-samurai': {
+      label: 'Japanese Samurai',
+      prompt: `${BASE} Transform the person to be wearing traditional Japanese samurai armor (ō-yoroi or do-maru style) — a lacquered chest plate (dō) in deep red or black, articulated shoulder guards (sode), thigh guards (haidate), a kabuto helmet with a curved maedate forecrest, and a katana sword visible at the hip with a wrapped tsuka handle. Edo or Sengoku-period historical accuracy. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'russian-military': {
+      label: 'Russian Military',
+      prompt: `${BASE} Transform the person to be wearing a modern Russian Federation Armed Forces uniform — EMR (Russian digital flora) camouflage jacket and trousers, the Russian tricolor flag patch on the sleeve, a peaked field cap or kepi, and Russian Army insignia. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'soviet-military': {
+      label: 'Soviet Red Army',
+      prompt: `${BASE} Transform the person to be wearing a WWII-era Soviet Red Army uniform — an olive-brown gimnastyorka tunic with stand-up collar and breast pockets, a wide brown leather belt with brass buckle, and either a pilotka (forage / side cap) or ushanka (fur hat) with a prominent red star insignia. Should evoke an Eastern Front soldier (1941–1945). Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'french-foreign-legion': {
+      label: 'French Foreign Legion',
+      prompt: `${BASE} Transform the person to be wearing the French Foreign Legion's ceremonial parade uniform — the iconic white kepi (képi blanc) with red top, a dark green tunic with red epaulettes (épaulettes de tradition with green wool fringe), and a wide blue sash (ceinture bleue) wrapped around the waist. Should read clearly as Légion étrangère parade dress. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'german-bundeswehr': {
+      label: 'German Bundeswehr',
+      prompt: `${BASE} Transform the person to be wearing a modern German Bundeswehr uniform — Flecktarn (German woodland-spotted) camouflage jacket and trousers, the German tricolor (black-red-gold) flag patch on the sleeve, a beret in standard Bundeswehr issue, and Bundeswehr branch insignia. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'korean-military': {
+      label: 'South Korean Military',
+      prompt: `${BASE} Transform the person to be wearing a Republic of Korea (ROK) Armed Forces uniform — ROK Army digital camouflage pattern jacket, South Korean Taegukgi flag patch on the sleeve, a beret or field cap with ROK insignia, and ROK Army nameplate over the chest. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'israeli-idf': {
+      label: 'Israeli IDF',
+      prompt: `${BASE} Transform the person to be wearing an Israeli Defense Forces (IDF) Class A working uniform — olive-drab service shirt and trousers, IDF rank and branch insignia on the shoulder, a beret folded under the left epaulet (the standard IDF way of carrying a beret on the shoulder when not worn), and the IDF insignia visible. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+    'swiss-guard': {
+      label: 'Vatican Swiss Guard',
+      prompt: `${BASE} Transform the person to be wearing the Pontifical Swiss Guard's ceremonial gala uniform — the distinctive Renaissance-style striped tunic and breeches in vertical bands of blue, red, and yellow (the Medici colors), a white ruffled collar (gorget), and a black morion helmet (combed Spanish-style helmet) topped with a tall red ostrich-feather plume. A halberd (long polearm) optionally visible. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
+    },
+  },
   'political-mashup': {
     'trump-child': { label: "Trump's Kid", prompt: `${BASE} Blend this person's features with the Trump family to create a photorealistic Trump-family portrait.` },
     'obama-child': { label: "Obama's Kid", prompt: `${BASE} Blend this person's features with the Obama family to create a photorealistic Obama-family portrait.` },

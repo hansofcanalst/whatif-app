@@ -21,7 +21,8 @@
       "Bash(ls firestore.rules firestore.indexes.json)",
       "Bash(ls functions/src/)",
       "Bash(npm test *)",
-      "Bash(firebase deploy *)"
+      "Bash(firebase deploy *)",
+      "Bash(npm run *)"
     ]
   },
   "hooks": {
