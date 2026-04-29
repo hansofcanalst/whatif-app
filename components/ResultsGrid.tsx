@@ -63,24 +63,41 @@ export function ResultsGrid({ results, slots, onSelect, columns = 2, pendingCapt
     );
   }
 
+  // When the ENTIRE grid is one partial row (e.g. a single-variant
+  // run), we center the tile by splitting the leftover flex into
+  // equal spacers on each side. For multi-row grids with a partial
+  // last row (e.g. 5 items in 2 columns = 2 full rows + 1 lone tile),
+  // we keep the original left-align behavior — that matches Western
+  // reading order and keeps tile widths visually consistent down the
+  // grid. The single-row case is the only one where left-aligning
+  // looks like a layout bug rather than an intentional choice.
+  const singleRowGrid = rows.length === 1;
+
   return (
     <View style={styles.grid}>
-      {rows.map((row, rowIdx) => (
-        <View key={rowIdx} style={styles.row}>
-          {row.map(({ item, i }) => (
-            <ResultCard
-              key={i}
-              imageURL={item.imageURL}
-              label={item.label}
-              status={item.status}
-              error={item.error}
-              pendingCaption={pendingCaption}
-              onPress={() => onSelect(i)}
-            />
-          ))}
-          {row.length < columns ? <View style={{ flex: columns - row.length }} /> : null}
-        </View>
-      ))}
+      {rows.map((row, rowIdx) => {
+        const missing = columns - row.length;
+        const centerThisRow = singleRowGrid && missing > 0;
+        return (
+          <View key={rowIdx} style={styles.row}>
+            {centerThisRow ? <View style={{ flex: missing / 2 }} /> : null}
+            {row.map(({ item, i }) => (
+              <ResultCard
+                key={i}
+                imageURL={item.imageURL}
+                label={item.label}
+                status={item.status}
+                error={item.error}
+                pendingCaption={pendingCaption}
+                onPress={() => onSelect(i)}
+              />
+            ))}
+            {missing > 0 ? (
+              <View style={{ flex: centerThisRow ? missing / 2 : missing }} />
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
