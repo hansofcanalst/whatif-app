@@ -32,17 +32,28 @@ interface DetectedPerson {
   appearsUnder18: boolean;
 }
 
-const DETECTION_PROMPT = `You are a people detector. Look at this image and locate every distinct human person that is at least partially visible.
+const DETECTION_PROMPT = `You are a people detector and content safety classifier. Look at this image and produce TWO things in a single JSON object.
 
+PART 1 — "people": an array of objects, one per distinct human person at least partially visible.
 For each person, produce:
 - "label": a short (3-8 word) UNIQUE description that could be used to tell this person apart from the others in the image. Use distinguishing details like visible clothing (colors, logos, text on shirts), position (left/center/right, foreground/background), approximate age bracket (child / teen / adult / elderly), or accessories (glasses, hat, necklace). AVOID ethnicity, race, gender, or other identity assumptions — use clothing and position instead.
 - "box_2d": [ymin, xmin, ymax, xmax] integer pixel coordinates normalized to 0-1000 (so the full image is 1000x1000). The box should tightly enclose the person's head AND visible body.
 - "appears_under_18": boolean. True if the person visually appears to be a minor (under 18 — infant, child, or teenager). When in doubt between "young adult" and "teen", err on the side of true. This flag is used to block certain transformations on minors, so false negatives are worse than false positives.
 
-Return ONLY a JSON array. No prose, no explanation, no markdown code fences. If no people are visible, return [].
+PART 2 — "safety": an object classifying whether the image is appropriate for AI image transformation in a consumer app.
+Produce:
+- "decision": one of "safe" | "flagged" | "blocked".
+  - "safe": typical photo with no problematic content. The vast majority of inputs.
+  - "flagged": questionable content the app should warn the user about but still allow (e.g. mild suggestiveness, brief alcohol, minor blood). User opts in to proceed.
+  - "blocked": content the app must refuse. Includes: nudity or sexually explicit imagery, gore/severe violence, self-harm, drug paraphernalia in heavy use, hate symbols, identifiable real children in unsafe contexts, or other clearly inappropriate-for-consumer-AI subject matter.
+- "reason": a short user-facing explanation (≤25 words). For "safe" you may use "ok".
+
+Be CONSERVATIVE on "blocked" — false positives annoy users; false negatives create real harm. When the photo is a normal selfie/portrait/group shot with no visible problematic content, return "safe".
+
+Return ONLY a JSON object with shape {"people": [...], "safety": {...}}. No prose, no explanation, no markdown code fences. If no people are visible, set people to [].
 
 Example output:
-[{"label":"child in MIAMI jersey on left","box_2d":[150,20,820,280],"appears_under_18":true},{"label":"woman with long hair in center","box_2d":[180,380,900,660],"appears_under_18":false}]`;
+{"people":[{"label":"child in MIAMI jersey on left","box_2d":[150,20,820,280],"appears_under_18":true},{"label":"woman with long hair in center","box_2d":[180,380,900,660],"appears_under_18":false}],"safety":{"decision":"safe","reason":"ok"}}`;
 
 function getGenAI(): GoogleGenerativeAI {
   const key = process.env.GEMINI_API_KEY;
@@ -54,21 +65,63 @@ function getGenAI(): GoogleGenerativeAI {
 
 /**
  * Gemini sometimes wraps JSON in ```json ... ``` fences or prepends a stray
- * sentence despite the prompt. Strip fences and extract the outermost array.
+ * sentence despite the prompt. Strip fences and extract the outermost
+ * object. The new response shape is `{ people: [...], safety: {...} }`.
+ *
+ * For backwards compatibility with any cached prompt responses that
+ * came back as a bare array (the old shape), we ALSO accept arrays
+ * and treat them as `{ people: <array>, safety: undefined }`. Avoids
+ * a brittle migration if the prompt cache or a stale model returns
+ * the old shape briefly.
  */
-function extractJsonArray(text: string): unknown[] {
-  // Strip ``` fences.
+function extractJsonResponse(text: string): { people: unknown[]; safetyRaw: unknown } {
   let cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  // Find the first '[' and last ']' — handles prepended prose.
-  const first = cleaned.indexOf('[');
-  const last = cleaned.lastIndexOf(']');
-  if (first === -1 || last === -1 || last < first) {
-    throw new Error(`Model did not return a JSON array. Got: ${text.slice(0, 200)}`);
+  const firstObj = cleaned.indexOf('{');
+  const firstArr = cleaned.indexOf('[');
+  // Prefer object detection if it appears first — that's the new shape.
+  if (firstObj !== -1 && (firstArr === -1 || firstObj < firstArr)) {
+    const last = cleaned.lastIndexOf('}');
+    if (last < firstObj) {
+      throw new Error(`Model returned malformed JSON object. Got: ${text.slice(0, 200)}`);
+    }
+    const parsed = JSON.parse(cleaned.slice(firstObj, last + 1)) as Record<string, unknown>;
+    const people = Array.isArray(parsed.people) ? parsed.people : [];
+    return { people, safetyRaw: parsed.safety };
   }
-  cleaned = cleaned.slice(first, last + 1);
-  const parsed = JSON.parse(cleaned);
+  // Fallback: bare array (old shape).
+  const last = cleaned.lastIndexOf(']');
+  if (firstArr === -1 || last < firstArr) {
+    throw new Error(`Model did not return JSON. Got: ${text.slice(0, 200)}`);
+  }
+  const parsed = JSON.parse(cleaned.slice(firstArr, last + 1));
   if (!Array.isArray(parsed)) throw new Error('Top-level JSON value is not an array.');
-  return parsed;
+  return { people: parsed, safetyRaw: undefined };
+}
+
+type SafetyDecision = 'safe' | 'flagged' | 'blocked';
+
+interface SafetyVerdict {
+  decision: SafetyDecision;
+  reason: string;
+}
+
+function normalizeSafety(raw: unknown): SafetyVerdict {
+  // Default to "safe" when the model didn't supply a verdict (old
+  // shape, parse failure, etc.). The detection step should NOT
+  // hard-block users on its own ambiguity — it's a pre-filter, not a
+  // final gate. The /api/generate endpoint runs Gemini's own safety
+  // filters as a second line of defense.
+  if (!raw || typeof raw !== 'object') {
+    return { decision: 'safe', reason: 'no verdict' };
+  }
+  const obj = raw as Record<string, unknown>;
+  const rawDecision = typeof obj.decision === 'string' ? obj.decision.toLowerCase() : '';
+  const decision: SafetyDecision =
+    rawDecision === 'blocked' ? 'blocked' :
+    rawDecision === 'flagged' ? 'flagged' :
+    'safe';
+  const reason = typeof obj.reason === 'string' && obj.reason.trim() ? obj.reason.trim() : 'ok';
+  return { decision, reason };
 }
 
 function normalizePeople(raw: unknown[]): DetectedPerson[] {
@@ -158,10 +211,11 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (!text) throw lastErr instanceof Error ? lastErr : new Error('Detection failed');
 
-    const raw = extractJsonArray(text);
-    const people = normalizePeople(raw);
+    const { people: rawPeople, safetyRaw } = extractJsonResponse(text);
+    const people = normalizePeople(rawPeople);
+    const safety = normalizeSafety(safetyRaw);
 
-    return Response.json({ people });
+    return Response.json({ people, safety });
   } catch (e: any) {
     console.error('[api/detect] error', e);
     return new Response(e?.message ?? 'Detection failed', { status: 500 });

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { GenerationDoc, GenerationResult } from '@/lib/firestore';
-import type { DetectedPerson } from '@/lib/detect';
+import type { DetectedPerson, SafetyVerdict } from '@/lib/detect';
 import {
   appendLocalGeneration,
   listLocalGallery,
@@ -45,6 +45,12 @@ interface GenerationState {
   // When detection finds >1 people, this starts as all ids; the user can
   // deselect to narrow down.
   selectedPersonIds: number[];
+  // Image safety classification from the detection step. `null` until
+  // detection completes. `decision === 'blocked'` causes the home
+  // screen to refuse generation with the supplied reason; `'flagged'`
+  // surfaces a warning the user can dismiss; `'safe'` is the silent
+  // happy path.
+  safetyVerdict: SafetyVerdict | null;
 
   currentCategoryId: string | null;
   currentResults: GenerationResult[];
@@ -75,6 +81,7 @@ interface GenerationState {
 
   setDetectionStatus: (status: DetectionStatus) => void;
   setDetectedPeople: (people: DetectedPerson[]) => void;
+  setSafetyVerdict: (verdict: SafetyVerdict | null) => void;
   togglePersonSelected: (id: number) => void;
   setAllPersonSelection: (selected: boolean) => void;
 
@@ -115,6 +122,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   detectionStatus: 'idle',
   detectedPeople: [],
   selectedPersonIds: [],
+  safetyVerdict: null,
 
   currentCategoryId: null,
   currentResults: [],
@@ -147,6 +155,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       detectionStatus: 'idle',
       detectedPeople: [],
       selectedPersonIds: [],
+      safetyVerdict: null,
     });
   },
   clearPhoto: () =>
@@ -156,6 +165,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       detectionStatus: 'idle',
       detectedPeople: [],
       selectedPersonIds: [],
+      safetyVerdict: null,
     }),
 
   setDetectionStatus: (detectionStatus) => set({ detectionStatus }),
@@ -165,6 +175,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       // Default everyone selected; user deselects to narrow.
       selectedPersonIds: detectedPeople.map((p) => p.id),
     }),
+  setSafetyVerdict: (safetyVerdict) => set({ safetyVerdict }),
   togglePersonSelected: (id) => {
     const { selectedPersonIds } = get();
     const has = selectedPersonIds.includes(id);
@@ -261,6 +272,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       detectionStatus: 'idle',
       detectedPeople: [],
       selectedPersonIds: [],
+      safetyVerdict: null,
       currentCategoryId: null,
       currentResults: [],
       currentGenerationId: null,

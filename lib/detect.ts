@@ -18,8 +18,29 @@ export interface DetectedPerson {
   appearsUnder18: boolean;
 }
 
+/**
+ * Image safety classification returned alongside people detection.
+ * Pre-flight gate before letting the user kick off a generation —
+ * complements (doesn't replace) the server-side Gemini safety filters
+ * that run during generation itself.
+ *
+ *   - "safe": proceed normally
+ *   - "flagged": warn the user but allow generation if they confirm
+ *   - "blocked": refuse with the model's reason
+ *
+ * Default behavior on missing/invalid verdict is "safe" — see
+ * normalizeSafety in the detect endpoint.
+ */
+export type SafetyDecision = 'safe' | 'flagged' | 'blocked';
+
+export interface SafetyVerdict {
+  decision: SafetyDecision;
+  reason: string;
+}
+
 export interface DetectResponse {
   people: DetectedPerson[];
+  safety?: SafetyVerdict;
 }
 
 function resolveEndpoint(): string {

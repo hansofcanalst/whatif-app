@@ -192,6 +192,7 @@ export default function RootLayout() {
                 <Stack.Screen name="result/[id]" />
                 <Stack.Screen name="privacy" />
                 <Stack.Screen name="terms" />
+                <Stack.Screen name="dev/prompt-eval" />
               </Stack>
             </AuthGate>
           </View>

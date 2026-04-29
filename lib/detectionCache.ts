@@ -1,4 +1,9 @@
-import type { DetectedPerson } from '@/lib/detect';
+import type { DetectedPerson, SafetyVerdict } from '@/lib/detect';
+
+interface CachedEntry {
+  people: DetectedPerson[];
+  safety: SafetyVerdict | null;
+}
 
 // In-memory cache of people-detection results, keyed by a hash of the
 // source image's base64 bytes. The common case this exists for: a user
@@ -16,7 +21,7 @@ const MAX_ENTRIES = 10;
 // the entry to the "most recent" end; on overflow we drop the first
 // (least recent) key. Map preserves insertion order per spec, so this
 // is O(1) per op and doesn't need a side list.
-const cache = new Map<string, DetectedPerson[]>();
+const cache = new Map<string, CachedEntry>();
 
 /**
  * FNV-1a 32-bit over the raw base64 string. Not cryptographic; we just
@@ -38,23 +43,27 @@ export function hashBase64(base64: string): string {
   return h.toString(16);
 }
 
-export function getCachedDetection(hash: string): DetectedPerson[] | null {
+export function getCachedDetection(hash: string): CachedEntry | null {
   const hit = cache.get(hash);
   if (!hit) return null;
   // Re-insert to refresh LRU recency.
   cache.delete(hash);
   cache.set(hash, hit);
-  // Return a shallow copy so callers can't mutate the cached array.
-  return hit.slice();
+  // Defensive shallow copy of the people array so callers can't
+  // mutate the cached state.
+  return { people: hit.people.slice(), safety: hit.safety };
 }
 
-export function cacheDetection(hash: string, people: DetectedPerson[]): void {
+export function cacheDetection(
+  hash: string,
+  people: DetectedPerson[],
+  safety: SafetyVerdict | null,
+): void {
   // Overwrite-in-place semantics: if the same key exists, delete first
   // so the re-insert puts it at the most-recent end.
   if (cache.has(hash)) cache.delete(hash);
-  cache.set(hash, people.slice());
-  // Evict oldest until under cap. `keys().next().value` is the first-
-  // inserted key, i.e. the least-recently used.
+  cache.set(hash, { people: people.slice(), safety });
+  // Evict oldest until under cap.
   while (cache.size > MAX_ENTRIES) {
     const oldest = cache.keys().next().value;
     if (oldest === undefined) break;

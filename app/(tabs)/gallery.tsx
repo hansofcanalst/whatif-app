@@ -130,8 +130,12 @@ export default function Gallery() {
       flat.push({
         docId: d.id,
         resultIdx: i,
-        url: r.imageURL,
-        originalURL: d.originalImageURL,
+        // Prefer the pre-resized 256px thumb when present — it's ~5%
+        // of the full-res bytes and renders identically at the gallery
+        // tile size. Falls back to the full image for older entries
+        // written before thumbURL existed.
+        url: r.thumbURL ?? r.imageURL,
+        originalURL: d.originalThumbURL ?? d.originalImageURL,
         // Carried so the long-press confirm can say "Delete all 5
         // variants…" without re-looking-up the parent doc.
         variantCount: d.results.length,

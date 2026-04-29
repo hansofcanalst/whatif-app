@@ -1,6 +1,14 @@
 import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { fetchAsBlob, uploadImage, pathForOriginal, pathForResult } from './storage';
+import {
+  fetchAsBlob,
+  uploadImage,
+  pathForOriginal,
+  pathForResult,
+  pathForOriginalThumb,
+  pathForResultThumb,
+  resizeToThumbnail,
+} from './storage';
 import { config } from '@/constants/config';
 
 export interface GenerateRequest {
@@ -246,20 +254,43 @@ export async function persistLocalGeneration(
   // Use the dev route's id as the Firestore doc id.
   const generationId = response.generationId;
 
-  // Upload original.
+  // Upload original AND a 256px thumbnail in parallel. Thumbnail
+  // failures are logged and don't block — better to ship the doc
+  // without a thumb than to fail the whole upload. The gallery falls
+  // back to the full URL when thumbURL is missing.
+  const originalDataUri = `data:image/jpeg;base64,${req.imageBase64}`;
   const originalBlob = base64ToBlob(req.imageBase64, 'image/jpeg');
-  const originalURL = await uploadImage(pathForOriginal(uid, generationId), originalBlob);
+  const [originalURL, originalThumbURL] = await Promise.all([
+    uploadImage(pathForOriginal(uid, generationId), originalBlob),
+    resizeToThumbnail(originalDataUri)
+      .then((thumb) => uploadImage(pathForOriginalThumb(uid, generationId), thumb))
+      .catch((e) => {
+        console.warn('[gemini] original thumbnail failed:', e);
+        return undefined;
+      }),
+  ]);
 
-  // Upload each result, replacing the data URI with the Storage URL.
-  const uploadedResults: GenerateResponseItem[] = [];
+  // Upload each result + its thumbnail, replacing the data URI with
+  // the Storage URLs. Thumbnail soft-fails per result.
+  const uploadedResults: Array<GenerateResponseItem & { thumbURL?: string }> = [];
   for (let i = 0; i < response.results.length; i++) {
     const r = response.results[i]!;
     const blob = await fetchAsBlob(r.imageURL); // data: URI → Blob
-    const storageURL = await uploadImage(pathForResult(uid, generationId, i), blob);
-    uploadedResults.push({ ...r, imageURL: storageURL });
+    const [storageURL, thumbURL] = await Promise.all([
+      uploadImage(pathForResult(uid, generationId, i), blob),
+      resizeToThumbnail(r.imageURL)
+        .then((thumb) => uploadImage(pathForResultThumb(uid, generationId, i), thumb))
+        .catch((e) => {
+          console.warn(`[gemini] result ${i} thumbnail failed:`, e);
+          return undefined;
+        }),
+    ]);
+    uploadedResults.push({ ...r, imageURL: storageURL, thumbURL });
   }
 
-  // Write Firestore doc (shape matches GenerationDoc so Gallery/Result screens read it).
+  // Write Firestore doc (shape matches GenerationDoc so Gallery/Result
+  // screens read it). originalThumbURL stored only when available so
+  // older queries with `?? imageURL` fallback still work.
   const genRef = doc(collection(db, 'generations'), generationId);
   await setDoc(genRef, {
     id: generationId,
@@ -267,7 +298,13 @@ export async function persistLocalGeneration(
     categoryId: req.category,
     categoryLabel: req.category,
     originalImageURL: originalURL,
-    results: uploadedResults.map(({ imageURL, prompt, label }) => ({ imageURL, prompt, label })),
+    ...(originalThumbURL ? { originalThumbURL } : {}),
+    results: uploadedResults.map(({ imageURL, thumbURL, prompt, label }) => ({
+      imageURL,
+      ...(thumbURL ? { thumbURL } : {}),
+      prompt,
+      label,
+    })),
     status: 'complete',
     createdAt: serverTimestamp(),
   });

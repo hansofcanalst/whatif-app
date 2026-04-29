@@ -31,6 +31,13 @@ export interface UserDoc {
 
 export interface GenerationResult {
   imageURL: string;
+  // Pre-resized 256px thumbnail URL. Optional — older entries written
+  // before this field existed have just `imageURL`, and the gallery
+  // falls back to imageURL when thumbURL is missing. Using the
+  // thumbnail in the gallery cuts bytes-on-the-wire ~95% vs. the
+  // full result, which matters at scale (dozens of users × dozens of
+  // entries × multiple results each adds up fast).
+  thumbURL?: string;
   prompt: string;
   label: string;
 }
@@ -41,6 +48,8 @@ export interface GenerationDoc {
   categoryId: string;
   categoryLabel: string;
   originalImageURL: string;
+  /** Pre-resized 256px thumbnail of the original. See GenerationResult.thumbURL. */
+  originalThumbURL?: string;
   results: GenerationResult[];
   status: 'pending' | 'processing' | 'complete' | 'failed';
   createdAt: Timestamp | null;

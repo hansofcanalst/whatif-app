@@ -252,7 +252,19 @@ export default function Profile() {
           <Text style={styles.logoutText}>Log Out</Text>
         </Pressable>
 
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+        {/* Long-press the version label to access the prompt-eval
+            dev tool. Only fires in __DEV__ builds; the screen itself
+            also bails when not in dev, so a stale URL in production
+            doesn't surface dev UI to real users. Hidden affordance
+            because it's not user-facing. */}
+        <Pressable
+          onLongPress={() => {
+            if (__DEV__) router.push('/dev/prompt-eval' as never);
+          }}
+          delayLongPress={600}
+        >
+          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+        </Pressable>
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />
       <DeleteAccountModal

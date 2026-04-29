@@ -79,11 +79,21 @@ export function FilteredResultPanel({
   subcategoryLabel,
 }: FilteredResultPanelProps) {
   const [filter, setFilter] = useState<FilterId>('none');
+  // Watermark defaults to ON — every shared image carries attribution
+  // by default, with an explicit per-result opt-out. The toggle lives
+  // on this screen rather than as a global setting because the user's
+  // intent often varies per image (sharing into a personal group chat
+  // vs. posting publicly), and a per-result decision is friction-free.
+  const [watermark, setWatermark] = useState(true);
   const [busy, setBusy] = useState(false);
   const captureRefHandle = useRef<View>(null);
   const { show } = useToast();
 
   const filterDef = FILTERS.find((f) => f.id === filter)!;
+  // We need to capture (rather than use the un-touched imageURL) when
+  // EITHER a non-Original filter is selected OR the watermark is on.
+  // Both cases mean the rendered View differs from the source bytes.
+  const needsCapture = filter !== 'none' || watermark;
 
   // Build a clean filename from the labels + filter id so saved files
   // reflect what the user picked. Mirrors the buildFilename helper in
@@ -96,19 +106,33 @@ export function FilteredResultPanel({
     return `whatif-${slug || Date.now()}.jpg`;
   };
 
+  // Branded caption shown in the system share sheet (native) and as
+  // share-text in Web Share API. Phrased to read naturally on social
+  // posts: "What if I were Black?" rather than the dry
+  // "Race Swap: Black" we used previously. Falls back gracefully
+  // when subcategoryLabel is empty.
+  const buildShareCaption = () => {
+    if (subcategoryLabel) {
+      return `What if I were ${subcategoryLabel}? Made with What If ✦`;
+    }
+    return `Made with What If ✦`;
+  };
+
   /**
-   * Resolve the URI to save/share based on the current filter:
-   *   - `none` → return imageURL as-is (no capture step needed)
-   *   - other → captureRef to a temp file and return that local URI
+   * Resolve the URI to save/share based on whether anything OVERLAID
+   * the source image:
+   *   - No filter AND no watermark → return imageURL as-is (cheaper,
+   *     no capture step, identical bytes to the AI source)
+   *   - Otherwise → captureRef to a temp file and return that local URI
    *
    * captureRef returns a `file://` URI on native, and a `data:` URI
    * (or blob URL depending on the platform) on web. Both downstream
    * code paths (Sharing.shareAsync, anchor.download) handle either.
    */
   const resolveExportUri = async (): Promise<string> => {
-    if (filter === 'none') return imageURL;
+    if (!needsCapture) return imageURL;
     if (!captureRefHandle.current) {
-      throw new Error('Filter capture target not ready yet.');
+      throw new Error('Capture target not ready yet.');
     }
     return await captureRef(captureRefHandle.current, {
       format: 'jpg',
@@ -148,7 +172,7 @@ export function FilteredResultPanel({
       const dest = `${dir}${filename}`;
       // captureRef gave us a tmpfile URI; on un-filtered runs it's the
       // network/data URL. Either way, downloadAsync handles both.
-      if (filter === 'none') {
+      if (!needsCapture) {
         await FileSystem.downloadAsync(uri, dest);
       } else {
         await FileSystem.copyAsync({ from: uri, to: dest });
@@ -184,7 +208,7 @@ export function FilteredResultPanel({
             await navAny.share({
               files: [file],
               title: 'What If',
-              text: `What If — ${categoryLabel}: ${subcategoryLabel}`,
+              text: buildShareCaption(),
             });
             return;
           }
@@ -206,7 +230,7 @@ export function FilteredResultPanel({
       const dir = FileSystem.cacheDirectory;
       if (!dir) throw new Error('No cache directory available.');
       const dest = `${dir}${filename}`;
-      if (filter === 'none') {
+      if (!needsCapture) {
         await FileSystem.downloadAsync(uri, dest);
       } else {
         await FileSystem.copyAsync({ from: uri, to: dest });
@@ -217,7 +241,7 @@ export function FilteredResultPanel({
         return;
       }
       await Sharing.shareAsync(dest, {
-        dialogTitle: `What If — ${categoryLabel}: ${subcategoryLabel}`,
+        dialogTitle: buildShareCaption(),
         mimeType: 'image/jpeg',
       });
     } catch (e) {
@@ -261,6 +285,20 @@ export function FilteredResultPanel({
             pointerEvents="none"
           />
         ) : null}
+        {/* Watermark. Rendered INSIDE the captureRef target so it's
+            naturally part of the captured bytes — when the user shares,
+            the ✦ + "What If" come along automatically. Bottom-right
+            corner is the conventional placement for image attribution
+            (where Instagram/TikTok put their stickers). The pill has
+            its own dark background so it stays legible on bright
+            results, and a subtle border so it doesn't disappear on
+            dark ones. Hidden when the toggle is off so the user can
+            opt into a clean export. */}
+        {watermark ? (
+          <View style={styles.watermarkPill} pointerEvents="none">
+            <Text style={styles.watermarkText}>What If ✦</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Filter chip row. Horizontal scrolling not needed — five chips
@@ -282,6 +320,22 @@ export function FilteredResultPanel({
             </Pressable>
           );
         })}
+      </View>
+
+      {/* Watermark toggle. Lives in its own row below the filter chips
+          so it doesn't visually compete with filter selection. Same
+          chip styling as the filters for consistency, with explicit
+          on/off label so the current state is unambiguous (a single
+          chip that just toggles is harder to read at a glance). */}
+      <View style={styles.watermarkRow}>
+        <Pressable
+          onPress={() => setWatermark((w) => !w)}
+          style={[styles.chip, watermark && styles.chipActive]}
+        >
+          <Text style={[styles.chipText, watermark && styles.chipTextActive]}>
+            {watermark ? '✦ Watermark on' : 'Watermark off'}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={styles.actions}>
@@ -352,5 +406,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
+  watermarkRow: { flexDirection: 'row', marginTop: spacing.sm },
+  // Watermark pill — sits inside the capture target at bottom-right.
+  // Dark translucent background + subtle border keeps it readable on
+  // both bright and dark results. Sized small enough to not dominate
+  // the image but big enough to be unmistakably attribution.
+  watermarkPill: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(9,9,13,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  watermarkText: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
 });

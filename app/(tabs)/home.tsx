@@ -27,8 +27,10 @@ export default function Home() {
     detectionStatus,
     detectedPeople,
     selectedPersonIds,
+    safetyVerdict,
     setDetectionStatus,
     setDetectedPeople,
+    setSafetyVerdict,
     togglePersonSelected,
     setAllPersonSelection,
   } = useGenerationStore();
@@ -102,7 +104,8 @@ export default function Home() {
         const cached = getCachedDetection(hash);
         if (cached) {
           // Apply synchronously, same tick — no spinner flash.
-          setDetectedPeople(cached);
+          setDetectedPeople(cached.people);
+          setSafetyVerdict(cached.safety);
           setDetectionStatus('ready');
           return () => {
             cancelled = true;
@@ -113,8 +116,15 @@ export default function Home() {
       requestDetection(img.base64)
         .then((res) => {
           if (cancelled) return;
-          cacheDetection(hash, res.people);
+          cacheDetection(hash, res.people, res.safety ?? null);
           setDetectedPeople(res.people);
+          // Persist safety verdict alongside people. The home screen's
+          // category-tap handler reads this; a "blocked" verdict
+          // refuses generation with the model's reason. "flagged" and
+          // "safe" both allow generation (flagged shows a warning).
+          // The safety field is optional in the response — older
+          // server builds didn't return it; defaults to undefined.
+          setSafetyVerdict(res.safety ?? null);
           setDetectionStatus('ready');
         })
         .catch((e) => {
@@ -124,6 +134,7 @@ export default function Home() {
           // NOT cache the failure — next attempt should go to the network.
           console.warn('[home] detection failed', e);
           setDetectedPeople([]);
+          setSafetyVerdict(null);
           setDetectionStatus('failed');
         });
       return () => {
@@ -181,6 +192,15 @@ export default function Home() {
     }
     if (detectionStatus === 'detecting') {
       show('Still detecting people — hang on a sec.', 'info');
+      return;
+    }
+    // Hard-block on safety verdict before any other gate. The
+    // detection step's safety classifier is conservative on "blocked"
+    // (false positives annoy users; false negatives are worse) and
+    // its reason is user-facing. Bail with the model-supplied
+    // explanation rather than a generic "this isn't allowed".
+    if (safetyVerdict?.decision === 'blocked') {
+      show(`Can't transform this photo: ${safetyVerdict.reason}`, 'error');
       return;
     }
     if (detectedPeople.length > 1 && selectedPersonIds.length === 0) {
