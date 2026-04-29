@@ -135,6 +135,51 @@ export function subscribeToAuth(callback: (user: AuthUser | null) => void) {
   return onAuthStateChanged(auth, callback);
 }
 
+/**
+ * Map Firebase auth error codes to short, user-friendly messages.
+ * The raw Firebase error strings ("Firebase: Error (auth/wrong-password).")
+ * are diagnostic, not user-facing — surfacing them in toasts looks like a
+ * crash to non-technical users. This mapping covers the codes our sign-in
+ * and sign-up flows can realistically produce.
+ *
+ * Falls back to the original error message for unmapped codes (a tiny
+ * coverage gap is better than a generic "Something went wrong" that hides
+ * a real failure mode from the user). Always returns a string suitable
+ * for `show(msg, 'error')`.
+ */
+export function friendlyAuthErrorMessage(err: unknown): string {
+  const code = (err as { code?: string })?.code;
+  switch (code) {
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Wrong email or password. Try again.';
+    case 'auth/user-not-found':
+      return "No account with that email. Try signing up instead.";
+    case 'auth/invalid-email':
+      return 'That email address looks invalid.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts — please wait a minute and try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with that email already exists. Try logging in.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Use at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled.';
+    case 'auth/operation-not-allowed':
+      return 'This sign-in method is not enabled. Please use a different method.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      // The user closed the popup themselves — silent (caller can choose
+      // to show or skip). Returning a non-empty string keeps the contract
+      // simple; callers can still elect to swallow these specifically.
+      return 'Sign-in cancelled.';
+    default:
+      return err instanceof Error ? err.message : 'Sign in failed.';
+  }
+}
+
 // ───────────────────── Reauth helpers ──────────────────────
 //
 // Used by the ReauthModal flow — when account deletion (or any

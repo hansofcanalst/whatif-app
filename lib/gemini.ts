@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import {
   fetchAsBlob,
@@ -319,28 +319,12 @@ export async function persistLocalGeneration(
     console.warn('[gemini] could not increment freeGenerationsUsed:', e);
   }
 
-  // Moderation audit trail. No photos, no labels — just the decision
-  // inputs we'd need to defend a takedown or review a report: who, what
-  // transformation, how many people in the image, whether the detector
-  // flagged any of them as a minor. In prod this is mirrored server-side
-  // in functions/src/generate.ts; this client write exists so the local
-  // /api/generate route (which has no Firestore access) still produces a
-  // log entry when a signed-in dev session hits it.
-  try {
-    await addDoc(collection(db, 'moderation_log'), {
-      uid,
-      generationId,
-      categoryId: req.category,
-      subcategoryIds: req.subcategoryIds,
-      totalPeopleInImage: req.totalPeopleInImage ?? null,
-      selectedPeopleCount: req.selectedPeopleLabels?.length ?? null,
-      containsMinor: req.containsMinor ?? null,
-      source: 'client-local-dev',
-      timestamp: serverTimestamp(),
-    });
-  } catch (e) {
-    console.warn('[gemini] moderation_log write failed:', e);
-  }
+  // Moderation audit log is server-only — `firestore.rules` denies all
+  // client writes to `moderation_log`. Production audit goes through
+  // `functions/src/generate.ts` (Admin SDK bypasses rules). The
+  // local-dev /api/generate route emits a `[telemetry]` stdout line
+  // instead, which is sufficient for dev visibility. No client write
+  // here so we don't pretend to log something that always fails.
 
   return { generationId, results: uploadedResults };
 }

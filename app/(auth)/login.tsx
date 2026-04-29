@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { signInWithEmail, signInWithAppleIdToken } from '@/lib/auth';
+import { signInWithEmail, signInWithAppleIdToken, friendlyAuthErrorMessage } from '@/lib/auth';
 import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 export default function Login() {
@@ -19,7 +19,7 @@ export default function Login() {
     try {
       await signInWithEmail(email.trim(), password);
     } catch (e) {
-      show(e instanceof Error ? e.message : 'Sign in failed.', 'error');
+      show(friendlyAuthErrorMessage(e), 'error');
     } finally {
       setLoading(false);
     }
@@ -37,7 +37,10 @@ export default function Login() {
         await signInWithAppleIdToken(cred.identityToken);
       }
     } catch (e: any) {
-      if (e?.code !== 'ERR_REQUEST_CANCELED') show('Apple sign in failed.', 'error');
+      // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`); show
+      // friendly message for everything else.
+      if (e?.code === 'ERR_REQUEST_CANCELED') return;
+      show(friendlyAuthErrorMessage(e), 'error');
     }
   };
 

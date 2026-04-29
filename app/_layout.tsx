@@ -50,9 +50,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // Tag every Sentry event with the user's uid (or clear on sign-out),
   // so errors are attributable per-user without us ever sending PII.
   // Email/displayName are deliberately NOT shipped — see lib/sentry.ts.
+  // setSentryUser is a stable module-level function, but listing it in
+  // deps satisfies react-hooks/exhaustive-deps and is harmless since the
+  // function reference never changes.
   useEffect(() => {
     setSentryUser(user?.uid ?? null);
-  }, [user]);
+  }, [user, setSentryUser]);
 
   // Register the device's Expo push token whenever a user is signed in.
   // No-ops on web, simulators, and signed-out sessions. We only need to

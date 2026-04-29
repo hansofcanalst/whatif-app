@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, Platform, Pressable, KeyboardAvoidin
 import { Link } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { signUpWithEmail } from '@/lib/auth';
+import { signUpWithEmail, friendlyAuthErrorMessage } from '@/lib/auth';
 import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 export default function Signup() {
@@ -21,7 +21,7 @@ export default function Signup() {
     try {
       await signUpWithEmail(email.trim(), password);
     } catch (e) {
-      show(e instanceof Error ? e.message : 'Sign up failed.', 'error');
+      show(friendlyAuthErrorMessage(e), 'error');
     } finally {
       setLoading(false);
     }
