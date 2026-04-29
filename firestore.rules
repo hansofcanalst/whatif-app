@@ -41,5 +41,14 @@ service cloud.firestore {
     match /logs/{id} {
       allow read, write: if false;
     }
+    // Moderation audit log. Written server-side by the generate Cloud
+    // Function (Admin SDK bypasses rules). No client read or write —
+    // this is an audit trail for takedown / abuse review and must not
+    // be tamperable from the client. The local-dev client write in
+    // lib/gemini.ts (persistLocalGeneration) silently fails here on
+    // purpose; production audit goes through the Cloud Function path.
+    match /moderation_log/{id} {
+      allow read, write: if false;
+    }
   }
 }

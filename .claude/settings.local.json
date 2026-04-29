@@ -22,7 +22,9 @@
       "Bash(ls functions/src/)",
       "Bash(npm test *)",
       "Bash(firebase deploy *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npm audit *)",
+      "Bash(npm uninstall *)"
     ]
   },
   "hooks": {

@@ -141,7 +141,7 @@ export default function Home() {
         cancelled = true;
       };
     },
-    [setDetectionStatus, setDetectedPeople],
+    [setDetectionStatus, setDetectedPeople, setSafetyVerdict],
   );
 
   // Kick off people detection whenever a new photo lands. We key the effect
