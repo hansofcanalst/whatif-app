@@ -67,6 +67,15 @@ export function Button({
   return (
     <Pressable
       onPress={handlePress}
+      // Accessibility: every Button reports as a button to assistive
+      // tech and uses its visible label as the screen-reader name. The
+      // `disabled` + `busy` states map to ARIA `aria-disabled` and
+      // `aria-busy` on web, and to UIAccessibilityTrait analogs on
+      // native. This satisfies the App Store accessibility checklist
+      // without needing per-callsite labels.
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
       style={({ pressed }) => [
         styles.base,
         {

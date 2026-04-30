@@ -31,7 +31,7 @@
 
 import { Platform } from 'react-native';
 import JSZip from 'jszip';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { listGenerations, getUserDoc, type GenerationDoc, type UserDoc } from './firestore';
 
@@ -262,26 +262,28 @@ async function deliver(zipped: Blob | string, filename: string): Promise<void> {
     return;
   }
 
-  // Native path.
+  // Native path. Uses the new expo-file-system class API (File +
+  // Paths) which replaced the function-based legacy API. write() is
+  // synchronous in the new API and creates the file if it doesn't
+  // exist, so the previous `cacheDirectory + filename` string-stitch
+  // is now `new File(Paths.cache, filename)`.
   if (typeof zipped !== 'string') {
     throw new Error('expected base64 string on native');
   }
-  const cacheDir = FileSystem.cacheDirectory;
-  if (!cacheDir) throw new Error('cacheDirectory unavailable');
-  const path = `${cacheDir}${filename}`;
-  await FileSystem.writeAsStringAsync(path, zipped, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const file = new File(Paths.cache, filename);
+  // Defensive: explicit create with overwrite handles the rare case
+  // of a stale temp file with the same name (timestamps are
+  // millisecond-unique so collisions are nearly impossible, but
+  // free).
+  if (!file.exists) file.create({ overwrite: true });
+  file.write(zipped, { encoding: 'base64' });
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(path, {
+    await Sharing.shareAsync(file.uri, {
       mimeType: 'application/zip',
       dialogTitle: 'Save your What If data',
       UTI: 'public.zip-archive',
     });
   } else {
-    // Sharing unavailable shouldn't happen on real devices, but if it
-    // does we leave the file in cache so the user can find it via
-    // the device file manager.
-    console.warn(`[export] sharing unavailable; file at ${path}`);
+    console.warn(`[export] sharing unavailable; file at ${file.uri}`);
   }
 }

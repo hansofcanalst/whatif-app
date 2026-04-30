@@ -25,6 +25,45 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <meta name="theme-color" content="#09090d" />
 
+        {/* Default page title + description. Individual screens can
+            override via expo-router's <Head> or by setting document.title
+            imperatively if a per-screen title becomes important; this is
+            the fallback for direct loads / social-share cards. */}
+        <title>What If — AI photo transformations</title>
+        <meta
+          name="description"
+          content="Drop a photo, pick a direction (race, age, gender, mashups, military uniforms), and see yourself across the multiverse — AI photo transformations made fun."
+        />
+
+        {/* Open Graph + Twitter Card tags. When the URL is pasted into
+            a chat or social post, this is what the unfurl looks like.
+            og:image is omitted intentionally — no branded share asset
+            exists yet; adding a default would mean shipping a
+            placeholder that's worse than the platform's default
+            "no preview" treatment. Wire it up when there's a real
+            shareable hero image. */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="What If — AI photo transformations" />
+        <meta
+          property="og:description"
+          content="Drop a photo. Pick a direction. See yourself across the multiverse."
+        />
+        <meta property="og:site_name" content="What If" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="What If — AI photo transformations" />
+        <meta
+          name="twitter:description"
+          content="Drop a photo. Pick a direction. See yourself across the multiverse."
+        />
+
+        {/* Apple-specific PWA chrome. theme-color above handles Android.
+            apple-mobile-web-app-capable lets users save to home screen
+            without browser chrome. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="What If" />
+
+
         {/* Inter — FRAME's UI font. JetBrains Mono — FRAME's wordmark / mono
             accents. System fallbacks keep things readable before the web
             fonts land. */}

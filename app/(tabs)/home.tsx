@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
@@ -45,6 +45,19 @@ export default function Home() {
   const hasConsentedRef = useRef(false);
   const [consentVisible, setConsentVisible] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+
+  // Tracks whether the user has explicitly acknowledged a "flagged"
+  // safety verdict for the currently-loaded photo. We don't want to
+  // re-prompt on every category tap once they've said yes — but we DO
+  // want to re-prompt for a fresh photo. Reset whenever the photo
+  // changes (the safetyVerdict effect below handles that).
+  const safetyAcknowledgedRef = useRef(false);
+  useEffect(() => {
+    // Any time the verdict changes (new photo, re-detect after retry),
+    // reset the acknowledgment flag. Also covers the case where a
+    // re-detection upgrades 'flagged' → 'safe' or vice versa.
+    safetyAcknowledgedRef.current = false;
+  }, [safetyVerdict]);
 
   // True when the detection step flagged any visible person as a minor.
   // Premium categories (celebrity/political mashups, ethnicity blending)
@@ -201,6 +214,41 @@ export default function Home() {
     // explanation rather than a generic "this isn't allowed".
     if (safetyVerdict?.decision === 'blocked') {
       show(`Can't transform this photo: ${safetyVerdict.reason}`, 'error');
+      return;
+    }
+    // 'flagged' is a soft warning — the classifier saw something
+    // questionable but isn't refusing. Surface a confirm dialog with
+    // the model's reason and let the user decide. Once acknowledged
+    // for this photo, don't re-prompt on subsequent category taps —
+    // tracked in safetyAcknowledgedRef and reset whenever the verdict
+    // changes (new photo, re-detect).
+    if (
+      safetyVerdict?.decision === 'flagged' &&
+      !safetyAcknowledgedRef.current
+    ) {
+      const proceed = () => {
+        safetyAcknowledgedRef.current = true;
+        // Re-run handleSelect with the same category so the rest of
+        // the gates (people selection, premium, consent) still run.
+        // Calling handleSelect directly would re-hit this branch —
+        // but acknowledgedRef is now true, so it falls through.
+        handleSelect(category);
+      };
+      const title = 'Heads up';
+      const message = `${safetyVerdict.reason}\n\nDo you want to continue?`;
+      if (Platform.OS === 'web') {
+        // RNW Alert.alert collapses to OK/Cancel without honoring the
+        // destructive style. window.confirm is the cleaner fallback —
+        // matches the existing pattern in profile/gallery delete flows.
+        if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
+          proceed();
+        }
+        return;
+      }
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: proceed },
+      ]);
       return;
     }
     if (detectedPeople.length > 1 && selectedPersonIds.length === 0) {

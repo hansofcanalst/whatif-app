@@ -47,21 +47,37 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
             onPress={handleRemove}
             style={styles.removeBtn}
             hitSlop={8}
+            accessibilityRole="button"
             accessibilityLabel="Remove photo"
           >
             <Text style={styles.removeText}>✕</Text>
           </Pressable>
         </View>
         <View style={styles.actionsRow}>
-          <Pressable onPress={handlePress} style={styles.actionBtn}>
+          <Pressable
+            onPress={handlePress}
+            style={styles.actionBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Change photo"
+          >
             <Text style={styles.actionText}>Change photo</Text>
           </Pressable>
           {CAMERA_AVAILABLE ? (
-            <Pressable onPress={handleCapture} style={styles.actionBtn}>
+            <Pressable
+              onPress={handleCapture}
+              style={styles.actionBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Take a new photo with the camera"
+            >
               <Text style={styles.actionText}>Take photo</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={handleRemove} style={[styles.actionBtn, styles.removeActionBtn]}>
+          <Pressable
+            onPress={handleRemove}
+            style={[styles.actionBtn, styles.removeActionBtn]}
+            accessibilityRole="button"
+            accessibilityLabel="Remove photo"
+          >
             <Text style={[styles.actionText, styles.removeActionText]}>Remove</Text>
           </Pressable>
         </View>
@@ -70,7 +86,12 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
   }
 
   return (
-    <Pressable onPress={handlePress} style={styles.empty}>
+    <Pressable
+      onPress={handlePress}
+      style={styles.empty}
+      accessibilityRole="button"
+      accessibilityLabel="Upload a photo from your camera roll"
+    >
       {/* Accent-tinted icon tile — FRAME's drop-zone signature. Lives on
           the deep input surface with a soft violet wash to hint "action". */}
       <View style={styles.iconTile}>
@@ -103,6 +124,7 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
             handleCapture();
           }}
           style={styles.cameraPill}
+          accessibilityRole="button"
           accessibilityLabel="Take photo with camera"
         >
           <Text style={styles.cameraGlyph}>◉</Text>

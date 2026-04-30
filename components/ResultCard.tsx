@@ -58,9 +58,24 @@ export function ResultCard({ imageURL, label, status = 'complete', error, pendin
     return <Image source={{ uri: imageURL }} style={styles.image} />;
   })();
 
+  // Compose an a11y label that includes both the variant name and the
+  // current state so screen readers announce e.g. "Black, generating"
+  // or "Middle Eastern, failed: model returned no image" rather than
+  // just the visible label without context. Disabled state also rides
+  // through to assistive tech so VoiceOver can correctly indicate
+  // non-interactive tiles.
+  const a11yLabel = (() => {
+    if (status === 'pending') return `${label}, generating`;
+    if (status === 'failed') return `${label}, failed${error ? `: ${error}` : ''}`;
+    return label;
+  })();
+
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
+      accessibilityRole={disabled ? 'image' : 'button'}
+      accessibilityLabel={a11yLabel}
+      accessibilityState={{ disabled, busy: status === 'pending' }}
       style={({ pressed }) => [
         styles.card,
         pressed && !disabled && styles.pressed,

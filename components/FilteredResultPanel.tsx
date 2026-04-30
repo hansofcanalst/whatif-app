@@ -41,7 +41,9 @@ import {
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+// Alias the expo-file-system File class so it doesn't shadow the
+// global `File` constructor used in the Web Share API path below.
+import { File as FsFile, Paths } from 'expo-file-system';
 import { Button } from './ui/Button';
 import { useToast } from './ui/Toast';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
@@ -165,17 +167,18 @@ export function FilteredResultPanel({
         show('Saved to Downloads', 'success');
         return;
       }
-      // Native: write to documentDirectory. Same boundary the
-      // ShareSheet's handleSave uses.
-      const dir = FileSystem.documentDirectory;
-      if (!dir) throw new Error('No document directory available.');
-      const dest = `${dir}${filename}`;
-      // captureRef gave us a tmpfile URI; on un-filtered runs it's the
-      // network/data URL. Either way, downloadAsync handles both.
+      // Native: write to the document directory via the new
+      // expo-file-system class API. The captured uri is either an
+      // HTTP(S) URL or a tmpfile from view-shot; downloadFileAsync
+      // handles both. For un-captured runs (filter='none', no
+      // watermark), uri is the original imageURL — same path.
+      const dest = new FsFile(Paths.document, filename);
+      if (dest.exists) dest.delete();
       if (!needsCapture) {
-        await FileSystem.downloadAsync(uri, dest);
+        await FsFile.downloadFileAsync(uri, dest);
       } else {
-        await FileSystem.copyAsync({ from: uri, to: dest });
+        // captureRef gave us a tmpfile path → wrap as a File and copy.
+        new FsFile(uri).copy(dest);
       }
       Alert.alert('Saved', 'Image saved to app storage.');
     } catch (e) {
@@ -226,21 +229,22 @@ export function FilteredResultPanel({
         show('Downloaded — share from your Downloads folder', 'success');
         return;
       }
-      // Native: stage in cache + open system share sheet.
-      const dir = FileSystem.cacheDirectory;
-      if (!dir) throw new Error('No cache directory available.');
-      const dest = `${dir}${filename}`;
+      // Native: stage in cache + open system share sheet. Same
+      // download-vs-copy split as handleSave above; cache instead of
+      // document because shared files don't need to persist.
+      const dest = new FsFile(Paths.cache, filename);
+      if (dest.exists) dest.delete();
       if (!needsCapture) {
-        await FileSystem.downloadAsync(uri, dest);
+        await FsFile.downloadFileAsync(uri, dest);
       } else {
-        await FileSystem.copyAsync({ from: uri, to: dest });
+        new FsFile(uri).copy(dest);
       }
       const available = await Sharing.isAvailableAsync();
       if (!available) {
         Alert.alert('Sharing unavailable on this device.');
         return;
       }
-      await Sharing.shareAsync(dest, {
+      await Sharing.shareAsync(dest.uri, {
         dialogTitle: buildShareCaption(),
         mimeType: 'image/jpeg',
       });

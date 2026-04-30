@@ -14,8 +14,20 @@ interface CategoryCardProps {
 // toolkit grid rather than a row of buttons. Locked state shows a
 // violet PRO label-tag in the corner.
 export function CategoryCard({ category, onPress, locked }: CategoryCardProps) {
+  // Composed accessibility label so screen readers announce
+  // "Race Swap. See yourself as a different race. Pro." rather than
+  // dumping each Text node separately. The `locked` state informs the
+  // user that activation will hit the paywall.
+  const a11yLabel = locked
+    ? `${category.label}. ${category.description}. Pro feature.`
+    : `${category.label}. ${category.description}.`;
   return (
-    <Pressable onPress={() => onPress(category)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable
+      onPress={() => onPress(category)}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.emojiTile}>
         <Text style={styles.emoji}>{category.emoji}</Text>
       </View>

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import { config } from '@/constants/config';
 
 export interface PickedImage {
@@ -52,16 +52,15 @@ async function processAsset(asset: ImagePicker.ImagePickerAsset): Promise<Picked
 
   // Fallback chain:
   //   1. manipulator produced base64 → use it
-  //   2. native → ask expo-file-system
+  //   2. native → read via expo-file-system's new File API (replaces
+  //      the legacy FileSystem.readAsStringAsync)
   //   3. web → fetch(uri) + FileReader
   if (!base64) {
     try {
       if (Platform.OS === 'web') {
         base64 = await uriToBase64Web(manipulated.uri);
       } else {
-        base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        base64 = await new File(manipulated.uri).base64();
       }
     } catch (e) {
       console.warn('[useImagePicker] base64 fallback failed, trying opposite path', e);

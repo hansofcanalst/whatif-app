@@ -434,6 +434,31 @@ export const generate = functions
 
           const url = await uploadImage(uid, generationId, `result_${i}`, resultB64);
           console.log(`[fn/generate] ✓ subId=${subId} complete — source=${promptSource}`);
+          // TODO(thumbnails): The local-dev `persistLocalGeneration`
+          // path generates 256px thumbnails inline (via expo-image-
+          // manipulator on the client) and writes thumbURL into the
+          // Firestore doc. The Cloud Function path doesn't yet — the
+          // gallery falls back to imageURL there.
+          //
+          // The right way to add this is the Firebase "Resize Images"
+          // extension (firebase/storage-resize-images), NOT sharp/jimp
+          // inline in this function. Reasons:
+          //   - sharp adds ~10 MB to deploy size and has historical
+          //     issues with Cloud Functions Gen1 cold starts.
+          //   - The extension auto-resizes any image written to
+          //     Storage with zero code in this function.
+          //   - It writes resized variants next to the original
+          //     using a deterministic suffix, so we can compose the
+          //     thumbURL by string manipulation here.
+          //
+          // Install:
+          //   firebase ext:install firebase/storage-resize-images \
+          //     --params 'IMG_SIZES=256x256' \
+          //     --params 'INCLUDE_PATH_LIST=/users/'
+          //
+          // Then, after the upload above, derive the thumbURL by
+          // adding `_256x256` before the extension and read the
+          // download URL from Storage.
           // Store the base (unwrapped) prompt — the gallery shows the
           // transformation the user asked for, not the scoping preamble.
           const item = { imageURL: url, prompt: meta.prompt, label: meta.label, subcategoryId: subId };
