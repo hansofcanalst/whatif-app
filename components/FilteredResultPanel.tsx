@@ -315,6 +315,9 @@ export function FilteredResultPanel({
               key={f.id}
               onPress={() => setFilter(f.id)}
               style={[styles.chip, active && styles.chipActive]}
+              accessibilityRole="button"
+              accessibilityLabel={`${f.label} filter`}
+              accessibilityState={{ selected: active }}
             >
               <Text
                 style={[styles.chipText, active && styles.chipTextActive]}
@@ -335,6 +338,11 @@ export function FilteredResultPanel({
         <Pressable
           onPress={() => setWatermark((w) => !w)}
           style={[styles.chip, watermark && styles.chipActive]}
+          // `switch` role is the correct semantic for a binary toggle;
+          // `accessibilityState.checked` mirrors the on/off state.
+          accessibilityRole="switch"
+          accessibilityLabel="Watermark on shared images"
+          accessibilityState={{ checked: watermark }}
         >
           <Text style={[styles.chipText, watermark && styles.chipTextActive]}>
             {watermark ? '✦ Watermark on' : 'Watermark off'}

@@ -92,7 +92,9 @@ export function PeopleSelector({
                   { left: cx - MARKER_SIZE / 2, top: cy - MARKER_SIZE / 2 },
                   isSelected ? styles.markerSelected : styles.markerUnselected,
                 ]}
-                accessibilityLabel={`${isSelected ? 'Deselect' : 'Select'} ${p.label}`}
+                accessibilityRole="button"
+                accessibilityLabel={p.label}
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text
                   style={[
@@ -115,7 +117,13 @@ export function PeopleSelector({
             ? `Transforming all ${people.length}`
             : `Transforming ${selectedIds.length} of ${people.length}`}
         </Text>
-        <Pressable onPress={allSelected ? onSelectNone : onSelectAll}>
+        <Pressable
+          onPress={allSelected ? onSelectNone : onSelectAll}
+          accessibilityRole="button"
+          accessibilityLabel={
+            allSelected ? 'Deselect all people' : 'Select all people'
+          }
+        >
           <Text style={styles.link}>{allSelected ? 'None' : 'All'}</Text>
         </Pressable>
       </View>

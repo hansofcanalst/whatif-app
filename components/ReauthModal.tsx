@@ -246,7 +246,9 @@ export function ReauthModal({ visible, onSuccess, onClose }: ReauthModalProps) {
             style={styles.closeBtn}
             hitSlop={8}
             disabled={busy}
+            accessibilityRole="button"
             accessibilityLabel="Close"
+            accessibilityState={{ disabled: busy }}
           >
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
@@ -254,7 +256,12 @@ export function ReauthModal({ visible, onSuccess, onClose }: ReauthModalProps) {
             <Text style={styles.title}>Confirm it's you</Text>
             {renderBody()}
             {!busy ? (
-              <Pressable onPress={handleClose} style={{ marginTop: spacing.md }}>
+              <Pressable
+                onPress={handleClose}
+                style={{ marginTop: spacing.md }}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
                 <Text style={styles.cancel}>Cancel</Text>
               </Pressable>
             ) : null}

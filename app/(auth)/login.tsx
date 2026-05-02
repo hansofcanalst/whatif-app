@@ -104,7 +104,11 @@ export default function Login() {
         </View>
 
         <Link href="/(auth)/signup" asChild>
-          <Pressable style={styles.linkRow}>
+          <Pressable
+            style={styles.linkRow}
+            accessibilityRole="link"
+            accessibilityLabel="Don't have an account? Sign up"
+          >
             <Text style={styles.linkText}>
               No account? <Text style={styles.linkAccent}>Sign up</Text>
             </Text>

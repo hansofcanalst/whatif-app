@@ -73,7 +73,11 @@ export default function PromptEvalScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <Text style={styles.body}>Not available in production.</Text>
-          <Pressable onPress={() => router.replace('/(tabs)/home' as never)}>
+          <Pressable
+            onPress={() => router.replace('/(tabs)/home' as never)}
+            accessibilityRole="link"
+            accessibilityLabel="Go to home screen"
+          >
             <Text style={styles.link}>Go home</Text>
           </Pressable>
         </View>
@@ -211,7 +215,12 @@ export default function PromptEvalScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={styles.headerTitle}>
@@ -233,6 +242,8 @@ export default function PromptEvalScreen() {
             <Pressable
               onPress={() => router.replace('/(tabs)/home' as never)}
               style={styles.linkBtn}
+              accessibilityRole="link"
+              accessibilityLabel="Go to home screen"
             >
               <Text style={styles.link}>Go to home</Text>
             </Pressable>
@@ -265,6 +276,9 @@ export default function PromptEvalScreen() {
                         key={key}
                         onPress={() => toggleSelected(key)}
                         style={[styles.chip, active && styles.chipActive]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${cat.label} ${sub.label}`}
+                        accessibilityState={{ selected: active }}
                       >
                         <Text style={[styles.chipText, active && styles.chipTextActive]}>
                           {active ? '✓ ' : ''}
@@ -281,6 +295,14 @@ export default function PromptEvalScreen() {
               onPress={runEval}
               disabled={running || selected.size === 0}
               style={[styles.runBtn, (running || selected.size === 0) && styles.runBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                running ? 'Running prompt eval' : `Run ${selected.size} prompts`
+              }
+              accessibilityState={{
+                disabled: running || selected.size === 0,
+                busy: running,
+              }}
             >
               <Text style={styles.runBtnText}>
                 {running

@@ -49,7 +49,13 @@ export function ConsentModal({ visible, onConfirm, onClose }: ConsentModalProps)
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handleBar} />
-          <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={8}>
+          <Pressable
+            onPress={handleClose}
+            style={styles.closeBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
           <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
@@ -81,6 +87,9 @@ export function ConsentModal({ visible, onConfirm, onClose }: ConsentModalProps)
               onPress={() => setAck((v) => !v)}
               style={styles.ackRow}
               hitSlop={8}
+              accessibilityRole="checkbox"
+              accessibilityLabel="I confirm all of the above"
+              accessibilityState={{ checked: ack }}
             >
               <View style={[styles.checkbox, ack && styles.checkboxOn]}>
                 {ack ? <Text style={styles.checkboxMark}>✓</Text> : null}
@@ -96,7 +105,12 @@ export function ConsentModal({ visible, onConfirm, onClose }: ConsentModalProps)
               disabled={!ack}
               style={{ marginTop: spacing.lg, opacity: ack ? 1 : 0.5 }}
             />
-            <Pressable onPress={handleClose} style={{ marginTop: spacing.md }}>
+            <Pressable
+              onPress={handleClose}
+              style={{ marginTop: spacing.md }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+            >
               <Text style={styles.cancel}>Cancel</Text>
             </Pressable>
           </ScrollView>

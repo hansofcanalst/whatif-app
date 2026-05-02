@@ -159,6 +159,9 @@ export default function Gallery() {
             <Pressable
               onPress={() => setViewMode('results')}
               style={[styles.modeBtn, viewMode === 'results' && styles.modeBtnActive]}
+              accessibilityRole="button"
+              accessibilityLabel="Show results only"
+              accessibilityState={{ selected: viewMode === 'results' }}
             >
               <Text style={[styles.modeText, viewMode === 'results' && styles.modeTextActive]}>
                 Results
@@ -167,6 +170,9 @@ export default function Gallery() {
             <Pressable
               onPress={() => setViewMode('compare')}
               style={[styles.modeBtn, viewMode === 'compare' && styles.modeBtnActive]}
+              accessibilityRole="button"
+              accessibilityLabel="Compare original and result side by side"
+              accessibilityState={{ selected: viewMode === 'compare' }}
             >
               <Text style={[styles.modeText, viewMode === 'compare' && styles.modeTextActive]}>
                 Compare
@@ -256,6 +262,12 @@ export default function Gallery() {
               onLongPress={() => handleDelete(item.docId, item.variantCount)}
               delayLongPress={400}
               style={styles.thumb}
+              accessibilityRole="button"
+              accessibilityLabel={
+                showCompare
+                  ? 'Open generation. Long-press to delete. Showing before and after.'
+                  : 'Open generation. Long-press to delete.'
+              }
             >
               {showCompare ? (
                 <View style={styles.compareWrap}>
@@ -273,6 +285,7 @@ export default function Gallery() {
                     handleDelete(item.docId, item.variantCount);
                   }}
                   style={styles.removeBadge}
+                  accessibilityRole="button"
                   accessibilityLabel="Remove this generation"
                   hitSlop={4}
                 >
@@ -289,7 +302,16 @@ export default function Gallery() {
 
 function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+    <Pressable
+      onPress={onPress}
+      style={[styles.chip, active && styles.chipActive]}
+      // Filter chips are toggle-style — `accessibilityRole="button"`
+      // with `accessibilityState.selected` is what VoiceOver / TalkBack
+      // expect for "this filter is currently active" semantics.
+      accessibilityRole="button"
+      accessibilityLabel={`Filter: ${label}`}
+      accessibilityState={{ selected: active }}
+    >
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </Pressable>
   );

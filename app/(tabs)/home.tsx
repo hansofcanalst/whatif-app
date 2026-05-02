@@ -352,6 +352,8 @@ export default function Home() {
             <Pressable
               onPress={() => runDetection(image, true)}
               style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Retry people detection"
             >
               <Text style={styles.retryButtonText}>Try again</Text>
             </Pressable>

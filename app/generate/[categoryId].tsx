@@ -156,7 +156,12 @@ export default function GenerateCategoryScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <Text style={styles.backText}>←</Text>
         </Pressable>
         <View style={styles.headerTitle}>
@@ -179,7 +184,16 @@ export default function GenerateCategoryScreen() {
             <Text style={styles.sectionLabel}>Variations</Text>
             <Text style={styles.section}>Pick your transformations</Text>
           </View>
-          <Pressable onPress={toggleAll} style={styles.allBtn}>
+          <Pressable
+            onPress={toggleAll}
+            style={styles.allBtn}
+            accessibilityRole="button"
+            accessibilityLabel={
+              allSelected
+                ? 'Clear all selected variations'
+                : 'Select all variations'
+            }
+          >
             <Text style={styles.allLink}>{allSelected ? 'Clear' : 'All'}</Text>
           </Pressable>
         </View>
@@ -196,6 +210,9 @@ export default function GenerateCategoryScreen() {
                 key={s.id}
                 onPress={() => toggle(s.id)}
                 style={[styles.chip, active && styles.chipActive]}
+                accessibilityRole="button"
+                accessibilityLabel={s.label}
+                accessibilityState={{ selected: active }}
               >
                 {/* Explicit checkmark glyph on selected chips. Color
                     alone wasn't enough of a signal — testing surfaced
@@ -235,6 +252,9 @@ export default function GenerateCategoryScreen() {
                         key={acc.id}
                         onPress={() => toggleAccessory(sub.id, acc.id)}
                         style={[styles.accessoryChip, active && styles.accessoryChipActive]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${acc.label} accessory for ${sub.label}`}
+                        accessibilityState={{ selected: active }}
                       >
                         <Text
                           style={[

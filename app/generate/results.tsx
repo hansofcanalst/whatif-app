@@ -159,7 +159,12 @@ export default function ResultsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace('/(tabs)/home')} style={styles.close}>
+        <Pressable
+          onPress={() => router.replace('/(tabs)/home')}
+          style={styles.close}
+          accessibilityRole="button"
+          accessibilityLabel="Close results and return to home"
+        >
           <Text style={styles.closeText}>✕</Text>
         </Pressable>
         <View style={styles.headerTitle}>

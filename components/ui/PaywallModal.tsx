@@ -70,7 +70,13 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handleBar} />
-          <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+          <Pressable
+            onPress={onClose}
+            style={styles.closeBtn}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
           <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>

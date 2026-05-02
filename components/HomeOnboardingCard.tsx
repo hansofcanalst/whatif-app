@@ -79,6 +79,7 @@ export function HomeOnboardingCard() {
           onPress={handleDismiss}
           hitSlop={8}
           style={styles.close}
+          accessibilityRole="button"
           accessibilityLabel="Dismiss welcome message"
         >
           <Text style={styles.closeText}>✕</Text>

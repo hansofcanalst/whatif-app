@@ -220,7 +220,12 @@ function CrashFallback({ error, resetError }: { error: unknown; resetError: () =
       {error instanceof Error ? (
         <Text style={errStyles.errorDetail}>{error.message}</Text>
       ) : null}
-      <Pressable onPress={resetError} style={errStyles.button}>
+      <Pressable
+        onPress={resetError}
+        style={errStyles.button}
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+      >
         <Text style={errStyles.buttonText}>Try again</Text>
       </Pressable>
     </View>

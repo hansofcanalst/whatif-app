@@ -248,7 +248,12 @@ export default function Profile() {
           </View>
         </View>
 
-        <Pressable onPress={handleLogout} style={styles.logout}>
+        <Pressable
+          onPress={handleLogout}
+          style={styles.logout}
+          accessibilityRole="button"
+          accessibilityLabel="Log out"
+        >
           <Text style={styles.logoutText}>Log Out</Text>
         </Pressable>
 
@@ -262,6 +267,8 @@ export default function Profile() {
             if (__DEV__) router.push('/dev/prompt-eval' as never);
           }}
           delayLongPress={600}
+          accessibilityRole="text"
+          accessibilityLabel={`App version ${Constants.expoConfig?.version ?? '1.0.0'}`}
         >
           <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
         </Pressable>
@@ -301,6 +308,11 @@ function SettingRow({
       onPress={onPress}
       disabled={disabled || !onPress}
       style={[styles.row, disabled && styles.rowDisabled]}
+      // Setting rows are mostly buttons; assistive tech announces them
+      // as "<label>, button" with disabled state surfaced when relevant.
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || !onPress }}
     >
       <Text style={[styles.rowLabel, destructive && { color: colors.dangerText }]}>{label}</Text>
       <Text style={styles.rowChevron}>›</Text>

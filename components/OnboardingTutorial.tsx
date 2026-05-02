@@ -140,6 +140,7 @@ export function OnboardingTutorial({ signedIn }: OnboardingTutorialProps) {
             onPress={finish}
             style={styles.skipBtn}
             hitSlop={8}
+            accessibilityRole="button"
             accessibilityLabel="Skip tutorial"
           >
             <Text style={styles.skipText}>Skip</Text>
