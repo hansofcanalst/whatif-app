@@ -24,7 +24,10 @@
       "Bash(firebase deploy *)",
       "Bash(npm run *)",
       "Bash(npm audit *)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Add CLAUDE.md project context + remove unused expo deps *)",
+      "Bash(git push *)"
     ]
   },
   "hooks": {
