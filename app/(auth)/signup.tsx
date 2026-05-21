@@ -16,7 +16,11 @@ export default function Signup() {
   const handleSubmit = async () => {
     if (!email || !password) return show('Fill all fields.', 'error');
     if (password !== confirm) return show('Passwords do not match.', 'error');
-    if (password.length < 6) return show('Password must be at least 6 characters.', 'error');
+    // 8-character minimum aligns with NIST SP 800-63B guidance — Firebase's
+    // default 6 is below the modern recommendation. The check runs client-
+    // side as a fast-fail; the Firebase backend separately enforces its own
+    // minimum, but won't reject 6-char passwords on its own, so we have to.
+    if (password.length < 8) return show('Password must be at least 8 characters.', 'error');
     setLoading(true);
     try {
       await signUpWithEmail(email.trim(), password);
@@ -57,7 +61,7 @@ export default function Signup() {
             <View>
               <Text style={styles.inputLabel}>Password</Text>
               <TextInput
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 placeholderTextColor={colors.textMuted}
                 value={password}
                 onChangeText={setPassword}

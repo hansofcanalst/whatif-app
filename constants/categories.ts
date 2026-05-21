@@ -7,7 +7,6 @@ export interface Subcategory {
 export interface Category {
   id: string;
   label: string;
-  emoji: string;
   description: string;
   isPremium: boolean;
   subcategories: Subcategory[];
@@ -19,7 +18,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'race-swap',
     label: 'Race Swap',
-    emoji: '🌍',
     description: 'See yourself as a different race',
     isPremium: false,
     subcategories: [
@@ -34,7 +32,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'gender-swap',
     label: 'Gender Swap',
-    emoji: '🔄',
     description: 'What if you were a different gender?',
     isPremium: false,
     subcategories: [
@@ -46,7 +43,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'age-transform',
     label: 'Age Machine',
-    emoji: '⏳',
     description: 'Travel through time',
     isPremium: false,
     subcategories: [
@@ -61,7 +57,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'military-forces',
     label: 'Military & Forces',
-    emoji: '🪖',
     description: 'Step into uniform from around the world',
     isPremium: false,
     subcategories: [
@@ -84,7 +79,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'political-mashup',
     label: 'Political Mashup',
-    emoji: '🏛️',
     description: "What if you were a political figure's family?",
     isPremium: true,
     subcategories: [
@@ -97,7 +91,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'celebrity-mashup',
     label: 'Celebrity Mashup',
-    emoji: '⭐',
     description: 'What if you were related to a celebrity?',
     isPremium: true,
     subcategories: [
@@ -110,7 +103,6 @@ export const CATEGORIES: Category[] = [
   {
     id: 'ethnicity-blend',
     label: 'Ethnicity Blend',
-    emoji: '🧬',
     description: 'What if your heritage was mixed?',
     isPremium: true,
     subcategories: [

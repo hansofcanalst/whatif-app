@@ -40,12 +40,14 @@ import {
   ScrollView,
   Pressable,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ArrowLeft, Check, Sparkles } from 'lucide-react-native';
 import { CATEGORIES } from '@/constants/categories';
 import { useGenerationStore } from '@/stores/generationStore';
 import { streamGeneration, type GenerateResponseItem } from '@/lib/gemini';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { SkeletonTile } from '@/components/ui/PulseIndicators';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 type RunStatus = 'idle' | 'pending' | 'complete' | 'failed';
@@ -220,8 +222,9 @@ export default function PromptEvalScreen() {
           style={styles.back}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={8}
         >
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={22} color={colors.textPrimary} strokeWidth={2.25} />
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Dev tools</Text>
@@ -263,10 +266,18 @@ export default function PromptEvalScreen() {
             {/* Category rows. One row per category, chips for each sub. */}
             {CATEGORIES.map((cat) => (
               <View key={cat.id} style={styles.catBlock}>
-                <Text style={styles.catLabel}>
-                  {cat.emoji} {cat.label}
-                  {cat.isPremium ? ' · PRO' : ''}
-                </Text>
+                <View style={styles.catLabelRow}>
+                  <CategoryIcon
+                    categoryId={cat.id}
+                    size={12}
+                    color={colors.textLabel}
+                    strokeWidth={2.25}
+                  />
+                  <Text style={styles.catLabel}>
+                    {cat.label}
+                    {cat.isPremium ? ' · PRO' : ''}
+                  </Text>
+                </View>
                 <View style={styles.chipRow}>
                   {cat.subcategories.map((sub) => {
                     const key = `${cat.id}/${sub.id}`;
@@ -280,8 +291,14 @@ export default function PromptEvalScreen() {
                         accessibilityLabel={`${cat.label} ${sub.label}`}
                         accessibilityState={{ selected: active }}
                       >
+                        {active ? (
+                          <Check
+                            size={11}
+                            color={colors.accentText}
+                            strokeWidth={3}
+                          />
+                        ) : null}
                         <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                          {active ? '✓ ' : ''}
                           {sub.label}
                         </Text>
                       </Pressable>
@@ -336,9 +353,14 @@ export default function PromptEvalScreen() {
                           </Text>
                         </View>
                       ) : slot.status === 'pending' ? (
-                        <View style={styles.tilePlaceholder}>
-                          <ActivityIndicator color={colors.accent} />
-                        </View>
+                        <SkeletonTile style={styles.skeletonFill}>
+                          <Sparkles
+                            size={18}
+                            color={colors.accentText}
+                            strokeWidth={2}
+                            opacity={0.7}
+                          />
+                        </SkeletonTile>
                       ) : (
                         <View style={styles.tilePlaceholder} />
                       )}
@@ -374,7 +396,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backText: { color: colors.textPrimary, fontSize: 26 },
   headerTitle: { alignItems: 'center', flex: 1 },
   headerLabel: { ...typography.label, color: colors.textLabel, fontSize: 10 },
   title: { ...typography.h3, color: colors.textPrimary },
@@ -405,6 +426,7 @@ const styles = StyleSheet.create({
   section: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.md },
   sectionSub: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
   catBlock: { gap: spacing.xs, marginTop: spacing.sm },
+  catLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   catLabel: {
     ...typography.label,
     color: colors.textLabel,
@@ -412,6 +434,9 @@ const styles = StyleSheet.create({
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: radii.pill,
@@ -454,6 +479,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.sm,
+  },
+  // SkeletonTile sizing for prompt-eval pending tiles. Square tile,
+  // borderless (the outer tile already has its own border).
+  skeletonFill: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 0,
+    borderWidth: 0,
   },
   failGlyph: {
     fontSize: 22,

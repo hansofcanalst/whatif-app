@@ -5,8 +5,11 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGenerationStore } from '@/stores/generationStore';
 import { listGenerations } from '@/lib/firestore';
 import type { GenerationDoc } from '@/lib/firestore';
+import { Sparkles, X } from 'lucide-react-native';
 import { CATEGORIES } from '@/constants/categories';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { GlyphTile } from '@/components/ui/GlyphTile';
 
 export default function Gallery() {
   const { user } = useAuthStore();
@@ -200,7 +203,8 @@ export default function Gallery() {
         {CATEGORIES.map((c) => (
           <FilterChip
             key={c.id}
-            label={`${c.emoji} ${c.label}`}
+            label={c.label}
+            categoryId={c.id}
             active={filter === c.id}
             onPress={() => setFilter(c.id)}
           />
@@ -243,9 +247,13 @@ export default function Gallery() {
         removeClippedSubviews
         ListEmptyComponent={
           <View style={styles.empty}>
-            <View style={styles.emptyIconTile}>
-              <Text style={styles.emptyIcon}>✦</Text>
-            </View>
+            <GlyphTile size={64}>
+              <Sparkles
+                size={28}
+                color={colors.accentText}
+                strokeWidth={2}
+              />
+            </GlyphTile>
             <Text style={styles.emptyTitle}>Nothing here yet</Text>
             <Text style={styles.emptyText}>
               Your generated transformations will appear here.
@@ -289,7 +297,7 @@ export default function Gallery() {
                   accessibilityLabel="Remove this generation"
                   hitSlop={4}
                 >
-                  <Text style={styles.removeBadgeText}>×</Text>
+                  <X size={14} color={colors.textPrimary} strokeWidth={2.5} />
                 </Pressable>
               ) : null}
             </Pressable>
@@ -300,7 +308,17 @@ export default function Gallery() {
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function FilterChip({
+  label,
+  active,
+  onPress,
+  categoryId,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  categoryId?: string;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -312,6 +330,14 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
       accessibilityLabel={`Filter: ${label}`}
       accessibilityState={{ selected: active }}
     >
+      {categoryId ? (
+        <CategoryIcon
+          categoryId={categoryId}
+          size={14}
+          color={active ? colors.accentText : colors.textSecondary}
+          strokeWidth={2.25}
+        />
+      ) : null}
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
     </Pressable>
   );
@@ -355,6 +381,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
@@ -434,27 +463,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeBadgeText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '900',
-    lineHeight: 18,
-    // Nudge the glyph up a touch so the × is optically centered in the
-    // pill — its baseline sits low without this.
-    marginTop: -1,
-  },
   empty: { alignItems: 'center', padding: spacing.xxxl, gap: spacing.md },
-  emptyIconTile: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.xl,
-    backgroundColor: colors.accentDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-  },
-  emptyIcon: { fontSize: 28, color: colors.accentText, fontWeight: '900' },
   emptyTitle: { ...typography.h3, color: colors.textPrimary },
   emptyText: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
 });

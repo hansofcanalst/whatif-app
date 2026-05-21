@@ -40,6 +40,7 @@ import {
   Alert,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
+import { Sparkles } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 // Alias the expo-file-system File class so it doesn't shadow the
 // global `File` constructor used in the Web Share API path below.
@@ -300,7 +301,8 @@ export function FilteredResultPanel({
             opt into a clean export. */}
         {watermark ? (
           <View style={styles.watermarkPill} pointerEvents="none">
-            <Text style={styles.watermarkText}>What If ✦</Text>
+            <Text style={styles.watermarkText}>What If</Text>
+            <Sparkles size={11} color={colors.textPrimary} strokeWidth={2.5} />
           </View>
         ) : null}
       </View>
@@ -337,15 +339,22 @@ export function FilteredResultPanel({
       <View style={styles.watermarkRow}>
         <Pressable
           onPress={() => setWatermark((w) => !w)}
-          style={[styles.chip, watermark && styles.chipActive]}
+          style={[styles.chip, styles.watermarkChip, watermark && styles.chipActive]}
           // `switch` role is the correct semantic for a binary toggle;
           // `accessibilityState.checked` mirrors the on/off state.
           accessibilityRole="switch"
           accessibilityLabel="Watermark on shared images"
           accessibilityState={{ checked: watermark }}
         >
+          {watermark ? (
+            <Sparkles
+              size={11}
+              color={colors.accentText}
+              strokeWidth={2.5}
+            />
+          ) : null}
           <Text style={[styles.chipText, watermark && styles.chipTextActive]}>
-            {watermark ? '✦ Watermark on' : 'Watermark off'}
+            {watermark ? 'Watermark on' : 'Watermark off'}
           </Text>
         </Pressable>
       </View>
@@ -422,17 +431,29 @@ const styles = StyleSheet.create({
   // Watermark pill — sits inside the capture target at bottom-right.
   // Dark translucent background + subtle border keeps it readable on
   // both bright and dark results. Sized small enough to not dominate
-  // the image but big enough to be unmistakably attribution.
+  // the image but big enough to be unmistakably attribution. flexRow +
+  // gap so the lucide Sparkles glyph sits inline with the wordmark.
   watermarkPill: {
     position: 'absolute',
     right: spacing.md,
     bottom: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 4,
     borderRadius: radii.pill,
     backgroundColor: 'rgba(9,9,13,0.7)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
+  },
+  // The watermark *toggle* chip needs flexDirection:row so the inline
+  // Sparkles icon sits left of the label. The other chips on this
+  // screen are text-only and don't need it.
+  watermarkChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   watermarkText: {
     color: colors.textPrimary,

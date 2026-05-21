@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Check, Plus } from 'lucide-react-native';
 import { getCategory } from '@/constants/categories';
 import { getPrompt } from '@/lib/prompts';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -9,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { useToast } from '@/components/ui/Toast';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function GenerateCategoryScreen() {
@@ -161,14 +163,21 @@ export default function GenerateCategoryScreen() {
           style={styles.back}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={8}
         >
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={22} color={colors.textPrimary} strokeWidth={2.25} />
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Category</Text>
-          <Text style={styles.title}>
-            {category.emoji} {category.label}
-          </Text>
+          <View style={styles.titleRow}>
+            <CategoryIcon
+              categoryId={category.id}
+              size={16}
+              color={colors.textPrimary}
+              strokeWidth={2.25}
+            />
+            <Text style={styles.title}>{category.label}</Text>
+          </View>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -214,13 +223,19 @@ export default function GenerateCategoryScreen() {
                 accessibilityLabel={s.label}
                 accessibilityState={{ selected: active }}
               >
-                {/* Explicit checkmark glyph on selected chips. Color
-                    alone wasn't enough of a signal — testing surfaced
-                    a confusion case where users tapped a second variant
+                {/* Explicit check glyph on selected chips. Color alone
+                    wasn't enough of a signal — testing surfaced a
+                    confusion case where users tapped a second variant
                     expecting the first to deselect (radio-style). The
-                    glyph makes the selected state unmistakable: empty
-                    chip = idle, ✓ chip = will-generate. */}
-                {active ? <Text style={styles.chipCheck}>✓</Text> : null}
+                    SVG glyph makes the selected state unmistakable:
+                    empty chip = idle, ✓-icon chip = will-generate. */}
+                {active ? (
+                  <Check
+                    size={12}
+                    color={colors.accentText}
+                    strokeWidth={3}
+                  />
+                ) : null}
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {s.label}
                 </Text>
@@ -256,13 +271,25 @@ export default function GenerateCategoryScreen() {
                         accessibilityLabel={`${acc.label} accessory for ${sub.label}`}
                         accessibilityState={{ selected: active }}
                       >
+                        {active ? (
+                          <Check
+                            size={11}
+                            color={colors.accentText}
+                            strokeWidth={3}
+                          />
+                        ) : (
+                          <Plus
+                            size={11}
+                            color={colors.textSecondary}
+                            strokeWidth={2.5}
+                          />
+                        )}
                         <Text
                           style={[
                             styles.accessoryChipText,
                             active && styles.accessoryChipTextActive,
                           ]}
                         >
-                          {active ? '✓ ' : '+ '}
                           {acc.label}
                         </Text>
                       </Pressable>
@@ -300,13 +327,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headerTitle: { alignItems: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   headerLabel: {
     ...typography.label,
     color: colors.textLabel,
     fontSize: 10,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backText: { color: colors.textPrimary, fontSize: 26 },
   title: { ...typography.h3, color: colors.textPrimary },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxxl },
   previewWrap: {
@@ -363,15 +390,6 @@ const styles = StyleSheet.create({
   },
   chipText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
-  // Inline check glyph for the selected state. Same color/weight as
-  // the active label so it reads as a single unit, not a separate
-  // affordance the user could try to tap.
-  chipCheck: {
-    ...typography.caption,
-    color: colors.accentText,
-    fontWeight: '900',
-    fontSize: 12,
-  },
   hint: {
     ...typography.tiny,
     color: colors.textMuted,
@@ -405,6 +423,9 @@ const styles = StyleSheet.create({
   },
   accessoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   accessoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: radii.pill,

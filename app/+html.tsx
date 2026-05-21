@@ -164,4 +164,69 @@ input:focus, textarea:focus, select:focus {
    grey, or purple. */
 a { color: var(--purple); text-decoration: none; }
 a:hover { color: var(--purple-hover); }
+
+/* React Native Web renders Pressable as a <div role="button">. Browsers
+   don't set cursor: pointer on those automatically, so without this the
+   entire interactive surface of the app reads as non-clickable on
+   desktop web. The selector covers Pressable's various output shapes
+   (role="button" / role="switch" / role="link") so every interactive
+   primitive gets the right cursor. Disabled elements explicitly
+   override with cursor: not-allowed so the affordance matches the
+   semantic state. */
+[role="button"]:not([aria-disabled="true"]),
+[role="link"]:not([aria-disabled="true"]),
+[role="switch"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+[role="button"][aria-disabled="true"],
+[role="link"][aria-disabled="true"],
+[role="switch"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Focus-visible outline for keyboard navigation. Only triggers on
+   keyboard focus (not mouse), so the click-driven press feedback
+   isn't doubled up with a ring. Mirrors the input:focus treatment
+   above so the focused state reads as the same visual language across
+   form fields and interactive surfaces. */
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--purple-glow);
+  border-radius: var(--radius-lg);
+}
+
+/* Stop the OS-default tap-highlight rectangle and text-selection
+   flicker on press. Both are mobile-Safari and Chrome-Android
+   artifacts that fight the in-app press feedback. */
+[role="button"], [role="link"], [role="switch"], [role="tab"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Reduced motion. Users with the system preference enabled get a hard
+   ceiling on every CSS transition + animation. Our in-app Reanimated
+   animations independently check AccessibilityInfo.isReduceMotionEnabled
+   (see CategoryCard, ResultCard, PulseIndicators), but this catches
+   any third-party / native HTML animations (e.g. expo-router page
+   transitions on web) that don't hit the RN-Web layer. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Selection color — purple-tinted so highlights match the app palette
+   rather than the OS-default blue. */
+::selection {
+  background-color: var(--purple-dim);
+  color: var(--text-primary);
+}
 `;

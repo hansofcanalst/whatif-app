@@ -41,13 +41,20 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Upload, Sparkles, Wand2, type LucideIcon } from 'lucide-react-native';
 import { Button } from './ui/Button';
+import { GlyphTile } from './ui/GlyphTile';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 const STORAGE_KEY = 'whatif:onboarding:tutorial:v1';
 
 interface TutorialStep {
-  glyph: string;
+  // Lucide icon component. Used in place of a Unicode glyph so the
+  // tutorial illustration uses the same SVG icon language as the rest
+  // of the app (CategoryIcon, PRO badge, etc.) instead of mixing
+  // Unicode symbols (which render with the OS's default font weight
+  // and feel disconnected from the line-icon aesthetic).
+  glyph: LucideIcon;
   label: string;
   title: string;
   body: string;
@@ -55,21 +62,21 @@ interface TutorialStep {
 
 const STEPS: TutorialStep[] = [
   {
-    glyph: '↑',
+    glyph: Upload,
     label: 'STEP 1',
     title: 'Drop a photo',
     body:
       'Upload a clear photo with one or more people. Selfies work great. We\'ll detect everyone in the shot so you can choose who to transform.',
   },
   {
-    glyph: '✦',
+    glyph: Sparkles,
     label: 'STEP 2',
     title: 'Pick a direction',
     body:
       'Choose what to change — race, age, gender, or unlock celebrity and political mashups with Pro. Each category has multiple variations you can run together.',
   },
   {
-    glyph: '◆',
+    glyph: Wand2,
     label: 'STEP 3',
     title: 'See it generated',
     body:
@@ -126,6 +133,7 @@ export function OnboardingTutorial({ signedIn }: OnboardingTutorialProps) {
 
   const step = STEPS[stepIdx];
   const isLast = stepIdx === STEPS.length - 1;
+  const StepIcon = step.glyph;
 
   return (
     <Modal
@@ -149,9 +157,13 @@ export function OnboardingTutorial({ signedIn }: OnboardingTutorialProps) {
             contentContainerStyle={styles.scroll}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.glyphTile}>
-              <Text style={styles.glyph}>{step.glyph}</Text>
-            </View>
+            <GlyphTile size={80} style={styles.glyphTileOffset}>
+              <StepIcon
+                size={36}
+                color={colors.accentText}
+                strokeWidth={2}
+              />
+            </GlyphTile>
             <Text style={styles.stepLabel}>{step.label}</Text>
             <Text style={styles.title}>{step.title}</Text>
             <Text style={styles.body}>{step.body}</Text>
@@ -230,25 +242,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  // Big glyph tile — visual focus of each step. Accent-tinted so the
-  // tutorial reads as on-brand rather than generic.
-  glyphTile: {
-    width: 80,
-    height: 80,
-    borderRadius: radii.xxl,
-    backgroundColor: colors.accentDim,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  glyph: {
-    fontSize: 40,
-    color: colors.accentText,
-    fontWeight: '900',
-    lineHeight: 44,
-  },
+  // Spacing offset for the big tutorial-step glyph tile. The base
+  // styling lives in <GlyphTile>; only the bottom margin is callsite-
+  // specific (the tutorial card has its own scroll rhythm).
+  glyphTileOffset: { marginBottom: spacing.md },
   stepLabel: {
     ...typography.label,
     color: colors.textLabel,

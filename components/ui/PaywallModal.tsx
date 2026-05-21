@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import type { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
+import { Check, X } from 'lucide-react-native';
 import { Button } from './Button';
+import { ProBadge } from './ProBadge';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from './Toast';
 import { colors, radii, spacing, typography } from '@/constants/theme';
@@ -77,12 +79,10 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
-            <Text style={styles.closeText}>✕</Text>
+            <X size={18} color={colors.textSecondary} strokeWidth={2.25} />
           </Pressable>
           <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>PRO ✦</Text>
-            </View>
+            <ProBadge size="lg" style={styles.badgePosition} />
             <Text style={styles.title}>Unlock Unlimited What Ifs</Text>
             <Text style={styles.subtitle}>
               See yourself in every corner of the multiverse — no caps, no watermarks.
@@ -92,7 +92,7 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
               {FEATURES.map((f) => (
                 <View key={f} style={styles.featureRow}>
                   <View style={styles.check}>
-                    <Text style={styles.checkIcon}>✓</Text>
+                    <Check size={13} color={colors.accentText} strokeWidth={3} />
                   </View>
                   <Text style={styles.feature}>{f}</Text>
                 </View>
@@ -162,17 +162,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   closeBtn: { position: 'absolute', top: spacing.lg, right: spacing.lg, zIndex: 2, padding: spacing.sm },
-  closeText: { color: colors.textSecondary, fontSize: 18 },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 1,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accentDim,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-  },
-  badgeText: { ...typography.label, color: colors.accentText, fontSize: 11, letterSpacing: 2 },
+  // Position only — visual chrome lives in <ProBadge size="lg">.
+  badgePosition: { alignSelf: 'flex-start' },
   title: { ...typography.h1, color: colors.textPrimary, marginTop: spacing.md, letterSpacing: -0.8 },
   subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 22 },
 
@@ -186,7 +177,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkIcon: { color: colors.accentText, fontSize: 12, fontWeight: '800' },
   feature: { ...typography.body, color: colors.textPrimary },
 
   plans: { marginTop: spacing.xl, gap: spacing.md },

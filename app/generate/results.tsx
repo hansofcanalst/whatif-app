@@ -6,8 +6,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { X } from 'lucide-react-native';
 import { ResultsGrid } from '@/components/ResultsGrid';
 import { Button } from '@/components/ui/Button';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { useGenerationStore } from '@/stores/generationStore';
 import { getCategory } from '@/constants/categories';
 import { colors, radii, spacing, typography } from '@/constants/theme';
@@ -164,8 +166,9 @@ export default function ResultsScreen() {
           style={styles.close}
           accessibilityRole="button"
           accessibilityLabel="Close results and return to home"
+          hitSlop={8}
         >
-          <Text style={styles.closeText}>✕</Text>
+          <X size={20} color={colors.textPrimary} strokeWidth={2.25} />
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Results</Text>
@@ -175,9 +178,13 @@ export default function ResultsScreen() {
       </View>
       {category ? (
         <View style={styles.categoryTag}>
-          <Text style={styles.categoryText}>
-            {category.emoji} {category.label}
-          </Text>
+          <CategoryIcon
+            categoryId={category.id}
+            size={13}
+            color={colors.accentText}
+            strokeWidth={2.25}
+          />
+          <Text style={styles.categoryText}>{category.label}</Text>
         </View>
       ) : null}
 
@@ -301,9 +308,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   close: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  closeText: { color: colors.textPrimary, fontSize: 20 },
   title: { ...typography.h3, color: colors.textPrimary },
   categoryTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
     alignSelf: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,

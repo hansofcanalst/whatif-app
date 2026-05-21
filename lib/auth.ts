@@ -152,9 +152,13 @@ export function friendlyAuthErrorMessage(err: unknown): string {
   switch (code) {
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
-      return 'Wrong email or password. Try again.';
     case 'auth/user-not-found':
-      return "No account with that email. Try signing up instead.";
+      // Collapse user-not-found into the same message as wrong-password
+      // to prevent username enumeration. Returning "no account with that
+      // email" lets an attacker confirm which addresses are registered;
+      // the unified message means a probe can't distinguish "wrong
+      // password" from "no such user".
+      return 'Wrong email or password. Try again.';
     case 'auth/invalid-email':
       return 'That email address looks invalid.';
     case 'auth/too-many-requests':
@@ -162,7 +166,7 @@ export function friendlyAuthErrorMessage(err: unknown): string {
     case 'auth/email-already-in-use':
       return 'An account with that email already exists. Try logging in.';
     case 'auth/weak-password':
-      return 'Password is too weak. Use at least 6 characters.';
+      return 'Password is too weak. Use at least 8 characters.';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
     case 'auth/user-disabled':

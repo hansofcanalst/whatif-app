@@ -30,7 +30,13 @@ export const revenuecatWebhook = functions.https.onRequest(async (req, res) => {
   try {
     const expected = process.env.REVENUECAT_WEBHOOK_SECRET || functions.config().revenuecat?.secret;
     const auth = req.headers.authorization;
-    if (expected && auth !== `Bearer ${expected}`) {
+    // Fail-CLOSED: if the secret is unset on the server, reject every
+    // request. Previously the check was `if (expected && auth !== …)`
+    // which short-circuited to "accept anything" when the env var was
+    // missing — anyone hitting the public URL could flip any uid to
+    // `subscriptionStatus: 'pro'`. Now an unconfigured webhook 401s
+    // until the secret is provisioned, which is the safer default.
+    if (!expected || auth !== `Bearer ${expected}`) {
       res.status(401).send('unauthorized');
       return;
     }

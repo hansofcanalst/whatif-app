@@ -6,6 +6,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { ArrowLeftRight } from 'lucide-react-native';
 import { colors, layout, radii, typography } from '@/constants/theme';
 
 interface BeforeAfterSliderProps {
@@ -69,7 +70,11 @@ export function BeforeAfterSlider({ beforeURL, afterURL, height, snapBack = fals
             label pills would eat taps in their own bounds. */}
         <Animated.View style={[styles.divider, dividerStyle]} pointerEvents="none" />
         <Animated.View style={[styles.handle, handleStyle]} pointerEvents="none">
-          <Text style={styles.handleIcon}>⇆</Text>
+          <ArrowLeftRight
+            size={16}
+            color={colors.textPrimary}
+            strokeWidth={2.5}
+          />
         </Animated.View>
         <View style={[styles.labelPill, { left: 12 }]} pointerEvents="none">
           <Text style={styles.labelText}>BEFORE</Text>
@@ -111,7 +116,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.textPrimary,
   },
-  handleIcon: { fontSize: 16, color: colors.textPrimary, fontWeight: '900' },
   labelPill: {
     position: 'absolute',
     top: 12,

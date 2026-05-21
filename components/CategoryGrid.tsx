@@ -16,10 +16,19 @@ export function CategoryGrid({ onSelect, isPro }: CategoryGridProps) {
   }
   return (
     <View style={styles.grid}>
-      {rows.map((row, i) => (
-        <View key={i} style={styles.row}>
-          {row.map((c) => (
-            <CategoryCard key={c.id} category={c} onPress={onSelect} locked={c.isPremium && !isPro} />
+      {rows.map((row, rowIdx) => (
+        <View key={rowIdx} style={styles.row}>
+          {row.map((c, colIdx) => (
+            // entryIndex is the linearized grid position so the
+            // staggered entrance reads naturally top-to-bottom,
+            // left-to-right rather than per-row.
+            <CategoryCard
+              key={c.id}
+              category={c}
+              onPress={onSelect}
+              locked={c.isPremium && !isPro}
+              entryIndex={rowIdx * 2 + colIdx}
+            />
           ))}
           {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>

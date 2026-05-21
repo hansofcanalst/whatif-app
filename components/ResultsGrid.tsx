@@ -89,6 +89,10 @@ export function ResultsGrid({ results, slots, onSelect, columns = 2, pendingCapt
                 status={item.status}
                 error={item.error}
                 pendingCaption={pendingCaption}
+                // entryIndex is the linearized tile position. Stagger
+                // reads top-to-bottom, left-to-right rather than
+                // per-row — matches the natural scan order on a grid.
+                entryIndex={i}
                 onPress={() => onSelect(i)}
               />
             ))}

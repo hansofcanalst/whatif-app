@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, Pressable, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
@@ -8,6 +8,7 @@ import { HomeOnboardingCard } from '@/components/HomeOnboardingCard';
 import { PeopleSelector } from '@/components/PeopleSelector';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { ConsentModal } from '@/components/ConsentModal';
+import { ScanLine } from '@/components/ui/PulseIndicators';
 import { useToast } from '@/components/ui/Toast';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
@@ -339,7 +340,7 @@ export default function Home() {
 
         {image && detectionStatus === 'detecting' ? (
           <View style={styles.statusRow}>
-            <ActivityIndicator color={colors.accent} />
+            <ScanLine width={28} height={3} />
             <Text style={styles.statusText}>Detecting people…</Text>
           </View>
         ) : null}

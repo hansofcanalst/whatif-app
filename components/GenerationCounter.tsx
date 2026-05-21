@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useGeneration } from '@/hooks/useGeneration';
+import { ProBadge } from '@/components/ui/ProBadge';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { config } from '@/constants/config';
 
@@ -13,13 +14,7 @@ import { config } from '@/constants/config';
 export function GenerationCounter() {
   const { remaining, isPro } = useGeneration();
 
-  if (isPro) {
-    return (
-      <View style={styles.proBadge}>
-        <Text style={styles.proText}>PRO ✦</Text>
-      </View>
-    );
-  }
+  if (isPro) return <ProBadge size="md" />;
 
   const used = config.freeGenerationCap - remaining;
   return (
@@ -44,19 +39,5 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.textSecondary,
     fontSize: 10,
-  },
-  proBadge: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 1,
-    borderRadius: radii.pill,
-    backgroundColor: colors.accentDim,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-  },
-  proText: {
-    ...typography.label,
-    color: colors.accentText,
-    fontSize: 10,
-    letterSpacing: 1.5,
   },
 });

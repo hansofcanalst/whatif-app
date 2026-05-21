@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
+import { ChevronRight, Sparkles } from 'lucide-react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { Button } from '@/components/ui/Button';
@@ -187,9 +188,18 @@ export default function Profile() {
 
         {/* Plan card — accent-tinted for Pro, neutral for Free. */}
         <Card style={isActive ? styles.planCardPro : styles.planCard}>
-          <Text style={[styles.planTag, isActive && styles.planTagPro]}>
-            {isActive ? 'PRO ✦' : 'FREE'}
-          </Text>
+          <View style={styles.planTagRow}>
+            <Text style={[styles.planTag, isActive && styles.planTagPro]}>
+              {isActive ? 'PRO' : 'FREE'}
+            </Text>
+            {isActive ? (
+              <Sparkles
+                size={10}
+                color={colors.accentText}
+                strokeWidth={2.5}
+              />
+            ) : null}
+          </View>
           {isActive ? (
             <>
               <Text style={styles.planName}>
@@ -315,7 +325,7 @@ function SettingRow({
       accessibilityState={{ disabled: disabled || !onPress }}
     >
       <Text style={[styles.rowLabel, destructive && { color: colors.dangerText }]}>{label}</Text>
-      <Text style={styles.rowChevron}>›</Text>
+      <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
     </Pressable>
   );
 }
@@ -359,6 +369,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(124, 58, 237, 0.4)',
     backgroundColor: colors.accentDim,
   },
+  // Tag row hosts the FREE/PRO label and (for PRO) the Sparkles
+  // glyph inline. Kept as a row so future plan variants can append
+  // additional decoration without restructuring.
+  planTagRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   planTag: {
     ...typography.label,
     color: colors.textSecondary,
@@ -384,7 +398,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   rowLabel: { ...typography.body, color: colors.textPrimary },
-  rowChevron: { color: colors.textMuted, fontSize: 20 },
   // Visual feedback for in-flight destructive actions — primarily the
   // "Deleting…" state on the Delete Account row while the network
   // operations resolve.

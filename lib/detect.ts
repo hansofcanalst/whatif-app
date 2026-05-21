@@ -1,3 +1,4 @@
+import { auth } from './firebase';
 import { config } from '@/constants/config';
 
 export interface DetectedPerson {
@@ -43,17 +44,36 @@ export interface DetectResponse {
   safety?: SafetyVerdict;
 }
 
-function resolveEndpoint(): string {
+function resolveEndpoint(): { url: string; isLocalDev: boolean } {
   const base = config.cloudFunctions.baseURL?.trim();
   // When Cloud Functions are deployed, they can expose /detect too. Until
-  // then, fall back to the Expo Router API route.
-  return base ? `${base}/detect` : '/api/detect';
+  // then, fall back to the Expo Router API route. `isLocalDev` toggles
+  // whether we attach the Firebase auth bearer token: the deployed
+  // function requires it (functions/src/detect.ts verifyAuth), the local
+  // route is unauthenticated.
+  if (base) return { url: `${base}/detect`, isLocalDev: false };
+  return { url: '/api/detect', isLocalDev: true };
 }
 
 export async function requestDetection(imageBase64: string): Promise<DetectResponse> {
-  const res = await fetch(resolveEndpoint(), {
+  const { url, isLocalDev } = resolveEndpoint();
+
+  // Mirror the gemini.ts auth pattern: attach Bearer token in production
+  // (so the Cloud Function's verifyAuth succeeds), skip it in local-dev
+  // (the Expo Router endpoint doesn't expect auth). Without this in
+  // production, every detect call 401s — the user gets a "Couldn't
+  // detect people" error and the minor-detection gate never fires.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (!isLocalDev) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated.');
+    const token = await user.getIdToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ imageBase64 }),
   });
   if (!res.ok) {

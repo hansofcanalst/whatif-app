@@ -1,6 +1,8 @@
 import React from 'react';
 import { Pressable, View, Text, Image, StyleSheet, Platform } from 'react-native';
+import { Camera, Upload, X } from 'lucide-react-native';
 import { useImagePicker, PickedImage } from '@/hooks/useImagePicker';
+import { GlyphTile } from './ui/GlyphTile';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 interface PhotoUploaderProps {
@@ -50,7 +52,7 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
             accessibilityRole="button"
             accessibilityLabel="Remove photo"
           >
-            <Text style={styles.removeText}>✕</Text>
+            <X size={16} color={colors.textPrimary} strokeWidth={2.5} />
           </Pressable>
         </View>
         <View style={styles.actionsRow}>
@@ -94,9 +96,9 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
     >
       {/* Accent-tinted icon tile — FRAME's drop-zone signature. Lives on
           the deep input surface with a soft violet wash to hint "action". */}
-      <View style={styles.iconTile}>
-        <Text style={styles.iconGlyph}>↑</Text>
-      </View>
+      <GlyphTile size={64}>
+        <Upload size={28} color={colors.accentText} strokeWidth={2.25} />
+      </GlyphTile>
       <Text style={styles.emptyTitle}>Drop your photo here</Text>
       <Text style={styles.emptySub}>
         {CAMERA_AVAILABLE ? 'or browse — or take a new one below' : 'or tap to browse your camera roll'}
@@ -127,7 +129,7 @@ export function PhotoUploader({ image, onPicked }: PhotoUploaderProps) {
           accessibilityRole="button"
           accessibilityLabel="Take photo with camera"
         >
-          <Text style={styles.cameraGlyph}>◉</Text>
+          <Camera size={14} color={colors.accentText} strokeWidth={2.25} />
           <Text style={styles.cameraText}>Take photo</Text>
         </Pressable>
       ) : null}
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  removeText: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', lineHeight: 18 },
   actionsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -200,22 +201,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
-  },
-  iconTile: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.xl,
-    backgroundColor: colors.accentDim,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-  },
-  iconGlyph: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: colors.accentText,
-    lineHeight: 30,
   },
   emptyTitle: {
     ...typography.h3,
@@ -261,11 +246,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentDim,
     borderWidth: 1,
     borderColor: 'rgba(124, 58, 237, 0.4)',
-  },
-  cameraGlyph: {
-    fontSize: 14,
-    color: colors.accentText,
-    fontWeight: '900',
   },
   cameraText: {
     ...typography.bodyBold,

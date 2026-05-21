@@ -1,13 +1,21 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Home, Images, User, type LucideIcon } from 'lucide-react-native';
 import { colors } from '@/constants/theme';
 
-// Tab-bar glyphs — emoji rendered through Text so Expo Router's default
-// icon API keeps working. `focused` dials the opacity, and the active
-// tint is set on the label via `tabBarActiveTintColor` below.
-function icon(emoji: string) {
+// Tab-bar glyphs — lucide SVG icons rendered through Expo Router's icon
+// callback. The unfocused state pulls in textSecondary; focused picks
+// up the FRAME violet via tabBarActiveTintColor (the color prop the
+// router passes to tabBarIcon already reflects that, but we tint
+// manually so the icon and label transition together visually). 2px
+// stroke matches CategoryIcon and the other line-icon glyphs across
+// the app so the tab bar reads as the same family.
+function icon(Icon: LucideIcon) {
   return ({ focused }: { focused: boolean }) => (
-    <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.55 }}>{emoji}</Text>
+    <Icon
+      size={22}
+      color={focused ? colors.accent : colors.textSecondary}
+      strokeWidth={focused ? 2.5 : 2}
+    />
   );
 }
 
@@ -37,9 +45,9 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: icon('◆') }} />
-      <Tabs.Screen name="gallery" options={{ title: 'Gallery', tabBarIcon: icon('▦') }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('○') }} />
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: icon(Home) }} />
+      <Tabs.Screen name="gallery" options={{ title: 'Gallery', tabBarIcon: icon(Images) }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon(User) }} />
     </Tabs>
   );
 }

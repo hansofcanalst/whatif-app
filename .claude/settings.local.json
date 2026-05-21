@@ -27,8 +27,15 @@
       "Bash(npm uninstall *)",
       "Bash(git add *)",
       "Bash(git commit -m 'Add CLAUDE.md project context + remove unused expo deps *)",
-      "Bash(git push *)"
-    ]
+      "Bash(git push *)",
+      "Skill(ui-ux-pro-max:ui-ux-pro-max)",
+      "Skill(ui-ux-pro-max:ui-ux-pro-max:*)",
+      "Bash(python3 /Users/SoftDev/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/.claude/skills/ui-ux-pro-max/scripts/search.py \"entertainment AI photo transformation playful viral mobile-first\" --design-system -f markdown -p \"What If\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git -C /Users/SoftDev/Claude/WhatIf/whatif-app ls-files)",
+      "Bash(grep -E \"^\\\\.env$\")"
+    ],
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "Stop": [
@@ -36,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"C:/Claude - WhatIf\" && git add . && if ! git diff --cached --quiet; then git commit -m \"auto: update project files\" && git push origin main; fi",
+            "command": "git add . && if ! git diff --cached --quiet; then git commit -m \"auto: update project files\" && git push origin main; fi",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Committing and pushing to GitHub..."

@@ -1,5 +1,9 @@
 import React from 'react';
-import { Pressable, Image, Text, View, StyleSheet, ActivityIndicator } from 'react-native';
+import { Pressable, Image, Text, View, StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { Sparkles } from 'lucide-react-native';
+import { SkeletonTile } from '@/components/ui/PulseIndicators';
+import { useCardEntrance, usePressScale } from '@/hooks/useMotion';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 interface ResultCardProps {
@@ -21,6 +25,12 @@ interface ResultCardProps {
    * to the plain "Generating…" label used by the gallery/detail screens.
    */
   pendingCaption?: string;
+  /**
+   * 0-based position in the grid. Drives a staggered entrance (50ms
+   * per tile, capped at 350ms total). When omitted (or when the
+   * system has reduced-motion enabled), entrance is a no-op.
+   */
+  entryIndex?: number;
   onPress: () => void;
 }
 
@@ -32,17 +42,55 @@ interface ResultCardProps {
 // place of the image (still pressable but the press is a no-op — the
 // parent should early-return on tap). When 'failed', a subdued error
 // glyph plus the error message replaces the image.
-export function ResultCard({ imageURL, label, status = 'complete', error, pendingCaption, onPress }: ResultCardProps) {
+export function ResultCard({
+  imageURL,
+  label,
+  status = 'complete',
+  error,
+  pendingCaption,
+  entryIndex = 0,
+  onPress,
+}: ResultCardProps) {
   const disabled = status !== 'complete';
+
+  // Motion: shared hooks from hooks/useMotion.ts. 50ms stagger here
+  // vs. 40ms on CategoryCard because the result grid usually has
+  // fewer tiles (2–6) and a slightly longer stagger reads better when
+  // the cards are larger. 12px translate distance (vs. 10 on cards)
+  // for the same reason.
+  const { scale, onPressIn, onPressOut } = usePressScale({ pressedScale: 0.96, disabled });
+  const { enterY, enterOpacity } = useCardEntrance({
+    index: entryIndex,
+    stagger: 50,
+    maxDelay: 350,
+    distance: 12,
+    duration: 300,
+  });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: enterY.value }],
+    opacity: enterOpacity.value,
+  }));
   const content = (() => {
     if (status === 'pending') {
+      // SkeletonTile gives us the pulsing card surface; the inner
+      // stack overlays the FRAME glyph + flavor caption so the tile
+      // reads as "this slot is alive and working" instead of an
+      // empty rectangle. Sparkles is the same brand mark used in
+      // the PRO badge and watermark — keeps the loading state in
+      // the same visual family as the rest of the app.
       return (
-        <View style={styles.placeholder}>
-          <ActivityIndicator color={colors.accent} />
+        <SkeletonTile style={styles.skeletonFill}>
+          <Sparkles
+            size={20}
+            color={colors.accentText}
+            strokeWidth={2}
+            opacity={0.7}
+          />
           <Text style={styles.placeholderCaption} numberOfLines={2}>
             {pendingCaption ?? 'Generating…'}
           </Text>
-        </View>
+        </SkeletonTile>
       );
     }
     if (status === 'failed') {
@@ -71,28 +119,32 @@ export function ResultCard({ imageURL, label, status = 'complete', error, pendin
   })();
 
   return (
-    <Pressable
-      onPress={disabled ? undefined : onPress}
-      accessibilityRole={disabled ? 'image' : 'button'}
-      accessibilityLabel={a11yLabel}
-      accessibilityState={{ disabled, busy: status === 'pending' }}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && !disabled && styles.pressed,
-        status === 'failed' && styles.cardFailed,
-      ]}
-    >
-      {content}
-      <View style={styles.overlay}>
-        <Text style={styles.label} numberOfLines={1}>
-          {label}
-        </Text>
-      </View>
-    </Pressable>
+    <Animated.View style={[styles.cardWrap, animatedStyle]}>
+      <Pressable
+        onPress={disabled ? undefined : onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        accessibilityRole={disabled ? 'image' : 'button'}
+        accessibilityLabel={a11yLabel}
+        accessibilityState={{ disabled, busy: status === 'pending' }}
+        style={[styles.card, status === 'failed' && styles.cardFailed]}
+      >
+        {content}
+        <View style={styles.overlay}>
+          <Text style={styles.label} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Wrapper carries the entrance + press transforms; the Pressable
+  // inner keeps the visual card chrome. flex:1 propagates through so
+  // the grid layout still sizes each tile correctly.
+  cardWrap: { flex: 1 },
   card: {
     flex: 1,
     aspectRatio: 1,
@@ -105,8 +157,16 @@ const styles = StyleSheet.create({
   cardFailed: {
     borderColor: 'rgba(239, 68, 68, 0.35)',
   },
-  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   image: { width: '100%', height: '100%' },
+  // SkeletonTile is borderless by default but the outer card already
+  // owns a border — clear ours so we don't double-up.
+  skeletonFill: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 0,
+    borderWidth: 0,
+    paddingHorizontal: spacing.md,
+  },
   placeholder: {
     flex: 1,
     alignItems: 'center',

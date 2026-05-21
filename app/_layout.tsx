@@ -2,12 +2,13 @@ import React, { useEffect, useMemo } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { ToastProvider } from '@/components/ui/Toast';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useGenerationStore } from '@/stores/generationStore';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, fontFamily, spacing, typography } from '@/constants/theme';
 import { assertFirebaseConfigured } from '@/constants/config';
 import { initSentry, setSentryUser, Sentry } from '@/lib/sentry';
 import { registerPushToken, setupNotificationListeners } from '@/lib/notifications';
@@ -89,10 +90,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [user, router]);
 
   if (loading) {
+    // Same FRAME splash treatment as app/index.tsx — branded wordmark
+    // + ring spinner. The auth-gate transition is brief but visible,
+    // so matching the splash keeps the visual identity consistent
+    // through the very first interaction.
     return (
       <View style={errStyles.splash}>
-        <ActivityIndicator color={colors.accent} size="large" />
-        <Text style={errStyles.splashText}>Loading…</Text>
+        <View style={errStyles.splashBrand}>
+          <Text style={errStyles.splashLogo}>
+            What<Text style={errStyles.splashLogoAccent}>If</Text>
+          </Text>
+        </View>
+        <LoadingSpinner taglines={false} />
       </View>
     );
   }
@@ -122,8 +131,22 @@ const errStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, padding: spacing.xl, justifyContent: 'center' },
   title: { ...typography.h1, color: colors.accent, marginBottom: spacing.md },
   body: { ...typography.body, color: colors.textPrimary, lineHeight: 22 },
-  splash: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  splashText: { ...typography.body, color: colors.textSecondary },
+  splash: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xxl,
+  },
+  splashBrand: { alignItems: 'center' },
+  splashLogo: {
+    fontFamily: fontFamily.mono,
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.8,
+  },
+  splashLogoAccent: { color: colors.accent },
   // Crash-fallback "Try again" button. Kept ultra-minimal so this code
   // path doesn't depend on the Button component (which itself could be
   // the source of the crash being recovered from).

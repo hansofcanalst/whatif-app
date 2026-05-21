@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Sparkles, X } from 'lucide-react-native';
+import { GlyphTile } from './ui/GlyphTile';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 // AsyncStorage key for the dismissed flag. Versioned ("v1") so we can
@@ -67,7 +69,9 @@ export function HomeOnboardingCard() {
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <Text style={styles.emoji}>👋</Text>
+        <GlyphTile size={28} style={styles.glyphOffset}>
+          <Sparkles size={16} color={colors.accentText} strokeWidth={2.25} />
+        </GlyphTile>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Welcome to What If</Text>
           <Text style={styles.body}>
@@ -82,7 +86,7 @@ export function HomeOnboardingCard() {
           accessibilityRole="button"
           accessibilityLabel="Dismiss welcome message"
         >
-          <Text style={styles.closeText}>✕</Text>
+          <X size={16} color={colors.accentText} strokeWidth={2.5} />
         </Pressable>
       </View>
     </View>
@@ -102,7 +106,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  emoji: { fontSize: 22, marginTop: 2 },
+  // 2px down-nudge aligns the tile's optical center with the title's
+  // cap-height — the body text starts a couple of pixels below the
+  // tile's top edge by default. Offset is the only callsite-specific
+  // styling needed; everything else lives in <GlyphTile>.
+  glyphOffset: { marginTop: 2 },
   title: {
     ...typography.bodyBold,
     color: colors.textPrimary,
@@ -121,11 +129,5 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  closeText: {
-    color: colors.accentText,
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 18,
   },
 });
