@@ -6,12 +6,18 @@ here is paid on every conversation.
 ## What this is
 
 React Native / Expo SDK 54 app that uses Gemini AI to transform user
-photos. Drop a photo, pick a direction (race / age / gender / military /
-celebrity mashup / etc.), get a transformed image back. Iterates via
+photos. Drop a photo, pick a direction (race / age / gender / military
+uniforms / ethnicity blend), get a transformed image back. Iterates via
 streaming NDJSON so tiles fill in one-by-one.
 
-**Status:** feature-complete, shipping-ready. Local-dev and prod (Cloud
-Function) paths both work. Tests + typechecks clean.
+**Categories** (post-hardening): 5 total, 33 subcategories.
+`race-swap`, `gender-swap`, `age-transform`, `military-forces` are free;
+`ethnicity-blend` is Pro-only. `political-mashup` and `celebrity-mashup`
+were removed in commit `2a9050d` — too much likeness-liability risk for
+launch.
+
+**Status:** feature-complete, pre-launch safety pass landed. Local-dev
+and prod (Cloud Function) paths both work. Tests + typechecks clean.
 
 ## Tech stack
 
@@ -42,8 +48,10 @@ app/                    Expo Router screens
 components/             UI primitives + feature components
 hooks/                  useAuth, useGeneration, useImagePicker, useSubscription
 lib/                    Pure modules: auth, firebase, firestore, storage,
-                        gemini, detect, prompts, composePrompt, sentry,
-                        notifications, localGallery, exportData, ...
+                        gemini, detect (client wrapper), serverDetection
+                        (server-only people-detection + rate limiter for
+                        the local-dev path), prompts, composePrompt,
+                        sentry, notifications, localGallery, exportData, ...
 stores/                 Zustand stores: auth, generation, subscription
 constants/              theme, categories (UI catalog), config
 functions/src/          Cloud Functions: generate, detect, webhooks,
@@ -56,7 +64,21 @@ __tests__/              Jest snapshot tests on prompt catalog
 - **Two prompt catalogs kept in sync:** `lib/prompts.ts` (used by local
   dev `app/api/generate+api.ts`) and `functions/src/prompts.ts` (used by
   the Cloud Function). When editing prompts, update both. Snapshot tests
-  catch accidental drift on the lib/ side.
+  catch accidental drift on the lib/ side. Both files also export
+  `sanitizeLabel` / `sanitizeLabels` (label injection scrub) and
+  `isMinorSensitiveCategory` (`race-swap` / `gender-swap` /
+  `ethnicity-blend` — gates the server-side minor refusal).
+- **Two detect implementations kept in sync:** `lib/serverDetection.ts`
+  for the local-dev path; `functions/src/detect.ts` exports
+  `runPeopleDetection` for production. Both share the same
+  `DETECTION_PROMPT`. The generate endpoint on each side calls
+  `runPeopleDetection` directly for the minor gate — no internal HTTP
+  hop. Edit one, edit the other.
+- **Minor gate is server-enforced (CRITICAL fix in `2a9050d`).** Client
+  sends `containsMinor` as a hint, but the server re-runs detection on
+  `race-swap` / `gender-swap` / `ethnicity-blend` and refuses with 403
+  if any person appears under 18. Fail-CLOSED on detection errors
+  (503). `moderation_log.serverDetectedMinor` is the source of truth.
 - **Generation pipeline branching:** solo subject = static prompt;
   multi-person subset = composer single-pass; multi-person 2+ selected =
   SEQUENTIAL per-person passes. See comment block in
@@ -135,10 +157,16 @@ Server-only (no EXPO_PUBLIC_ prefix):
 3. Test camera capture on a real device
 4. Test reauth flow for account deletion (use a throwaway account)
 5. Wire native Google/Apple reauth (requires #1 + native modules)
-6. Replace placeholder emails (`privacy@whatif.app`, `support@whatif.app`)
-   in `app/privacy.tsx` and `app/terms.tsx` — waiting on a real address
+6. Replace `[email protected]` placeholder in `app/privacy.tsx` and
+   `app/terms.tsx` once the real address exists. Grep:
+   `git grep '\[email protected\]'`.
 7. Install Firebase "Resize Images" extension for server-side thumbnails
 8. Upgrade `firebase-functions` ^5 → ^6 (has breaking changes — defer)
+9. Configure RevenueCat (offerings, API keys, webhook secret) — paywall
+   is currently non-functional without it
+10. Deploy Cloud Functions (`firebase deploy --only functions`) and set
+    `EXPO_PUBLIC_CLOUD_FUNCTIONS_URL` to point the client at them.
+    Functions code is ready; never been deployed.
 
 ## Notes / gotchas
 
