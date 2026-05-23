@@ -1,8 +1,16 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt, isPremiumCategory, buildScopedPrompt, appendAccessoryPrompt } from './prompts';
+import {
+  getPrompt,
+  isPremiumCategory,
+  isMinorSensitiveCategory,
+  buildScopedPrompt,
+  appendAccessoryPrompt,
+  sanitizeLabels,
+} from './prompts';
 import { composePrompt } from './composePrompt';
+import { runPeopleDetection } from './detect';
 
 const FREE_CAP = 3;
 // Image edit/generation model. Overridable via env. Keep default in sync
@@ -209,6 +217,76 @@ export const generate = functions
         throw e;
       }
 
+      // Defense-in-depth: sanitize labels at the edge. The composer +
+      // buildScopedPrompt both sanitize internally too, but doing it here
+      // means moderation_log captures only clean strings and the rest of
+      // this handler operates on cleaned input.
+      body.selectedPeopleLabels = sanitizeLabels(body.selectedPeopleLabels);
+
+      // ─── Server-side minor-detection gate (CRITICAL safety check) ────
+      //
+      // The client sends `containsMinor` derived from its own detect step,
+      // but a modified client can omit or lie. For minor-sensitive
+      // categories (race-swap, gender-swap, ethnicity-blend) we re-run
+      // detection here and refuse if any person appears under 18. The
+      // detection result is also used to populate the moderation_log entry
+      // below with the server-derived truth.
+      //
+      // Costs ~1-2s of extra Gemini latency on the sensitive paths only.
+      // age-transform and military-forces don't trigger this (different
+      // semantics — age-transform's whole point is age changes; military-
+      // forces is a costume overlay).
+      //
+      // Fail-CLOSED on detection errors: a transient Gemini outage
+      // shouldn't let a hostile client past the gate. Better to refuse
+      // and let the user retry than to leak the check.
+      let serverDetectedMinor: boolean | null = null;
+      let serverDetectedPeopleCount: number | null = null;
+      if (isMinorSensitiveCategory(body.category)) {
+        try {
+          const detection = await runPeopleDetection(body.imageBase64);
+          serverDetectedPeopleCount = detection.people.length;
+          serverDetectedMinor = detection.people.some((p) => p.appearsUnder18);
+          if (serverDetectedMinor) {
+            console.warn(
+              `[fn/generate] minor gate triggered: ${detection.people.filter((p) => p.appearsUnder18).length}/${detection.people.length} flagged under 18; category=${body.category}; uid=${uid}`,
+            );
+            // Write the refused-gate row to moderation_log so an analyst
+            // can review attempts even though no generation happened.
+            try {
+              await admin
+                .firestore()
+                .collection('moderation_log')
+                .add({
+                  uid,
+                  categoryId: body.category,
+                  subcategoryIds: body.subcategoryIds,
+                  totalPeopleInImage: body.totalPeopleInImage ?? null,
+                  selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
+                  containsMinor: body.containsMinor ?? null,
+                  serverDetectedMinor: true,
+                  serverDetectedPeopleCount,
+                  outcome: 'refused-minor-gate',
+                  source: 'cloud-function',
+                  timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                });
+            } catch (logErr) {
+              console.warn('[fn/generate] refused-gate moderation_log write failed:', logErr);
+            }
+            res
+              .status(403)
+              .send("We can't generate this transformation on photos that may contain minors.");
+            return;
+          }
+        } catch (e) {
+          console.error('[fn/generate] minor-gate detection failed (fail-closed):', e);
+          res
+            .status(503)
+            .send("We couldn't verify this photo. Please try again in a moment.");
+          return;
+        }
+      }
+
       const generationId = admin.firestore().collection('generations').doc().id;
       const genRef = admin.firestore().collection('generations').doc(generationId);
 
@@ -229,6 +307,13 @@ export const generate = functions
             totalPeopleInImage: body.totalPeopleInImage ?? null,
             selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
             containsMinor: body.containsMinor ?? null,
+            // Server-derived flag. Populated only when the gate ran
+            // (minor-sensitive category); null otherwise. When the gate
+            // ran AND we got here, the value is `false` — the gate
+            // already refused the request when it was `true`.
+            serverDetectedMinor,
+            serverDetectedPeopleCount,
+            outcome: 'proceeding',
             source: 'cloud-function',
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
           });

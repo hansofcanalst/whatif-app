@@ -6,6 +6,7 @@
 
 import * as functions from 'firebase-functions';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { sanitizeLabels } from './prompts';
 
 const COMPOSER_MODEL_ID =
   process.env.GEMINI_COMPOSER_MODEL || 'gemini-2.5-flash';
@@ -121,6 +122,12 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function composePrompt(args: ComposeArgs): Promise<string> {
+  // Sanitize client-supplied labels BEFORE they reach the meta-prompt
+  // builder. Labels flow verbatim into the composer prompt, which is sent
+  // to Gemini Flash — untrusted text is a prompt-injection vector. See
+  // sanitizeLabels in ./prompts for the full rule set.
+  args = { ...args, selectedPeopleLabels: sanitizeLabels(args.selectedPeopleLabels) };
+
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: COMPOSER_MODEL_ID });
 

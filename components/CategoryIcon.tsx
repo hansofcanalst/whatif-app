@@ -4,8 +4,6 @@ import {
   ArrowLeftRight,
   Hourglass,
   ShieldHalf,
-  Landmark,
-  Star,
   Dna,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -17,13 +15,14 @@ import { colors } from '@/constants/theme';
 // monochrome accent palette. Lucide line glyphs are flat, 2px-stroke,
 // and inherit the brand violet — they sit inside the accent-tinted tile
 // instead of competing with it.
+// Note: political-mashup and celebrity-mashup were removed in the
+// pre-launch safety pass; their entries (Landmark + Star) are gone too.
+// Add a new mapping if a future category lands.
 const ICON_MAP: Record<string, LucideIcon> = {
   'race-swap': Globe,
   'gender-swap': ArrowLeftRight,
   'age-transform': Hourglass,
   'military-forces': ShieldHalf,
-  'political-mashup': Landmark,
-  'celebrity-mashup': Star,
   'ethnicity-blend': Dna,
 };
 

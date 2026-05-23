@@ -16,6 +16,7 @@
 // the caller can fall back to the static `buildScopedPrompt` path.
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { sanitizeLabels } from './prompts';
 
 // Text-capable Gemini model used for the composition step. Kept separate
 // from the image model (GEMINI_IMAGE_MODEL) so either can be upgraded
@@ -154,6 +155,13 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function composePrompt(args: ComposeArgs): Promise<string> {
+  // Sanitize the client-supplied labels BEFORE they reach buildMetaPrompt /
+  // buildScopeLine — those interpolate label text verbatim into the
+  // composer prompt, which is itself sent to Gemini Flash. Untrusted text
+  // in either layer is a prompt-injection vector. See sanitizeLabels in
+  // lib/prompts.ts for the full rule set.
+  args = { ...args, selectedPeopleLabels: sanitizeLabels(args.selectedPeopleLabels) };
+
   const genAI = getGenAI();
   const model = genAI.getGenerativeModel({ model: COMPOSER_MODEL_ID });
 

@@ -54,24 +54,6 @@ exports[`PROMPTS catalog full snapshot of every category × subcategory 1`] = `
       "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to look like a 25-year-old version of themselves.",
     },
   },
-  "celebrity-mashup": {
-    "beyonce-child": {
-      "label": "Beyoncé's Child",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with Beyoncé's for a photorealistic child portrait.",
-    },
-    "drake-sibling": {
-      "label": "Drake's Sibling",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with Drake's for a photorealistic sibling portrait.",
-    },
-    "kardashian-family": {
-      "label": "Kardashian Family",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person with the Kardashian family aesthetic for a photorealistic family portrait.",
-    },
-    "zendaya-twin": {
-      "label": "Zendaya's Twin",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with Zendaya's for a photorealistic twin portrait.",
-    },
-  },
   "ethnicity-blend": {
     "half-brazilian": {
       "label": "Half Brazilian",
@@ -160,24 +142,6 @@ exports[`PROMPTS catalog full snapshot of every category × subcategory 1`] = `
     "us-police": {
       "label": "US Police",
       "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to be wearing a standard American municipal police officer uniform — navy blue or black uniform shirt with shoulder patches and a metal badge over the left chest, dark trousers, a duty belt with holster and radio, and a peaked patrol cap. Should read clearly as US city police (NYPD / LAPD style). Keep the person's face, hair, expression, pose, lighting, and background identical.",
-    },
-  },
-  "political-mashup": {
-    "aoc-sibling": {
-      "label": "AOC's Sibling",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with Alexandria Ocasio-Cortez's to create a photorealistic sibling portrait.",
-    },
-    "biden-spouse": {
-      "label": "Biden's Spouse",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features as a plausible Biden-family spouse. Keep photorealistic.",
-    },
-    "obama-child": {
-      "label": "Obama's Kid",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with the Obama family to create a photorealistic Obama-family portrait.",
-    },
-    "trump-child": {
-      "label": "Trump's Kid",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Blend this person's features with the Trump family to create a photorealistic Trump-family portrait.",
     },
   },
   "race-swap": {
@@ -348,11 +312,9 @@ BASE_PROMPT_TEXT"
 exports[`isPremiumCategory snapshot of premium membership across the catalog 1`] = `
 {
   "age-transform": false,
-  "celebrity-mashup": true,
   "ethnicity-blend": true,
   "gender-swap": false,
   "military-forces": false,
-  "political-mashup": true,
   "race-swap": false,
 }
 `;

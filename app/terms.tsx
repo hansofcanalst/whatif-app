@@ -1,6 +1,7 @@
 import React from 'react';
 import { SafeAreaView, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import { colors, spacing, typography } from '@/constants/theme';
 
 // First-pass terms of service. Same posture as the privacy policy:
@@ -21,8 +22,9 @@ export default function TermsScreen() {
           style={styles.back}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={8}
         >
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={22} color={colors.textPrimary} strokeWidth={2.25} />
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Account</Text>
@@ -36,9 +38,9 @@ export default function TermsScreen() {
         <Section title="What this app does">
           <P>
             What If lets you upload photos and generate AI-transformed versions
-            (different ethnicity, age, gender presentation, celebrity likeness
-            mashups, etc.). Outputs are produced by Google's Gemini image model
-            and are AI-generated depictions, not real photographs.
+            — different ethnicity, age, gender presentation, military uniform,
+            and mixed-heritage blends. Outputs are produced by Google's Gemini
+            image model and are AI-generated depictions, not real photographs.
           </P>
         </Section>
 
@@ -55,9 +57,10 @@ export default function TermsScreen() {
             or sexualize any real person.
           </P>
           <P>
-            <B>•</B> Use the celebrity, political, or ethnicity-blend categories
-            on photos that include minors. The app blocks this in software, and
-            attempting to bypass that block violates these terms.
+            <B>•</B> Use the race-swap, gender-swap, or ethnicity-blend
+            categories on photos that include minors. The app blocks this in
+            software (and re-verifies server-side), and attempting to bypass
+            that block violates these terms.
           </P>
           <P>
             <B>•</B> Use the app to impersonate, defraud, or mislead — including
@@ -98,19 +101,19 @@ export default function TermsScreen() {
             ends when you delete your account.
           </P>
           <P>
-            <B>Consent for premium categories.</B> The premium categories
-            (celebrity, political, ethnicity blends) re-mix recognizable real
-            people. By using them, you confirm you have the consent of everyone
-            depicted in your uploaded photo.
+            <B>Consent for premium categories.</B> The ethnicity-blend category
+            re-mixes a real person's appearance. By using it, you confirm you
+            have the consent of everyone depicted in your uploaded photo.
           </P>
         </Section>
 
         <Section title="Subscriptions">
           <P>
-            Pro is a paid subscription that unlocks unlimited generations and the
-            premium categories. Subscriptions are managed by Apple (App Store) or
-            Google (Play Store) and renew automatically until cancelled in those
-            stores. We don't process payments directly.
+            Pro is a paid subscription that unlocks unlimited generations and
+            the premium category (currently ethnicity-blend). Subscriptions are
+            managed by Apple (App Store) or Google (Play Store) and renew
+            automatically until cancelled in those stores. We don't process
+            payments directly.
           </P>
           <P>
             Refund requests for App Store / Play Store purchases must go through
@@ -161,8 +164,7 @@ export default function TermsScreen() {
 
         <Section title="Contact">
           <P>
-            Questions: <B>support@whatif.app</B> (replace with your real address
-            before launch).
+            Questions: <B>[email protected]</B>.
           </P>
         </Section>
       </ScrollView>
@@ -198,7 +200,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backText: { color: colors.textPrimary, fontSize: 26 },
   headerTitle: { alignItems: 'center', flex: 1 },
   headerLabel: { ...typography.label, color: colors.textLabel, fontSize: 10, marginBottom: 2 },
   title: { ...typography.h3, color: colors.textPrimary },

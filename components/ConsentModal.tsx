@@ -12,11 +12,13 @@ interface ConsentModalProps {
 }
 
 /**
- * One-time, per-session consent gate shown before premium generations
- * (political-mashup, celebrity-mashup, ethnicity-blend). These categories
- * re-mix a real person's likeness with specific third parties, so we ask
- * the user to confirm they have consent from everyone depicted in the
- * uploaded photo before we hand the image to the model.
+ * One-time, per-session consent gate shown before premium generations.
+ * Currently the only premium category is ethnicity-blend (political-
+ * mashup and celebrity-mashup were removed in the pre-launch safety
+ * pass). The gate exists because the transformation re-mixes a real
+ * person's appearance, so we ask the user to confirm they have consent
+ * from everyone depicted in the uploaded photo before we hand the image
+ * to the model.
  *
  * Parent wires the `hasGivenConsent` session flag (see home.tsx) so the
  * modal only shows once per app launch. Refreshing the app resets the

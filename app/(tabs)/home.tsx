@@ -61,9 +61,10 @@ export default function Home() {
   }, [safetyVerdict]);
 
   // True when the detection step flagged any visible person as a minor.
-  // Premium categories (celebrity/political mashups, ethnicity blending)
-  // are hard-blocked when this is true — no paywall bypass, no consent
-  // override. Non-premium categories (race/gender/age) remain available.
+  // Premium categories (currently just ethnicity-blend) are hard-blocked
+  // when this is true — no paywall bypass, no consent override. The
+  // server independently re-verifies via runPeopleDetection so a
+  // modified client can't bypass this check.
   const containsMinor = useMemo(
     () => detectedPeople.some((p) => p.appearsUnder18),
     [detectedPeople],
@@ -258,9 +259,9 @@ export default function Home() {
     }
 
     // Premium-category gates, applied in strict order:
-    //   1. Minor hard-block: celebrity/political/ethnicity mashups on a
-    //      photo that contains anyone the detector flagged as under-18 is
-    //      never allowed, regardless of subscription status.
+    //   1. Minor hard-block: premium mashups on a photo that contains
+    //      anyone the detector flagged as under-18 is never allowed,
+    //      regardless of subscription status. Server re-verifies.
     //   2. Paywall: non-Pro users hit the upsell first, same as before.
     //   3. Consent modal: once per session, confirm they have the rights
     //      and intent to re-mix the depicted person's likeness.
@@ -270,7 +271,7 @@ export default function Home() {
     if (category.isPremium) {
       if (containsMinor) {
         show(
-          'Celebrity, political, and ethnicity-blend transformations aren\'t available when the photo includes a minor.',
+          "Ethnicity-blend transformations aren't available when the photo includes a minor.",
           'error',
         );
         return;

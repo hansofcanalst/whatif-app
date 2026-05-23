@@ -1,6 +1,7 @@
 import React from 'react';
 import { SafeAreaView, ScrollView, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import { colors, spacing, typography } from '@/constants/theme';
 
 // First-pass privacy policy. Deliberately plain language — no
@@ -22,8 +23,9 @@ export default function PrivacyScreen() {
           style={styles.back}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={8}
         >
-          <Text style={styles.backText}>←</Text>
+          <ArrowLeft size={22} color={colors.textPrimary} strokeWidth={2.25} />
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Account</Text>
@@ -137,8 +139,7 @@ export default function PrivacyScreen() {
 
         <Section title="Contact">
           <P>
-            Questions or requests: <B>privacy@whatif.app</B> (replace with your real
-            address before launch).
+            Questions or requests: <B>[email protected]</B>.
           </P>
         </Section>
       </ScrollView>
@@ -174,7 +175,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  backText: { color: colors.textPrimary, fontSize: 26 },
   headerTitle: { alignItems: 'center', flex: 1 },
   headerLabel: { ...typography.label, color: colors.textLabel, fontSize: 10, marginBottom: 2 },
   title: { ...typography.h3, color: colors.textPrimary },

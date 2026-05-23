@@ -18,8 +18,15 @@
 // that pulls in React Native modules. This file is server-only.
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getPrompt, buildScopedPrompt, appendAccessoryPrompt } from '@/lib/prompts';
+import {
+  getPrompt,
+  buildScopedPrompt,
+  appendAccessoryPrompt,
+  isMinorSensitiveCategory,
+  sanitizeLabels,
+} from '@/lib/prompts';
 import { composePrompt } from '@/lib/composePrompt';
+import { runPeopleDetection } from '@/lib/serverDetection';
 
 // Image edit/generation model. Overridable via .env so we can try newer
 // previews (e.g. gemini-3.1-flash-image-preview) without a code change.
@@ -192,6 +199,77 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const generationId = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // ─── Server-side minor-detection gate (CRITICAL safety check) ─────
+  //
+  // The client sends a `containsMinor` flag derived from its own detect
+  // step, but a modified client can omit or lie about it. For minor-
+  // sensitive categories (race-swap, gender-swap, ethnicity-blend) we
+  // re-run detection server-side and refuse if any visible person
+  // appears under 18. Mirrors the gate in functions/src/generate.ts.
+  //
+  // We deliberately don't re-detect for ALL categories — age-transform
+  // is the entire-point-is-age-changes category, and military-forces
+  // is a costume overlay. Running detection only when needed keeps
+  // the latency cost (~1-2s extra) confined to the sensitive paths.
+  //
+  // The detection result is also written to moderation_log below
+  // alongside the client-supplied hint, so an analyst can see both.
+  let serverDetectedMinor: boolean | null = null;
+  let serverDetectionPeopleCount: number | null = null;
+  if (isMinorSensitiveCategory(body.category)) {
+    try {
+      const detection = await runPeopleDetection(body.imageBase64);
+      serverDetectionPeopleCount = detection.people.length;
+      serverDetectedMinor = detection.people.some((p) => p.appearsUnder18);
+      if (serverDetectedMinor) {
+        console.warn(
+          `[api/generate] minor gate triggered: ${detection.people.filter((p) => p.appearsUnder18).length}/${detection.people.length} flagged under 18; category=${body.category}`,
+        );
+        console.log(
+          '[api/generate] moderation_log',
+          JSON.stringify({
+            generationId,
+            categoryId: body.category,
+            subcategoryIds: body.subcategoryIds,
+            totalPeopleInImage: body.totalPeopleInImage ?? null,
+            selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
+            containsMinor: body.containsMinor ?? null,
+            serverDetectedMinor: true,
+            serverDetectedPeopleCount: serverDetectionPeopleCount,
+            outcome: 'refused-minor-gate',
+            source: 'local-dev',
+            timestamp: new Date().toISOString(),
+          }),
+        );
+        return new Response(
+          "We can't generate this transformation on photos that may contain minors.",
+          { status: 403 },
+        );
+      }
+    } catch (e) {
+      // Detection failure on the gate path. We have a choice:
+      //   - fail-OPEN (proceed without the check) → leaks the gate
+      //   - fail-CLOSED (refuse the request) → user can't generate
+      //     when our infra is flaky
+      // Safety-first: fail-CLOSED on minor-sensitive categories. A
+      // user can retry in a minute; an undetected minor on race-swap
+      // is a much worse outcome than a transient refusal. Log the
+      // underlying error so a tailing dev can see Gemini was at fault.
+      console.error('[api/generate] minor-gate detection failed (fail-closed):', e);
+      return new Response(
+        "We couldn't verify this photo. Please try again in a moment.",
+        { status: 503 },
+      );
+    }
+  }
+
+  // Defense-in-depth: sanitize labels at the edge before they flow into
+  // composePrompt / buildScopedPrompt. Both already sanitize internally
+  // (every layer should), but doing it here means the rest of the
+  // request handler sees only clean strings.
+  body.selectedPeopleLabels = sanitizeLabels(body.selectedPeopleLabels);
+
   // Dev-only audit line. In prod the Cloud Function writes a structured
   // entry to the moderation_log Firestore collection; here we just
   // emit to stdout so a tailing dev can see the same fields.
@@ -204,6 +282,11 @@ export async function POST(request: Request): Promise<Response> {
       totalPeopleInImage: body.totalPeopleInImage ?? null,
       selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
       containsMinor: body.containsMinor ?? null,
+      // Server-derived flag (only populated for minor-sensitive
+      // categories where the gate ran). null = gate didn't run.
+      serverDetectedMinor,
+      serverDetectedPeopleCount: serverDetectionPeopleCount,
+      outcome: 'proceeding',
       source: 'local-dev',
       timestamp: new Date().toISOString(),
     }),

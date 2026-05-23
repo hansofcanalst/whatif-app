@@ -238,18 +238,10 @@ export const PROMPTS: CategoryPromptMap = {
       prompt: `${BASE} Transform the person to be wearing the Pontifical Swiss Guard's ceremonial gala uniform — the distinctive Renaissance-style striped tunic and breeches in vertical bands of blue, red, and yellow (the Medici colors), a white ruffled collar (gorget), and a black morion helmet (combed Spanish-style helmet) topped with a tall red ostrich-feather plume. A halberd (long polearm) optionally visible. Keep the person's face, hair, expression, pose, lighting, and background identical.`,
     },
   },
-  'political-mashup': {
-    'trump-child': { label: "Trump's Kid", prompt: `${BASE} Blend this person's features with the Trump family to create a photorealistic Trump-family portrait.` },
-    'obama-child': { label: "Obama's Kid", prompt: `${BASE} Blend this person's features with the Obama family to create a photorealistic Obama-family portrait.` },
-    'biden-spouse': { label: "Biden's Spouse", prompt: `${BASE} Blend this person's features as a plausible Biden-family spouse. Keep photorealistic.` },
-    'aoc-sibling': { label: "AOC's Sibling", prompt: `${BASE} Blend this person's features with Alexandria Ocasio-Cortez's to create a photorealistic sibling portrait.` },
-  },
-  'celebrity-mashup': {
-    'beyonce-child': { label: "Beyoncé's Child", prompt: `${BASE} Blend this person's features with Beyoncé's for a photorealistic child portrait.` },
-    'drake-sibling': { label: "Drake's Sibling", prompt: `${BASE} Blend this person's features with Drake's for a photorealistic sibling portrait.` },
-    'kardashian-family': { label: 'Kardashian Family', prompt: `${BASE} Blend this person with the Kardashian family aesthetic for a photorealistic family portrait.` },
-    'zendaya-twin': { label: "Zendaya's Twin", prompt: `${BASE} Blend this person's features with Zendaya's for a photorealistic twin portrait.` },
-  },
+  // political-mashup and celebrity-mashup were removed in the pre-launch
+  // safety pass. Keep ethnicity-blend (generalized heritage, not a specific
+  // named likeness) as the only remaining premium category. Stays in sync
+  // with lib/prompts.ts.
   'ethnicity-blend': {
     'half-japanese': { label: 'Half Japanese', prompt: `${BASE} Transform this person to look half Japanese and half their current ethnicity, naturally blended.` },
     'half-nigerian': { label: 'Half Nigerian', prompt: `${BASE} Transform this person to look half Nigerian and half their current ethnicity, naturally blended.` },
@@ -258,7 +250,9 @@ export const PROMPTS: CategoryPromptMap = {
   },
 };
 
-const PREMIUM_CATEGORIES = new Set(['political-mashup', 'celebrity-mashup', 'ethnicity-blend']);
+// Mirror of lib/prompts.ts — only ethnicity-blend remains premium after
+// the pre-launch safety pass.
+const PREMIUM_CATEGORIES = new Set(['ethnicity-blend']);
 
 export function getPrompt(category: string, subcategory: string): SubcategoryMeta | null {
   return PROMPTS[category]?.[subcategory] ?? null;
@@ -286,6 +280,51 @@ export function isPremiumCategory(category: string): boolean {
   return PREMIUM_CATEGORIES.has(category);
 }
 
+// Categories refused outright when any detected person appears under 18.
+// Kept in sync with lib/prompts.ts — see that file for the rationale.
+const MINOR_SENSITIVE_CATEGORIES = new Set([
+  'race-swap',
+  'gender-swap',
+  'ethnicity-blend',
+]);
+
+export function isMinorSensitiveCategory(category: string): boolean {
+  return MINOR_SENSITIVE_CATEGORIES.has(category);
+}
+
+/**
+ * Sanitize a person-label received from the client. Defense against
+ * prompt-injection via untrusted input. Kept in sync with the lib/
+ * mirror — see lib/prompts.ts for the full rule rationale.
+ */
+export function sanitizeLabel(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  let out = input;
+  out = out.replace(/[\x00-\x1f\x7f]+/g, ' ');
+  out = out.replace(/["'`‘’“”]/g, '');
+  const INJECTION_PATTERNS: RegExp[] = [
+    /\bignore\s+(prior|previous|above|all)\b[^.]*/gi,
+    /\bdisregard\s+(prior|previous|above|all)\b[^.]*/gi,
+    /\b(system|assistant|developer)\s*:/gi,
+    /\bnew\s+instructions?\b/gi,
+    /\b(act|behave|pretend)\s+as\b[^.]*/gi,
+    /<\|?(im_start|im_end|system|user|assistant)\|?>/gi,
+    /\[\s*(system|instruction|prompt)\s*\]/gi,
+  ];
+  for (const pat of INJECTION_PATTERNS) {
+    out = out.replace(pat, '');
+  }
+  out = out.replace(/\s+/g, ' ').trim();
+  if (out.length > 120) out = out.slice(0, 120).trim();
+  return out;
+}
+
+export function sanitizeLabels(labels: string[] | undefined): string[] | undefined {
+  if (!labels?.length) return labels;
+  const out = labels.map(sanitizeLabel).filter((l) => l.length > 0);
+  return out.length > 0 ? out : undefined;
+}
+
 // Keep in sync with lib/prompts.ts.
 // Kept in sync with lib/prompts.ts — see that file for rationale.
 //
@@ -298,6 +337,8 @@ export function buildScopedPrompt(
   selectedLabels: string[] | undefined,
   totalPeopleInImage: number | undefined,
 ): string {
+  // Defense-in-depth label sanitization. See lib/prompts.ts for rationale.
+  selectedLabels = sanitizeLabels(selectedLabels);
   const total = totalPeopleInImage ?? selectedLabels?.length ?? 0;
   if (total <= 1) return basePrompt;
 

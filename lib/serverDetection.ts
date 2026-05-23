@@ -1,36 +1,30 @@
-// Cloud Function mirror of `app/api/detect+api.ts`.
+// Shared server-only people-detection module.
 //
-// Same Gemini 2.5 Flash vision prompt + same response shape
-// (`{ people: [...], safety: {...} }`). Auth-required (same Bearer
-// token contract as the generate function), so signed-in users on the
-// deployed app can hit the production endpoint instead of the
-// Expo Router server route.
+// Used by BOTH the local-dev /api/detect route AND the local-dev
+// /api/generate route's server-side minor gate. Extracting the actual
+// Gemini call here means:
+//   - the gate in /api/generate can re-detect without an internal HTTP
+//     hop or duplicating the Gemini prompt
+//   - the detect+api.ts route stays a thin POST wrapper
+//   - the DETECTION_PROMPT lives in exactly one place on the local-dev
+//     side (the production mirror in functions/src/detect.ts is a
+//     copy — kept in sync by convention)
 //
-// Keeping in sync with `app/api/detect+api.ts`:
-//   - DETECTION_PROMPT must stay identical between the two so prompt
-//     iteration on one side doesn't drift on the other. If you change
-//     the prompt in either file, copy it to the other.
-//   - Response shape must match `lib/detect.ts` DetectResponse
-//     (`{ people: DetectedPerson[]; safety?: SafetyVerdict }`).
-//   - normalizePeople / normalizeSafety / extractJsonResponse are
-//     copy-paste from the local route; same defensive parsing logic.
-//
-// Runtime: Gen1 (matches the rest of the deployed functions). Memory
-// stays at the 256MB default — vision calls are CPU-light on our
-// side, the heavy lifting is on Gemini's server.
+// IMPORTANT: server-only. Imports nothing from `lib/firebase.ts` or
+// anything that pulls in React Native. The Metro bundler will tree-
+// shake this out of the client bundle as long as no client code imports
+// it (currently only the two server routes do).
 
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Vision model — free tier has access. Override via env if needed.
 const MODEL_ID = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+
+// Same defense-against-oversize-upload ceiling as /api/generate. Exported
+// so callers (the detect route + the minor gate) share one number.
 export const MAX_IMAGE_BASE64_BYTES = 12 * 1024 * 1024;
 
-// Detect-endpoint rate limit. Higher than generate's 10/min because
-// detection is much cheaper (one Flash call vs N image-edit calls) and
-// users may legitimately re-detect after picking different photos. Same
-// Firestore-transaction window pattern as generate.ts.
-const DETECT_RATE_LIMIT_PER_MINUTE = 20;
+// ─── Types (also re-exported by the route so client code can import) ────
 
 export interface DetectedPerson {
   id: number;
@@ -50,6 +44,8 @@ export interface DetectResponse {
   people: DetectedPerson[];
   safety: SafetyVerdict;
 }
+
+// ─── Prompt + parsing ───────────────────────────────────────────────────
 
 const DETECTION_PROMPT = `You are a people detector and content safety classifier. Look at this image and produce TWO things in a single JSON object.
 
@@ -75,53 +71,13 @@ Example output:
 {"people":[{"label":"child in MIAMI jersey on left","box_2d":[150,20,820,280],"appears_under_18":true},{"label":"woman with long hair in center","box_2d":[180,380,900,660],"appears_under_18":false}],"safety":{"decision":"safe","reason":"ok"}}`;
 
 function getGenAI(): GoogleGenerativeAI {
-  const key = process.env.GEMINI_API_KEY || functions.config().gemini?.key;
-  if (!key) throw new Error('GEMINI_API_KEY not configured');
-  return new GoogleGenerativeAI(key);
-}
-
-async function verifyAuth(req: functions.https.Request): Promise<string> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    throw new functions.https.HttpsError('unauthenticated', 'Missing bearer token');
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    throw new Error(
+      'GEMINI_API_KEY missing on the server. Add it to .env and restart the dev server.',
+    );
   }
-  const token = header.substring(7);
-  const decoded = await admin.auth().verifyIdToken(token);
-  return decoded.uid;
-}
-
-/**
- * Firestore-transaction sliding-window rate limiter for the detect
- * endpoint. Mirrors checkRateLimit in generate.ts (same shape, different
- * ceiling). Throws functions.https.HttpsError('resource-exhausted') when
- * the user has exceeded their per-minute budget.
- *
- * Keyed on `rateLimits/{uid}` — same collection as generate's limiter,
- * but different document since detection has its own ceiling. (Sharing
- * the same row would mean a busy generate user couldn't detect; keeping
- * them separate gives each endpoint independent headroom.) We add a
- * `detect:` prefix to the uid so document writes don't collide.
- */
-async function checkDetectRateLimit(uid: string): Promise<void> {
-  const ref = admin.firestore().collection('rateLimits').doc(`detect:${uid}`);
-  const now = Date.now();
-  await admin.firestore().runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const data = snap.data() as { windowStart?: number; count?: number } | undefined;
-    const windowStart = data?.windowStart ?? 0;
-    const count = data?.count ?? 0;
-    if (now - windowStart < 60_000) {
-      if (count >= DETECT_RATE_LIMIT_PER_MINUTE) {
-        throw new functions.https.HttpsError(
-          'resource-exhausted',
-          'Detection rate limit exceeded. Try again in a minute.',
-        );
-      }
-      tx.set(ref, { windowStart, count: count + 1 }, { merge: true });
-    } else {
-      tx.set(ref, { windowStart: now, count: 1 });
-    }
-  });
+  return new GoogleGenerativeAI(key);
 }
 
 function extractJsonResponse(text: string): { people: unknown[]; safetyRaw: unknown } {
@@ -137,7 +93,7 @@ function extractJsonResponse(text: string): { people: unknown[]; safetyRaw: unkn
     const people = Array.isArray(parsed.people) ? parsed.people : [];
     return { people, safetyRaw: parsed.safety };
   }
-  // Fallback: bare array (legacy shape) — see local-route comment.
+  // Backwards compat with bare-array shape (legacy / cached responses).
   const last = cleaned.lastIndexOf(']');
   if (firstArr === -1 || last < firstArr) {
     throw new Error(`Model did not return JSON. Got: ${text.slice(0, 200)}`);
@@ -180,6 +136,9 @@ function normalizePeople(raw: unknown[]): DetectedPerson[] {
     } else if (typeof rawFlag === 'string') {
       appearsUnder18 = rawFlag.toLowerCase() === 'true';
     } else {
+      // Fail-closed when the field is missing: if the label mentions a
+      // child age bracket, treat as a minor. Better to surface a
+      // consent modal the user dismisses than to miss one.
       appearsUnder18 = labelSuggestsMinor;
     }
     people.push({
@@ -192,15 +151,17 @@ function normalizePeople(raw: unknown[]): DetectedPerson[] {
   return people;
 }
 
+// ─── Public entry point ─────────────────────────────────────────────────
+
 /**
- * Run people detection on the supplied image. Exported as a standalone
- * function so functions/src/generate.ts can call it for the server-side
- * minor gate without going through the HTTP handler. The detect HTTP
- * endpoint itself is just a thin wrapper that does auth + rate-limit +
- * size check before calling this.
+ * Call Gemini Flash vision to detect people + classify safety on the
+ * supplied image. Single function used by both the /api/detect route
+ * (HTTP-exposed) and the /api/generate route's minor gate
+ * (internal-only). Throws on Gemini errors after retries are exhausted.
  *
- * Retries 429/5xx with bounded exponential backoff. Throws on persistent
- * failure (caller's responsibility to translate to an HTTP status).
+ * Retries 429 / 5xx with bounded exponential backoff — matches the
+ * policy in composePrompt.ts and generate+api.ts so every Gemini call
+ * in the pipeline behaves the same way.
  */
 export async function runPeopleDetection(imageBase64: string): Promise<DetectResponse> {
   const genAI = getGenAI();
@@ -223,8 +184,8 @@ export async function runPeopleDetection(imageBase64: string): Promise<DetectRes
       const status = (err as { status?: number })?.status;
       if (!status || !RETRYABLE.has(status) || attempt === MAX_ATTEMPTS) throw err;
       const delay = 500 * attempt + Math.floor(Math.random() * 250);
-      console.warn(`[fn/detect] attempt ${attempt} failed (${status}); retrying in ${delay}ms`);
-      await new Promise((r2) => setTimeout(r2, delay));
+      console.warn(`[serverDetection] attempt ${attempt} failed (${status}); retrying in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
   if (!text) throw lastErr instanceof Error ? lastErr : new Error('Detection failed');
@@ -236,46 +197,33 @@ export async function runPeopleDetection(imageBase64: string): Promise<DetectRes
   };
 }
 
-export const detect = functions
-  .runWith({ timeoutSeconds: 60, memory: '256MB' })
-  .https.onRequest(async (req, res) => {
-    if (req.method !== 'POST') {
-      res.status(405).send('Method not allowed');
-      return;
-    }
-    try {
-      const uid = await verifyAuth(req);
-      const body = req.body as { imageBase64?: string };
-      if (!body?.imageBase64) {
-        res.status(400).send('Invalid body: require { imageBase64 }');
-        return;
-      }
-      if (body.imageBase64.length > MAX_IMAGE_BASE64_BYTES) {
-        const sizeMB = (body.imageBase64.length / 1024 / 1024).toFixed(1);
-        const limitMB = (MAX_IMAGE_BASE64_BYTES / 1024 / 1024).toFixed(0);
-        res
-          .status(413)
-          .send(`Image too large (${sizeMB}MB encoded, limit ${limitMB}MB). Pick a smaller photo.`);
-        return;
-      }
+// ─── In-memory rate limiter (local-dev only) ────────────────────────────
 
-      // Rate-limit BEFORE the Gemini call — a hostile client should
-      // burn rate budget, not Gemini quota.
-      await checkDetectRateLimit(uid);
+/**
+ * Process-global sliding-window rate limiter for the local-dev detect
+ * route. The production Cloud Function uses a Firestore-transaction
+ * limiter keyed by uid (see functions/src/generate.ts); the local dev
+ * server has no Firestore admin and no real auth, so we approximate
+ * with an in-memory map keyed by a caller-supplied identifier (the
+ * caller passes Request headers — IP-ish — when no real id is
+ * available). This isn't a security-grade defense; the production
+ * version is. It exists so a runaway dev script doesn't blow through
+ * the Gemini quota in 30 seconds.
+ *
+ * Returns `true` when the call should proceed, `false` when rate-limited.
+ */
+const RATE_LIMIT_PER_MINUTE = 20;
+type Window = { windowStart: number; count: number };
+const detectWindows = new Map<string, Window>();
 
-      const result = await runPeopleDetection(body.imageBase64);
-      res.status(200).json(result);
-    } catch (e: any) {
-      console.error('[fn/detect] error', e);
-      if (e instanceof functions.https.HttpsError) {
-        const code = e.code;
-        const status =
-          code === 'unauthenticated' ? 401 :
-          code === 'resource-exhausted' ? 429 :
-          500;
-        res.status(status).send(e.message);
-      } else {
-        res.status(500).send(e?.message ?? 'Detection failed');
-      }
-    }
-  });
+export function checkLocalRateLimit(key: string): boolean {
+  const now = Date.now();
+  const w = detectWindows.get(key);
+  if (!w || now - w.windowStart >= 60_000) {
+    detectWindows.set(key, { windowStart: now, count: 1 });
+    return true;
+  }
+  if (w.count >= RATE_LIMIT_PER_MINUTE) return false;
+  w.count++;
+  return true;
+}

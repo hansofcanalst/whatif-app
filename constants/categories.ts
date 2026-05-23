@@ -76,30 +76,12 @@ export const CATEGORIES: Category[] = [
       { id: 'swiss-guard', label: 'Vatican Swiss Guard', promptTemplate: `${BASE} Transform the person to be wearing the Pontifical Swiss Guard's ceremonial gala uniform — the distinctive Renaissance-style striped tunic and breeches in vertical bands of blue, red, and yellow (the Medici colors), a white ruffled collar (gorget), and a black morion helmet (combed Spanish-style helmet) topped with a tall red ostrich-feather plume. A halberd (long polearm) optionally visible. Keep the person's face, hair, expression, pose, lighting, and background identical.` },
     ],
   },
-  {
-    id: 'political-mashup',
-    label: 'Political Mashup',
-    description: "What if you were a political figure's family?",
-    isPremium: true,
-    subcategories: [
-      { id: 'trump-child', label: "Trump's Kid", promptTemplate: `${BASE} Blend this person's features with those of the Trump family to create a photorealistic image of what they might look like as a Trump family member. Blend facial features naturally while maintaining some of the original person's characteristics.` },
-      { id: 'obama-child', label: "Obama's Kid", promptTemplate: `${BASE} Blend this person's features with those of the Obama family to create a photorealistic image of what they might look like as an Obama family member. Blend facial features naturally.` },
-      { id: 'biden-spouse', label: "Biden's Spouse", promptTemplate: `${BASE} Blend this person's features to appear as a plausible spouse/partner in the Biden family. Keep the blend tasteful and photorealistic.` },
-      { id: 'aoc-sibling', label: "AOC's Sibling", promptTemplate: `${BASE} Blend this person's features with Alexandria Ocasio-Cortez's features to create a photorealistic image of what they might look like as her sibling.` },
-    ],
-  },
-  {
-    id: 'celebrity-mashup',
-    label: 'Celebrity Mashup',
-    description: 'What if you were related to a celebrity?',
-    isPremium: true,
-    subcategories: [
-      { id: 'beyonce-child', label: "Beyoncé's Child", promptTemplate: `${BASE} Blend this person's features with Beyoncé's features to create a photorealistic image of what they might look like if Beyoncé were their parent.` },
-      { id: 'drake-sibling', label: "Drake's Sibling", promptTemplate: `${BASE} Blend this person's features with Drake's features to create a photorealistic image of what they might look like as Drake's sibling.` },
-      { id: 'kardashian-family', label: 'Kardashian Family', promptTemplate: `${BASE} Blend this person's features with the Kardashian family aesthetic to create a photorealistic image of what they might look like as a member of the family.` },
-      { id: 'zendaya-twin', label: "Zendaya's Twin", promptTemplate: `${BASE} Blend this person's features with Zendaya's features to create a photorealistic image of what they might look like as her twin.` },
-    ],
-  },
+  // political-mashup and celebrity-mashup were removed in the pre-launch
+  // safety pass — re-mixing the likeness of named real people (politicians,
+  // celebrities) is a liability and reputation risk we're not willing to
+  // carry at launch. ethnicity-blend remains as the only remaining premium
+  // category because it mixes generalized heritage traits rather than a
+  // specific named individual's face.
   {
     id: 'ethnicity-blend',
     label: 'Ethnicity Blend',
