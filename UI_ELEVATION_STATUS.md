@@ -338,6 +338,49 @@ Smoke-tested via Claude Preview at 375 / 768 / 1280 widths:
 - 1280 (desktop): same, form centered with breathing room
 Zero console errors after fresh reload at each width.
 
+## Pass 4 — before/after slider refresh
+
+User supplied a Tailwind/web image-comparison reference. The app
+already has `components/BeforeAfterSlider.tsx` (RN + gesture-handler
+Pan + Reanimated) doing the same job on the result detail screen, so
+the reference's design improvements were applied to the existing
+component instead of shipping a parallel implementation.
+
+What changed:
+
+- **Handle size:** 36 → 48px circle. The reference's bigger handle is
+  easier to grab on mobile and reads more clearly as an interactive
+  control.
+- **Handle background:** brand violet → near-white (`colors.textPrimary`).
+  A neutral handle stays legible against any image content — varied
+  result images can have any palette underneath. The brand still
+  shows through the violet divider line.
+- **Handle icon:** single `ArrowLeftRight` → `ChevronLeft` + `ChevronRight`
+  pair side-by-side with a small negative gap so the tips read as a
+  dense "><" affordance. Matches the reference's two-SVG-line
+  pattern. Chevron color is a mid-dark gray (`#374151` —
+  reference's `text-gray-700`) since the theme's dark tokens are
+  violet-tinted and too cool against the off-white handle.
+- **Scale-on-drag:** new shared value `pressed` ramps from 0→1 on
+  gesture begin and back via `withSpring`. Drives both the handle's
+  scale (1.0 → 1.1) and its shadow intensity (opacity 0.25 → 0.5,
+  radius 8 → 16) on every drag frame. The release spring matches the
+  press spring for visual symmetry.
+- **Shadow:** added `shadowColor/Offset/Opacity/Radius` + Android
+  `elevation`. iOS / web animate via the inline interpolation;
+  Android uses the static elevation as a stand-in since animating
+  elevation is unreliable on that platform.
+
+Kept from the original:
+- Pan gesture attached to the full container (not the handle) so
+  edges don't get clipped by `overflow: hidden`.
+- Tap-anywhere-to-jump behavior via `onBegin` snapping.
+- BEFORE / AFTER label pills.
+- `snapBack` opt-in for callers that want the slider to recenter on
+  release.
+- Violet divider line — the brand mark survives the neutral-handle
+  redesign.
+
 ## Optional follow-ups (low priority)
 
 - **OnboardingTutorial pagination dots** still use plain `<View />`
