@@ -34,7 +34,10 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(git -C /Users/SoftDev/Claude/WhatIf/whatif-app ls-files)",
       "Bash(grep -E \"^\\\\.env$\")",
-      "Bash(grep -v \"promptTemplate: \\\\`\")"
+      "Bash(grep -v \"promptTemplate: \\\\`\")",
+      "Bash(python3)",
+      "Bash(sed -n '389,393p' /Users/SoftDev/Claude/WhatIf/whatif-app/lib/prompts.ts)",
+      "Bash(git commit -m ' *)"
     ],
     "defaultMode": "bypassPermissions"
   },
