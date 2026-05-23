@@ -33,7 +33,8 @@
       "Bash(python3 /Users/SoftDev/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.5.0/.claude/skills/ui-ux-pro-max/scripts/search.py \"entertainment AI photo transformation playful viral mobile-first\" --design-system -f markdown -p \"What If\")",
       "mcp__Claude_Preview__preview_start",
       "Bash(git -C /Users/SoftDev/Claude/WhatIf/whatif-app ls-files)",
-      "Bash(grep -E \"^\\\\.env$\")"
+      "Bash(grep -E \"^\\\\.env$\")",
+      "Bash(grep -v \"promptTemplate: \\\\`\")"
     ],
     "defaultMode": "bypassPermissions"
   },

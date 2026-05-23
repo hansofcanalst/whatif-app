@@ -1,8 +1,8 @@
 # What If — Project Overview
 
 A pre-launch project snapshot. Reflects the state of the codebase
-on `main` at the time of writing (last commit `993d6d0 auto: update
-project files`, 2026-05-21). Written by reading every significant
+on `main` at the time of writing (last commit `c40454b auto: update
+project files`, 2026-05-23). Written by reading every significant
 source file rather than from memory; where something is unverified,
 incomplete, or deferred, that's called out explicitly.
 
@@ -1132,13 +1132,20 @@ pre-launch punch list.
 
 - Stray `framer-motion` dependency, never imported.
 - `Subcategory.promptTemplate` field on `constants/categories.ts`
-  is unused — kept around as historical doc. The real prompts
-  live in `lib/prompts.ts`. Worth deleting in a cleanup pass.
+  is unused at runtime (verified — only the interface declaration
+  itself references the field; no callsite ever reads
+  `subcategory.promptTemplate`). The real prompts live in
+  `lib/prompts.ts`. The whole text body is dead weight in the
+  bundle; worth deleting in a cleanup pass.
 - Privacy + Terms back arrows still use Unicode `←` (missed in
   the icon sweep). Easy fix: swap to lucide `<ArrowLeft />`.
-- `categoryLabel` is duplicated on `GenerationDoc` (both the
-  Firestore field and what `lib/prompts.ts → getPrompt` provides).
-  Future cleanup could remove the field.
+- `categoryLabel` on `GenerationDoc` is set to `body.category` (the
+  category **id**, e.g. `"race-swap"`) by the Cloud Function — not
+  the actual user-facing label (e.g. `"Race Swap"`). Same bug in
+  the local-dev `persistLocalGeneration` path. Either fix the
+  writers to derive the real label, or drop the field and have the
+  reader derive it client-side from `categoryId` via
+  `getCategory(id)?.label`.
 - The composer's meta-prompt variant flag (`GEMINI_META_PROMPT_VARIANT`)
   exists for A/B testing but has no analytics tying it to outcome
   metrics — the v1-wins claim is from manual eval, not a
