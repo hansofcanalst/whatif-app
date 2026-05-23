@@ -1,17 +1,78 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Platform, Pressable, KeyboardAvoidingView, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Platform,
+  Pressable,
+  KeyboardAvoidingView,
+  ScrollView,
+  useWindowDimensions,
+} from 'react-native';
 import { Link } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Button } from '@/components/ui/Button';
+import { FeatureCarousel } from '@/components/ui/FeatureCarousel';
 import { useToast } from '@/components/ui/Toast';
 import { signInWithEmail, signInWithAppleIdToken, friendlyAuthErrorMessage } from '@/lib/auth';
 import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
+
+// Marketing carousel images. Mix of portrait + scene photos from
+// Unsplash CDN so the hero reads as "any photo, any direction" rather
+// than locking to faces only. Five images keeps the 3D-fan stack
+// readable — fewer and the side cards collapse, more and the
+// peripheral cards never get into view before they wrap. URLs are
+// long-lived Unsplash IDs (same ones in the reference design).
+const HERO_IMAGES = [
+  {
+    src: 'https://images.unsplash.com/photo-1504051771394-dd2e66b2e08f?w=900&auto=format&fit=crop&q=60',
+    alt: 'Professional portrait of a woman',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=900&auto=format&fit=crop&q=60',
+    alt: 'Scenic landscape with mountains and a lake',
+  },
+  {
+    src: 'https://plus.unsplash.com/premium_photo-1670282392820-e3590c1c5c54?w=900&auto=format&fit=crop&q=60',
+    alt: 'Artistic photo of a person with flowers',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1581403341630-a6e0b9d2d257?w=900&auto=format&fit=crop&q=60',
+    alt: 'A dog wearing sunglasses',
+  },
+  {
+    src: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=900&auto=format&fit=crop&q=60',
+    alt: 'Creative shot of a person from behind',
+  },
+];
+
+// Hero title with the accent word in violet. Nested <Text> works in
+// RN so the gradient-text trick from the web reference (Tailwind's
+// bg-clip-text) is replaced by a clean solid accent — matches the
+// FRAME palette better and renders consistently on every platform.
+const HERO_TITLE = (
+  <>
+    See yourself <Text style={{ color: colors.accent }}>across the multiverse</Text>
+  </>
+);
+
+const HERO_SUBTITLE =
+  'Drop a photo. Pick a direction — race, age, gender, military, celebrities, and more. AI-powered transformations in seconds.';
 
 export default function Login() {
   const { show } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Show the marketing carousel hero on wide viewports only. On
+  // mobile (native or narrow web) the carousel would push the login
+  // form below the fold and slow down returning users — keep the
+  // compact wordmark header there. 768px matches the standard
+  // tablet/desktop breakpoint we use elsewhere (gallery, web CSS).
+  const { width: windowWidth } = useWindowDimensions();
+  const showCarousel = windowWidth >= 768;
 
   const handleEmail = async () => {
     if (!email || !password) return show('Enter email and password.', 'error');
@@ -47,12 +108,25 @@ export default function Login() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.brand}>
-          <Text style={styles.logo}>
-            What<Text style={styles.logoAccent}>If</Text>
-          </Text>
-          <Text style={styles.tagline}>See yourself in a whole new way.</Text>
-        </View>
+        {showCarousel ? (
+          // Wide-viewport hero. Replaces the compact wordmark block on
+          // tablet/desktop with a 3D-fan photo carousel + marketing
+          // copy — the first-impression surface for users landing on
+          // the web app. The compact form sits below.
+          <FeatureCarousel
+            title={HERO_TITLE}
+            subtitle={HERO_SUBTITLE}
+            images={HERO_IMAGES}
+            style={styles.carouselWrap}
+          />
+        ) : (
+          <View style={styles.brand}>
+            <Text style={styles.logo}>
+              What<Text style={styles.logoAccent}>If</Text>
+            </Text>
+            <Text style={styles.tagline}>See yourself in a whole new way.</Text>
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Sign in</Text>
@@ -127,6 +201,15 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
     backgroundColor: colors.bg,
   },
+  // Constrain the form card width on wide viewports so the page reads
+  // as "marketing hero, then sign-in form" rather than a stretched
+  // edge-to-edge form. The carousel itself is full-bleed (it owns
+  // its own container width).
+  carouselWrap: {
+    width: '100%',
+    alignSelf: 'center',
+    marginHorizontal: -spacing.xl,
+  },
   brand: { alignItems: 'center', gap: spacing.sm },
   logo: {
     fontFamily: fontFamily.mono,
@@ -144,6 +227,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.xl,
     gap: spacing.lg,
+    // Cap the sign-in card width on desktop so it reads as a
+    // contained surface beneath the full-bleed carousel, not a giant
+    // edge-to-edge form.
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   sectionLabel: { ...typography.label, color: colors.textLabel },
   cardTitle: { ...typography.h2, color: colors.textPrimary },

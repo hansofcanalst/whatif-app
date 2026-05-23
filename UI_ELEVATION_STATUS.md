@@ -49,11 +49,12 @@ testing — see "Outstanding security findings" below).
 ## New components / hooks
 
 ```
-components/CategoryIcon.tsx          (id → LucideIcon map)
-components/ui/PulseIndicators.tsx    (ScanLine + SkeletonTile)
-components/ui/GlyphTile.tsx          (accent-tinted square tile)
-components/ui/ProBadge.tsx           (PRO + Sparkles pill, 3 sizes)
-hooks/useMotion.ts                   (usePressScale + useCardEntrance)
+components/CategoryIcon.tsx           (id → LucideIcon map)
+components/ui/PulseIndicators.tsx     (ScanLine + SkeletonTile)
+components/ui/GlyphTile.tsx           (accent-tinted square tile)
+components/ui/ProBadge.tsx            (PRO + Sparkles pill, 3 sizes)
+components/ui/FeatureCarousel.tsx     (3D-fan hero, web wide-viewport only)
+hooks/useMotion.ts                    (usePressScale + useCardEntrance)
 ```
 
 ## Visual smoke test
@@ -284,6 +285,58 @@ client.
 - `moderation_log` + `logs` are append-only with no retention /
   deletion on account delete. GDPR right-to-erasure may want a
   cleanup function.
+
+## Pass 3 — feature carousel hero
+
+The user supplied a Tailwind/shadcn 3D-fan carousel reference and
+asked for it integrated. Three options existed:
+
+1. Install Tailwind + shadcn into the project. Bad fit — would create
+   a dual-styling system (Tailwind on web, RN StyleSheet on native);
+   carousel would only render on web; conflicts with FRAME design
+   system.
+2. Port the design to React Native. Same component compiles to native
+   AND the web export.
+3. Skip — existing FRAME hero is on-brand.
+
+Went with (2). New file `components/ui/FeatureCarousel.tsx`:
+
+- RN primitives (View/Text/Image/Pressable) instead of DOM
+- Reanimated `useSharedValue` + `useAnimatedStyle` for the 3D
+  transforms — CSS transitions don't exist in RN, so cards animate
+  via a single `progress` shared value that interpolates between
+  index values with `withTiming` (cubic-out, 500ms)
+- Shortest-path wrap so cycling last → first slides one card width
+  instead of flying across the whole stack
+- `lucide-react-native` chevrons (FRAME's icon language)
+- FRAME theme tokens — two soft violet glow blobs replace the
+  reference's blue/purple gradient mix
+- `prefers-reduced-motion` disables autoplay + animation
+- Responsive card sizing: 168×320 on phones, 240×420 on tablet+
+
+Wired into `app/(auth)/login.tsx` with a `useWindowDimensions` gate.
+On viewports ≥768px (tablet/desktop web), the carousel replaces the
+compact wordmark header — gives first-time web visitors a proper
+marketing hero. On mobile (native + narrow web), the compact header
+stays so returning users can sign in fast without scrolling past
+hero content.
+
+Form card is now capped at 480px max-width + alignSelf:'center' on
+wide viewports so the page reads "marketing hero, then sign-in
+form" rather than a stretched edge-to-edge form.
+
+Hero copy: "See yourself **across the multiverse**" (accent on the
+second half) + "Drop a photo. Pick a direction — race, age, gender,
+military, celebrities, and more. AI-powered transformations in
+seconds." The accent word is set via a nested `<Text>` inside the
+title prop — sidesteps the reference's `bg-clip-text` gradient
+trick which doesn't translate cleanly to RN.
+
+Smoke-tested via Claude Preview at 375 / 768 / 1280 widths:
+- 375 (phone): compact wordmark header, fast form
+- 768 (tablet): full carousel with 3D fan effect, form below
+- 1280 (desktop): same, form centered with breathing room
+Zero console errors after fresh reload at each width.
 
 ## Optional follow-ups (low priority)
 
