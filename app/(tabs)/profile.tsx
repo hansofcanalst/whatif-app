@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { ChevronRight, Sparkles } from 'lucide-react-native';
@@ -23,6 +23,16 @@ export default function Profile() {
   const [paywall, setPaywall] = useState(false);
 
   const handleLogout = async () => {
+    // RN-Web's Alert.alert silently no-ops the destructive button on a
+    // three-button dialog — same bug the gallery delete + delete-account
+    // flows already work around. Branch explicitly so web users get a
+    // working window.confirm; native gets the proper native sheet.
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Log out?')) {
+        signOut().catch((e) => console.warn('[profile] signOut failed', e));
+      }
+      return;
+    }
     Alert.alert('Log out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: () => signOut() },
