@@ -38,7 +38,11 @@
       "Bash(python3)",
       "Bash(sed -n '389,393p' /Users/SoftDev/Claude/WhatIf/whatif-app/lib/prompts.ts)",
       "Bash(git commit -m ' *)",
-      "Bash(firebase --version)"
+      "Bash(firebase --version)",
+      "Bash(xcode-select -p)",
+      "Bash(xcodebuild -version)",
+      "Bash(xcrun simctl *)",
+      "Bash(grep -E \"^ios/?$|^/ios\" .gitignore)"
     ],
     "defaultMode": "bypassPermissions"
   },
