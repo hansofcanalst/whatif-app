@@ -5,6 +5,41 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-24 19:18 EDT — Verified Sentry fix: iOS build succeeded
+
+**What & why:** Ran `npx expo run:ios` end-to-end to confirm the
+`SENTRY_DISABLE_AUTO_UPLOAD=true` change from the previous entry
+actually unblocked the build.
+
+**Result:**
+- `Build Succeeded` — 0 errors, 3 warnings.
+- Both Sentry build phases ran without erroring:
+  `Executing WhatIf » Bundle React Native code and images` (wraps
+  `sentry-xcode.sh`) and `Executing WhatIf » Upload Debug Symbols to
+  Sentry` (wraps `sentry-xcode-debug-files.sh`). No `sentry-cli`
+  "organization ID or slug is required" message anywhere in the log.
+- App installed to iPhone 17 Pro simulator and launched the
+  expo-development-client URL. Metro waiting on `http://localhost:8081`.
+
+**No files touched.** Verification only.
+
+**Warnings worth noting (pre-existing, not blockers):**
+- `Pods/Sentry-Sentry: iOS@11.0 deployment version mismatch, expected
+  >= 2.0 <= 26.5.99` — Sentry pod's deployment target is older than
+  Expo expects. Not caused by this fix; would also appear without it.
+  Safe to ignore for now; revisit if Sentry SDK is upgraded.
+- `Pods/SDWebImage-SDWebImage: iOS@9.0 deployment version mismatch`
+  — same kind of warning from a transitive image-caching pod. Ignore.
+
+**Manual steps for you:**
+- App is running on the simulator now. Use it to confirm a smoke flow
+  (sign in → pick photo → generate) actually works against Metro on
+  this build, since this is the first true native dev build per
+  CLAUDE.md todo #1. With this build working, todos #2–#5 (push notifs,
+  camera, reauth flow, native Apple/Google reauth) are now testable.
+
+---
+
 ## 2026-05-24 19:10 EDT — Disable Sentry source-map upload in iOS build
 
 **What & why:** `npx expo run:ios` was failing during the "Bundle React
