@@ -5,6 +5,53 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-25 — Make `resolveApiBase()` work when `hostUri` is empty (`expo run:ios` debug builds)
+
+**Symptom:** After fixing the relative-URL issue, detection threw
+`No API base URL available... Constants.expoConfig.hostUri is populated`
+on a dev build launched via `npx expo run:ios` (build log: "Skipping
+dev server").
+
+**Root cause:** `Constants.expoConfig.hostUri` is only populated when
+the manifest is fetched from a `@expo/cli` dev server. In a `run:ios`
+build that "skips" starting Metro and later attaches to a separately
+running `npm start`, the manifest may arrive without `hostUri`, so the
+single-source lookup failed even though Metro was actually reachable
+(the JS bundle had clearly loaded — otherwise the app wouldn't run).
+
+**Fix (`lib/apiBase.ts`):** broaden the native-dev resolution into a
+fallback chain, in order of semantic preference → most authoritative:
+
+1. `Constants.expoConfig?.hostUri` (manifest from `expo start`).
+2. `Constants.expoGoConfig?.debuggerHost` (Expo Go only).
+3. `NativeModules.SourceCode.getConstants().scriptURL` — the URL React
+   Native itself used to load the JS bundle. In any debug build this is
+   `http://<metro-host>:8081/index.bundle?...`, so it's always populated
+   when Metro is reachable, regardless of how the dev client was
+   launched. Release builds yield `file://` — `originFromUrl()`
+   ignores non-network schemes so we don't pick it up there.
+4. `Constants.experienceUrl` (e.g. `exp://host:8081`) as a final dev
+   fallback. `exp(s)://` is mapped to `http(s)://`.
+
+The loud throw is preserved as the terminal fallback so a misconfigured
+release build still fails visibly rather than silently issuing relative
+fetches.
+
+**Helpers added:** `hostUriToOrigin()` (normalises `host:port` /
+schemes), `originFromUrl()` (strips path/query, rewrites `exp(s)://`),
+`originFromScriptURL()` (safe read of the RN bridge module).
+
+**Files changed:** `lib/apiBase.ts`.
+
+**Validated:** `npx tsc --noEmit` clean; `npm test` clean (19/19, 7
+snapshots).
+
+**Next:** user retries detection on the simulator. If `scriptURL` is
+also unavailable for any reason, the new error message points them at
+`npm start` rather than at a specific Expo field.
+
+---
+
 ## 2026-05-25 — Fix "detection failed [TypeError: Network request failed]" on native dev
 
 **Root cause:** `lib/detect.ts:resolveEndpoint` and
