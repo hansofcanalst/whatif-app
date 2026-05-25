@@ -19,7 +19,17 @@ import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 // first render gets captured. initSentry() no-ops cleanly when no DSN
 // is configured, so contributors without a Sentry account see zero
 // impact. See lib/sentry.ts for the full design rationale.
-initSentry();
+//
+// Wrapped in a belt-and-braces try/catch in case the native Sentry
+// bridge throws during init. If anything blows up here at module-eval
+// time, the JS runtime aborts the bundle and the app fails to launch.
+// Better to swallow + log and continue with no error tracking than to
+// brick the app — observability shouldn't be load-bearing.
+try {
+  initSentry();
+} catch (e) {
+  console.warn('[layout] initSentry threw — continuing without error tracking', e);
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

@@ -10,6 +10,7 @@ import {
   getOfferings,
   purchasePackage,
   restorePurchases,
+  isRevenueCatConfigured,
 } from '@/lib/revenuecat';
 
 // react-native-purchases has no real implementation on the web target —
@@ -49,23 +50,60 @@ export function useSubscription() {
     // shipped to production web.
     if (!RC_AVAILABLE) return;
 
+    // Order matters here: do NOT register a CustomerInfo listener until
+    // `initRevenueCat` resolves AND reports success. The previous shape
+    // registered the listener synchronously after kicking off the async
+    // init IIFE — but `await initRevenueCat` yields, so the listener
+    // would be registered BEFORE `Purchases.configure` ran. On iOS in
+    // Release, that raises an NSException ("Purchases has not been
+    // configured") which RN 0.81's `convertNSExceptionToJSError`
+    // SIGSEGVs on, crashing the app at launch. Tracked + fixed in the
+    // 2026-05-25 PROGRESS_LOG entry.
+    let cancelled = false;
+    let listener: ((info: CustomerInfo) => void) | null = null;
+
     (async () => {
       setLoading(true);
       try {
-        await initRevenueCat(user.uid);
-        const info = await getCustomerInfo();
-        applyInfo(info, setSubscription);
+        const configured = await initRevenueCat(user.uid);
+        if (cancelled) return;
+        if (!configured || !isRevenueCatConfigured()) {
+          // No API key, or configure threw. Skip the listener +
+          // getCustomerInfo dance — both would raise NSExceptions on
+          // an un-configured SDK.
+          return;
+        }
+        try {
+          const info = await getCustomerInfo();
+          if (cancelled) return;
+          applyInfo(info, setSubscription);
+        } catch (e) {
+          console.warn('[subscription] getCustomerInfo failed', e);
+        }
+        if (cancelled) return;
+        const l = (info: CustomerInfo) => applyInfo(info, setSubscription);
+        try {
+          Purchases.addCustomerInfoUpdateListener(l);
+          listener = l;
+        } catch (e) {
+          console.warn('[subscription] addCustomerInfoUpdateListener failed', e);
+        }
       } catch (e) {
-        console.warn('subscription init failed', e);
+        console.warn('[subscription] init failed', e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
-    const listener = (info: CustomerInfo) => applyInfo(info, setSubscription);
-    Purchases.addCustomerInfoUpdateListener(listener);
     return () => {
-      Purchases.removeCustomerInfoUpdateListener(listener);
+      cancelled = true;
+      if (listener && isRevenueCatConfigured()) {
+        try {
+          Purchases.removeCustomerInfoUpdateListener(listener);
+        } catch (e) {
+          console.warn('[subscription] removeCustomerInfoUpdateListener failed', e);
+        }
+      }
     };
   }, [user, setSubscription, setLoading]);
 

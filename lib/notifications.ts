@@ -38,23 +38,35 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { captureError } from './sentry';
 
-// Set the foreground notification handler ONCE at module-load. When
-// the app is foregrounded and a notification arrives, we still show
-// a banner — the user might be on a different screen than the one
-// the notification refers to (e.g. browsing gallery while a previous
-// generation completes). Sound + badge stay off because the
-// generation flow isn't urgent enough to interrupt with audio.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    // expo-notifications v0.32+ split out banner/list visibility on iOS.
-    // We want both for foreground notifications.
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Foreground notification handler is installed lazily — see
+// `ensureForegroundHandler` below. It used to run at module-evaluation
+// time, but that means a sync native call fires before the JS runtime
+// is fully ready in Release builds, which is exactly the kind of
+// pre-init native call that can raise an NSException → SIGSEGV via
+// RN 0.81's `convertNSExceptionToJSError` (release-build crash
+// investigation 2026-05-25). Deferring into `setupNotificationListeners`
+// (which is called from a useEffect — well after JS init) and wrapping
+// in try/catch is the safe shape.
+let foregroundHandlerInstalled = false;
+function ensureForegroundHandler(): void {
+  if (foregroundHandlerInstalled) return;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        // expo-notifications v0.32+ split out banner/list visibility on iOS.
+        // We want both for foreground notifications.
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+    foregroundHandlerInstalled = true;
+  } catch (e) {
+    console.warn('[push] setNotificationHandler failed', e);
+  }
+}
 
 // Track listener subscriptions so we can unregister them cleanly. The
 // app's navigation listener is a long-lived effect; without explicit
@@ -145,6 +157,10 @@ export function setupNotificationListeners(
   onTap: (data: Record<string, unknown>) => void,
 ): () => void {
   if (Platform.OS === 'web') return () => undefined;
+
+  // Install the foreground handler now (lazily, once). Safe-by-try/catch
+  // even though it should never throw under normal conditions.
+  ensureForegroundHandler();
 
   // Tear down any prior subscriptions before registering new ones —
   // necessary across hot-reloads to avoid duplicate firings.
