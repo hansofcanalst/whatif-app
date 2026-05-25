@@ -11,6 +11,19 @@ export function useAuth() {
   const { user, userDoc, loading, error, setUser, setUserDoc, setLoading, setError } = useAuthStore();
   const settledRef = useRef(false);
   const { show } = useToast();
+  // Pull `show` through a ref so the auth subscription effect doesn't
+  // list it as a dep. `show` SHOULD be stable (useCallback in Toast.tsx
+  // wraps it with empty deps), but listing it in the effect's dep array
+  // ties the lifetime of the auth listener to that stability — a future
+  // edit to Toast.tsx (e.g. switching the provider to expose a non-
+  // memoized value, adding a setState in show's closure) would silently
+  // re-subscribe the auth listener on every render, which reruns
+  // `setLoading(true)` and pins the app on the loading splash forever.
+  // Accessing via showRef.current at call time decouples the two.
+  const showRef = useRef(show);
+  useEffect(() => {
+    showRef.current = show;
+  }, [show]);
   // De-dupe the "couldn't load profile" toast — onAuthStateChanged can
   // fire multiple times in a session (sign-in, token refresh, account
   // switch) and we don't want a stack of identical red banners. Cleared
@@ -70,7 +83,7 @@ export function useAuth() {
             setError(message);
             if (!failureToastShownRef.current) {
               failureToastShownRef.current = true;
-              show(`Couldn't load your profile: ${message}`, 'error');
+              showRef.current(`Couldn't load your profile: ${message}`, 'error');
             }
           });
       } else {
@@ -86,10 +99,11 @@ export function useAuth() {
       clearTimeout(fallback);
       unsub();
     };
-    // `show` is wrapped in a stable useCallback inside Toast.tsx so it
-    // never changes identity at runtime — including it in the deps
-    // satisfies the linter without retriggering the effect.
-  }, [setUser, setUserDoc, setLoading, setError, show]);
+    // `show` is deliberately NOT in this dep array — it's accessed via
+    // showRef.current at call time, so the auth subscription is set up
+    // exactly once per hook mount and never re-subscribed. See the
+    // showRef comment above for why we don't trust the dep.
+  }, [setUser, setUserDoc, setLoading, setError]);
 
   return { user, userDoc, loading, error };
 }

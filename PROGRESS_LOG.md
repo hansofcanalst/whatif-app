@@ -5,6 +5,52 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-25 15:30 EDT — Fix "stuck on Loading the multiverse…" cold-boot hang
+
+**Root cause (not what was suspected):** A signed-in user cold-booting
+with a cached Firebase session lands at `/index` (`app/index.tsx` — the
+splash with the "Loading the multiverse…" tagline), and the AuthGate
+redirect in `app/_layout.tsx:52-59` had no clause for it:
+
+- `!user && !inAuth` → false (user IS signed in)
+- `user && inAuth` → false (we're at `/`, not in the `(auth)` group)
+- No redirect fires; user stays on the splash forever.
+
+The bug has been latent since the initial scaffold — it only surfaces
+when someone lands at `/` while signed in. Fix #3 (the `useToast` work
+in `hooks/useAuth.ts`) did NOT introduce it; the redirect logic just
+never covered this case. The `[push] skipping` + `[revenuecat] API key
+missing` warnings the user saw confirm `user` had been set: those
+effects run when `user` is defined, regardless of `loading`.
+
+**The `show`-instability hypothesis was investigated and ruled out.**
+`show` IS referentially stable in Toast.tsx — wrapped in `useCallback`
+with empty deps. Although the `<Ctx.Provider value={{ show }}>` literal
+creates a new object each render, consumers via `const { show } =
+useToast()` destructure the `.show` property by value, and that
+property value (the function reference) doesn't change. So the auth
+`useEffect`'s `show` dep does not cause it to re-run.
+
+**Changes (2 files):**
+
+- Edit: `app/_layout.tsx` — AuthGate's redirect now also fires for a
+  signed-in user at the splash route (`pathname === '/'`), sending
+  them to `/(tabs)/home`. Used `usePathname()` rather than
+  `segments.length === 0` because expo-router's typed-routes gives
+  `segments` a non-empty tuple type that rejects the length check.
+- Edit: `hooks/useAuth.ts` — defensive: pull `show` through a `useRef`
+  so the auth-subscription effect doesn't list it as a dep at all. The
+  listener now subscribes exactly once per hook mount, immune to any
+  future change in `Toast.tsx` that would destabilize `show`.
+
+**Verification:** `npx tsc --noEmit` clean; `npm test` 19/19 prompt
+snapshot tests pass. The hang is fixed end-to-end in code review;
+recommend the user cold-boot the app once signed in to confirm —
+expected behavior is an immediate hop from the splash to
+`/(tabs)/home`.
+
+---
+
 ## 2026-05-25 14:05 EDT — Add remote-updatable Trending categories
 
 **What & why:** Foundation for riding TikTok-style viral trends

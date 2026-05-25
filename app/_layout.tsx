@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, usePathname } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
@@ -35,6 +35,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   useSubscription();
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const hydrateLocalGallery = useGenerationStore((s) => s.hydrateLocalGallery);
 
@@ -51,12 +52,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const inAuth = segments[0] === '(auth)';
+    // `pathname === '/'` is the root splash route (`app/index.tsx`).
+    // Without this clause, a signed-in user cold-booting with a cached
+    // Firebase session lands at /index and stays there forever — neither
+    // of the original two branches fires (they're not signed out, and
+    // they're not in the (auth) group), and the splash has no logic of
+    // its own to move them along. The symptom is "stuck on Loading the
+    // multiverse…" with auth fully resolved but no navigation away. We
+    // use usePathname() rather than segments.length here because
+    // expo-router's typed routes give `segments` a non-empty tuple type
+    // that won't accept a `.length === 0` check.
+    const atSplash = pathname === '/';
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
-    } else if (user && inAuth) {
+    } else if (user && (inAuth || atSplash)) {
       router.replace('/(tabs)/home');
     }
-  }, [user, loading, segments, router]);
+  }, [user, loading, segments, pathname, router]);
 
   // Tag every Sentry event with the user's uid (or clear on sign-out),
   // so errors are attributable per-user without us ever sending PII.
