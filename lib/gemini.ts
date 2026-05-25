@@ -1,14 +1,4 @@
-import { collection, doc, serverTimestamp, setDoc, updateDoc, increment } from 'firebase/firestore';
-import { auth, db } from './firebase';
-import {
-  fetchAsBlob,
-  uploadImage,
-  pathForOriginal,
-  pathForResult,
-  pathForOriginalThumb,
-  pathForResultThumb,
-  resizeToThumbnail,
-} from './storage';
+import { auth } from './firebase';
 import { config } from '@/constants/config';
 
 export interface GenerateRequest {
@@ -232,121 +222,22 @@ export async function requestGeneration(req: GenerateRequest): Promise<GenerateR
   for (const i of indices) results.push(resultsByIndex[i]);
   const response: GenerateResponse = { generationId, results };
 
-  if (isLocalDev) {
-    try {
-      return await persistLocalGeneration(req, response);
-    } catch (e) {
-      console.warn('[gemini] local persistence failed, results will not appear in Gallery:', e);
-      return response;
-    }
-  }
+  // Local-dev returns data URIs in the streaming response, which the
+  // UI renders directly. We DO NOT mirror to Storage / Firestore /
+  // `users.freeGenerationsUsed` from the client anymore — the deployed
+  // rules deny client writes on `generations/{id}`, `users.update`
+  // (when `freeGenerationsUsed` or `subscriptionStatus` is in the
+  // diff), and Storage. The previous `persistLocalGeneration` shim
+  // ran all three writes, every one of which raised
+  // "Missing or insufficient permissions" against the live project.
+  //
+  // The AsyncStorage-backed gallery (`appendLocalGeneration` in
+  // useGeneration) covers the local-dev gallery story — generations
+  // appear there and survive relaunches. For a production-grade
+  // Firestore + Storage trail, deploy the Cloud Function and set
+  // EXPO_PUBLIC_CLOUD_FUNCTIONS_URL so this code path doesn't run.
+  // (`isLocalDev` is intentionally kept in the return type so callers
+  // can tell which environment they're in.)
   return response;
 }
 
-/**
- * After a successful local-dev generation, upload the original + each result
- * to Firebase Storage and write the `generations/{id}` Firestore doc so the
- * Gallery tab populates. Also increments the user's free-generation counter.
- *
- * Returns the response with Storage download URLs replacing the data URIs.
- */
-export async function persistLocalGeneration(
-  req: GenerateRequest,
-  response: GenerateResponse,
-): Promise<GenerateResponse> {
-  const user = auth.currentUser;
-  if (!user) {
-    // Not signed in — skip persistence, just show results for this session.
-    return response;
-  }
-
-  const uid = user.uid;
-  // Use the dev route's id as the Firestore doc id.
-  const generationId = response.generationId;
-
-  // Upload original AND a 256px thumbnail in parallel. Thumbnail
-  // failures are logged and don't block — better to ship the doc
-  // without a thumb than to fail the whole upload. The gallery falls
-  // back to the full URL when thumbURL is missing.
-  const originalDataUri = `data:image/jpeg;base64,${req.imageBase64}`;
-  const originalBlob = base64ToBlob(req.imageBase64, 'image/jpeg');
-  const [originalURL, originalThumbURL] = await Promise.all([
-    uploadImage(pathForOriginal(uid, generationId), originalBlob),
-    resizeToThumbnail(originalDataUri)
-      .then((thumb) => uploadImage(pathForOriginalThumb(uid, generationId), thumb))
-      .catch((e) => {
-        console.warn('[gemini] original thumbnail failed:', e);
-        return undefined;
-      }),
-  ]);
-
-  // Upload each result + its thumbnail, replacing the data URI with
-  // the Storage URLs. Thumbnail soft-fails per result.
-  const uploadedResults: Array<GenerateResponseItem & { thumbURL?: string }> = [];
-  for (let i = 0; i < response.results.length; i++) {
-    const r = response.results[i]!;
-    const blob = await fetchAsBlob(r.imageURL); // data: URI → Blob
-    const [storageURL, thumbURL] = await Promise.all([
-      uploadImage(pathForResult(uid, generationId, i), blob),
-      resizeToThumbnail(r.imageURL)
-        .then((thumb) => uploadImage(pathForResultThumb(uid, generationId, i), thumb))
-        .catch((e) => {
-          console.warn(`[gemini] result ${i} thumbnail failed:`, e);
-          return undefined;
-        }),
-    ]);
-    uploadedResults.push({ ...r, imageURL: storageURL, thumbURL });
-  }
-
-  // Write Firestore doc (shape matches GenerationDoc so Gallery/Result
-  // screens read it). originalThumbURL stored only when available so
-  // older queries with `?? imageURL` fallback still work.
-  const genRef = doc(collection(db, 'generations'), generationId);
-  await setDoc(genRef, {
-    id: generationId,
-    userId: uid,
-    categoryId: req.category,
-    categoryLabel: req.category,
-    originalImageURL: originalURL,
-    ...(originalThumbURL ? { originalThumbURL } : {}),
-    results: uploadedResults.map(({ imageURL, thumbURL, prompt, label }) => ({
-      imageURL,
-      ...(thumbURL ? { thumbURL } : {}),
-      prompt,
-      label,
-    })),
-    status: 'complete',
-    createdAt: serverTimestamp(),
-  });
-
-  // Increment the free-generation counter (mirrors Cloud Function behavior).
-  try {
-    await updateDoc(doc(db, 'users', uid), {
-      freeGenerationsUsed: increment(1),
-      updatedAt: serverTimestamp(),
-    });
-  } catch (e) {
-    console.warn('[gemini] could not increment freeGenerationsUsed:', e);
-  }
-
-  // Moderation audit log is server-only — `firestore.rules` denies all
-  // client writes to `moderation_log`. Production audit goes through
-  // `functions/src/generate.ts` (Admin SDK bypasses rules). The
-  // local-dev /api/generate route emits a `[telemetry]` stdout line
-  // instead, which is sufficient for dev visibility. No client write
-  // here so we don't pretend to log something that always fails.
-
-  return { generationId, results: uploadedResults };
-}
-
-/**
- * Convert a base64 string (no data: prefix) to a Blob without going through
- * fetch(dataURI). Avoids one round-trip and works identically on web and
- * native (via the browser/RN Blob polyfill that Firebase ships).
- */
-function base64ToBlob(base64: string, contentType: string): Blob {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: contentType });
-}

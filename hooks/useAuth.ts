@@ -3,12 +3,19 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { subscribeToAuth } from '@/lib/auth';
 import { ensureUserDoc, UserDoc } from '@/lib/firestore';
+import { useToast } from '@/components/ui/Toast';
 
 const AUTH_FALLBACK_MS = 5000;
 
 export function useAuth() {
   const { user, userDoc, loading, error, setUser, setUserDoc, setLoading, setError } = useAuthStore();
   const settledRef = useRef(false);
+  const { show } = useToast();
+  // De-dupe the "couldn't load profile" toast — onAuthStateChanged can
+  // fire multiple times in a session (sign-in, token refresh, account
+  // switch) and we don't want a stack of identical red banners. Cleared
+  // on sign-out so a fresh sign-in can surface a fresh failure.
+  const failureToastShownRef = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -45,11 +52,33 @@ export function useAuth() {
           .then((doc) => {
             setUserDoc(doc);
             syncSubscriptionFromUserDoc(doc);
+            // A previously-failed read succeeded — allow a fresh
+            // toast if it fails again later (e.g. token expired).
+            failureToastShownRef.current = false;
           })
-          .catch((e) => console.warn('[auth] ensureUserDoc failed', e));
+          .catch((e) => {
+            // Previously this was a silent console.warn — the user
+            // got "0 used / 0 remaining" math on the profile and
+            // "Free plan" even with a Pro doc set in the console,
+            // with no on-screen indication that the read had
+            // failed. Surface it as a one-time toast so a broken
+            // user-doc read is visible. Also stash the message on
+            // the auth store's `error` field so callers can branch
+            // on it if they want a richer treatment later.
+            const message = e instanceof Error ? e.message : String(e);
+            console.warn('[auth] ensureUserDoc failed', e);
+            setError(message);
+            if (!failureToastShownRef.current) {
+              failureToastShownRef.current = true;
+              show(`Couldn't load your profile: ${message}`, 'error');
+            }
+          });
       } else {
         setUserDoc(null);
         useSubscriptionStore.getState().reset();
+        // Reset the dedupe flag so the next sign-in's failure (if
+        // any) gets its own toast.
+        failureToastShownRef.current = false;
       }
     });
 
@@ -57,7 +86,10 @@ export function useAuth() {
       clearTimeout(fallback);
       unsub();
     };
-  }, [setUser, setUserDoc, setLoading, setError]);
+    // `show` is wrapped in a stable useCallback inside Toast.tsx so it
+    // never changes identity at runtime — including it in the deps
+    // satisfies the linter without retriggering the effect.
+  }, [setUser, setUserDoc, setLoading, setError, show]);
 
   return { user, userDoc, loading, error };
 }

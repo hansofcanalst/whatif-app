@@ -4,7 +4,6 @@ import { useGenerationStore, type GenerationSlot } from '@/stores/generationStor
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import {
   streamGeneration,
-  persistLocalGeneration,
   QuotaExceededError,
   type GenerationEvent,
   type GenerateResponseItem,
@@ -217,20 +216,15 @@ export function useGeneration() {
         if (resultsByIndex[i]) results.push(resultsByIndex[i]);
       }
 
-      // In local-dev mode, the route only returned data URIs; upload
-      // them to Storage and write the Firestore generation doc so the
-      // Gallery tab populates. In prod, the Cloud Function already
-      // handled this server-side, so this is a no-op on the happy path
-      // (persistLocalGeneration short-circuits when there's no auth).
-      let finalResponse = { generationId, results };
-      const { isLocalDev } = resolveIsLocalDev();
-      if (isLocalDev && results.length > 0) {
-        try {
-          finalResponse = await persistLocalGeneration(req, finalResponse);
-        } catch (e) {
-          console.warn('[useGeneration] local persistence failed:', e);
-        }
-      }
+      // Local-dev does NOT mirror to Firestore / Storage / users-doc
+      // from the client anymore — the deployed rules deny all three
+      // (see lib/gemini.ts comment near streamGeneration's local-dev
+      // branch). Results are displayed in-session from the data URIs
+      // returned by the streaming endpoint and persisted to the
+      // AsyncStorage-backed gallery below. For a production-grade
+      // Firestore + Storage trail, deploy the Cloud Function and
+      // set EXPO_PUBLIC_CLOUD_FUNCTIONS_URL.
+      const finalResponse = { generationId, results };
 
       setResults(finalResponse.generationId, finalResponse.results);
 
@@ -279,14 +273,4 @@ export function useGeneration() {
   );
 
   return { start, canGenerate, remaining, isPro: isActive };
-}
-
-// Single source of truth for "are we hitting the local Expo Router route
-// or a deployed Cloud Function" at the hook layer. Mirrors the check in
-// lib/gemini.ts' resolveEndpoint so local-dev persistence logic only
-// runs in local-dev. Kept here as a tiny helper because exporting it
-// from gemini.ts just to avoid a 3-line duplicate felt like churn.
-function resolveIsLocalDev(): { isLocalDev: boolean } {
-  const base = config.cloudFunctions.baseURL?.trim();
-  return { isLocalDev: !base };
 }
