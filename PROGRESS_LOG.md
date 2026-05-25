@@ -5,6 +5,39 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-25 — Fix "detection failed [TypeError: Network request failed]" on native dev
+
+**Root cause:** `lib/detect.ts:resolveEndpoint` and
+`lib/gemini.ts:resolveEndpoint` returned a bare relative URL
+`/api/detect` / `/api/generate` whenever `EXPO_PUBLIC_CLOUD_FUNCTIONS_URL`
+was unset (which is the local-dev default — `.env` has no such key).
+React Native's `fetch` forwards URLs straight to NSURLSession / OkHttp,
+neither of which can resolve a relative URL because a native app has no
+implicit page origin. Every detect / generate call surfaced as
+`TypeError: Network request failed` before the request ever left the
+device. Web worked because the browser resolves `/api/detect` against
+the page origin (the Metro dev server).
+
+**Ruled out** during investigation: ATS
+(`NSAllowsLocalNetworking=true` is already set in
+`ios/WhatIf/Info.plist`), Expo Router origin auto-injection (it
+doesn't exist in `expo-router` 6 for client fetches — the
+`extra.router.origin` setting only feeds the dev CORS middleware and
+the prod-export server URL), and localhost-vs-LAN-IP (moot — no host
+got resolved at all).
+
+**Fix:** new shared helper `lib/apiBase.ts` exporting `resolveApiBase()`
+and `isLocalDevApi()`. Precedence: configured cloud-functions URL →
+empty string on web (browser fills in the origin) →
+`Constants.expoConfig.hostUri` turned into `http://<host>:<port>` on
+native dev. Throws loudly on native with neither — a release build
+pointed at nothing is a config error, not a silent fetch failure. Both
+`lib/detect.ts:resolveEndpoint` and `lib/gemini.ts:resolveEndpoint`
+now delegate to it. `npx tsc --noEmit` clean; 19/19 snapshot tests
+pass.
+
+---
+
 ## 2026-05-25 15:30 EDT — Fix "stuck on Loading the multiverse…" cold-boot hang
 
 **Root cause (not what was suspected):** A signed-in user cold-booting

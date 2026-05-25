@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import { config } from '@/constants/config';
+import { isLocalDevApi, resolveApiBase } from './apiBase';
 
 export interface GenerateRequest {
   imageBase64: string;
@@ -81,13 +81,16 @@ export type GenerationEvent =
  *   (see `app/api/generate+api.ts`). The local route skips auth + quota and
  *   returns images as data URIs — dev only. The client then persists to
  *   Firestore + Storage here so the Gallery tab populates.
+ *
+ * Base-URL resolution (web vs. native dev vs. prod) is centralized in
+ * `resolveApiBase` — on native dev the Metro dev-server origin must be
+ * prepended manually because RN's fetch can't resolve relative URLs.
  */
 function resolveEndpoint(): { url: string; isLocalDev: boolean } {
-  const base = config.cloudFunctions.baseURL?.trim();
-  if (base) {
-    return { url: `${base}/generate`, isLocalDev: false };
-  }
-  return { url: '/api/generate', isLocalDev: true };
+  const base = resolveApiBase();
+  const isLocalDev = isLocalDevApi();
+  const path = isLocalDev ? '/api/generate' : '/generate';
+  return { url: `${base}${path}`, isLocalDev };
 }
 
 /**

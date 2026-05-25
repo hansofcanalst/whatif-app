@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import { config } from '@/constants/config';
+import { isLocalDevApi, resolveApiBase } from './apiBase';
 
 export interface DetectedPerson {
   id: number; // 1-indexed
@@ -45,14 +45,18 @@ export interface DetectResponse {
 }
 
 function resolveEndpoint(): { url: string; isLocalDev: boolean } {
-  const base = config.cloudFunctions.baseURL?.trim();
-  // When Cloud Functions are deployed, they can expose /detect too. Until
-  // then, fall back to the Expo Router API route. `isLocalDev` toggles
-  // whether we attach the Firebase auth bearer token: the deployed
-  // function requires it (functions/src/detect.ts verifyAuth), the local
-  // route is unauthenticated.
-  if (base) return { url: `${base}/detect`, isLocalDev: false };
-  return { url: '/api/detect', isLocalDev: true };
+  // `isLocalDev` toggles whether we attach the Firebase auth bearer
+  // token: the deployed Cloud Function requires it
+  // (functions/src/detect.ts verifyAuth), the local Expo Router route
+  // is unauthenticated. `resolveApiBase` handles the native-dev case by
+  // prepending the Metro dev-server origin so the bare `/detect` path
+  // becomes a fully-qualified URL — without it, React Native's fetch
+  // hands a relative URL to NSURLSession and fails with `TypeError:
+  // Network request failed`.
+  const base = resolveApiBase();
+  const isLocalDev = isLocalDevApi();
+  const path = isLocalDev ? '/api/detect' : '/detect';
+  return { url: `${base}${path}`, isLocalDev };
 }
 
 export async function requestDetection(imageBase64: string): Promise<DetectResponse> {
