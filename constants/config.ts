@@ -2,27 +2,36 @@ import Constants from 'expo-constants';
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, string>;
 
-function env(publicKey: string, fallbackKey: string): string {
-  // EXPO_PUBLIC_* vars are inlined into process.env at build time in SDK 50+.
-  // `extra` is a legacy fallback for values pushed through app.json.
-  return process.env[publicKey] ?? extra[fallbackKey] ?? '';
-}
-
+// IMPORTANT: each EXPO_PUBLIC_* var MUST be referenced via a static property
+// access on `process.env` (e.g. `process.env.EXPO_PUBLIC_FOO`) — NOT a
+// dynamic bracket access with a variable key. babel-preset-expo (and Metro's
+// transform-define plugin) inline these values at bundle time by literal
+// text replacement; they cannot follow a `process.env[variableName]`
+// indirection. The previous shape — `env('EXPO_PUBLIC_FOO', ...)` helper
+// using `process.env[publicKey]` — meant the EXPO_PUBLIC_* values were
+// inlined into the Debug bundle (Metro serves process.env at runtime over
+// the dev socket) but completely missing from the Release bundle, which
+// crashed the app at launch with `auth/invalid-api-key` cascading into
+// Hermes GC corruption. See PROGRESS_LOG 2026-05-25. The `extra` fallback
+// is a legacy path for values pushed through app.json `extra`; safe because
+// it doesn't rely on inlining.
 export const config = {
   firebase: {
-    apiKey: env('EXPO_PUBLIC_FIREBASE_API_KEY', 'FIREBASE_API_KEY'),
-    authDomain: env('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN', 'FIREBASE_AUTH_DOMAIN'),
-    projectId: env('EXPO_PUBLIC_FIREBASE_PROJECT_ID', 'FIREBASE_PROJECT_ID'),
-    storageBucket: env('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET', 'FIREBASE_STORAGE_BUCKET'),
-    messagingSenderId: env('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_MESSAGING_SENDER_ID'),
-    appId: env('EXPO_PUBLIC_FIREBASE_APP_ID', 'FIREBASE_APP_ID'),
+    apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? extra.FIREBASE_API_KEY ?? '',
+    authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? extra.FIREBASE_AUTH_DOMAIN ?? '',
+    projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? extra.FIREBASE_PROJECT_ID ?? '',
+    storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? extra.FIREBASE_STORAGE_BUCKET ?? '',
+    messagingSenderId:
+      process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? extra.FIREBASE_MESSAGING_SENDER_ID ?? '',
+    appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? extra.FIREBASE_APP_ID ?? '',
   },
   revenueCat: {
-    iosKey: env('EXPO_PUBLIC_REVENUECAT_API_KEY_IOS', 'REVENUECAT_API_KEY_IOS'),
-    androidKey: env('EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID', 'REVENUECAT_API_KEY_ANDROID'),
+    iosKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS ?? extra.REVENUECAT_API_KEY_IOS ?? '',
+    androidKey:
+      process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? extra.REVENUECAT_API_KEY_ANDROID ?? '',
   },
   cloudFunctions: {
-    baseURL: env('EXPO_PUBLIC_CLOUD_FUNCTIONS_URL', 'CLOUD_FUNCTIONS_URL'),
+    baseURL: process.env.EXPO_PUBLIC_CLOUD_FUNCTIONS_URL ?? extra.CLOUD_FUNCTIONS_URL ?? '',
   },
   // Sentry DSN. When unset, the Sentry init no-ops cleanly — local dev
   // and contributors without an account see zero impact. Sign up at
@@ -30,7 +39,7 @@ export const config = {
   // EXPO_PUBLIC_SENTRY_DSN and restart the dev server (env vars are
   // inlined at build time).
   sentry: {
-    dsn: env('EXPO_PUBLIC_SENTRY_DSN', 'SENTRY_DSN'),
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? extra.SENTRY_DSN ?? '',
   },
   freeGenerationCap: 3,
   maxImageSize: 1024,
