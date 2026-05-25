@@ -20,6 +20,16 @@ export interface StartGenerationArgs {
   // the list of accessory ids the user ticked. Forwarded to the server
   // verbatim and resolved into prompt snippets there.
   modifiers?: Record<string, string[]>;
+  // Remote-trend opt-in. When set the server uses the trend's
+  // canonical promptTemplate (NEVER one we send). `categoryId` should
+  // be 'trending' and `subcategoryIds` should be [trendId] when this
+  // is used — the home screen builds the request that way. See
+  // lib/trends.ts for the full security posture.
+  trendId?: string;
+  // Display label for the slot when a trend is selected. The slot
+  // pre-renders from useGeneration; without this we'd fall back to
+  // showing the trendId string on the pending tile.
+  trendLabel?: string;
   onPaywall: () => void;
   // Invoked as soon as the server accepts the request and the NDJSON
   // stream has opened. The caller uses this to navigate to the results
@@ -39,14 +49,19 @@ export interface StartGenerationArgs {
 function buildInitialSlots(
   categoryId: string,
   subcategoryIds: string[],
+  trendLabel: string | undefined,
 ): GenerationSlot[] {
   const category = getCategory(categoryId);
   return subcategoryIds.map((id, index) => {
+    // For a trend generation, the single slot label comes from the
+    // trend doc; the static category lookup misses (category 'trending'
+    // isn't in CATEGORIES and shouldn't be) and we'd otherwise show
+    // the raw trendId on the pending tile.
     const sub = category?.subcategories.find((s) => s.id === id);
     return {
       index,
       subcategoryId: id,
-      label: sub?.label ?? id,
+      label: sub?.label ?? trendLabel ?? id,
       status: 'pending' as const,
     };
   });
@@ -83,6 +98,8 @@ export function useGeneration() {
       categoryId,
       subcategoryIds,
       modifiers,
+      trendId,
+      trendLabel,
       onPaywall,
       onReady,
     }: StartGenerationArgs) => {
@@ -97,7 +114,7 @@ export function useGeneration() {
       // we open the network socket. The results screen renders off this
       // list, so when the caller navigates in response to `onReady`, the
       // tiles are already there in a pending state.
-      initSlots(buildInitialSlots(categoryId, subcategoryIds));
+      initSlots(buildInitialSlots(categoryId, subcategoryIds, trendLabel));
 
       // Pull selection from the store at call time so we always see the
       // latest user choice without threading it through every caller.
@@ -123,6 +140,10 @@ export function useGeneration() {
         totalPeopleInImage: detectedPeople.length || undefined,
         containsMinor,
         modifiers,
+        // Forwarded verbatim to the server. The server fetches the
+        // canonical prompt by id — sending the prompt itself is never
+        // allowed and would be ignored anyway.
+        trendId,
       };
 
       let generationId = '';
@@ -224,7 +245,10 @@ export function useGeneration() {
             generationId: finalResponse.generationId,
             userId: user?.uid ?? null,
             categoryId,
-            categoryLabel: category?.label ?? categoryId,
+            // Trend generations have no entry in the static catalog,
+            // so the Gallery falls back to the trend's display label
+            // (e.g. "1970s Disco") before resorting to the raw id.
+            categoryLabel: category?.label ?? trendLabel ?? categoryId,
             originalImageURL,
             results: finalResponse.results,
           });

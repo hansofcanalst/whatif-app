@@ -11,6 +11,12 @@ import {
 } from './prompts';
 import { composePrompt } from './composePrompt';
 import { runPeopleDetection } from './detect';
+import {
+  fetchServerTrend,
+  TrendNotFoundError,
+  TrendNotLiveError,
+  type ServerTrendingDoc,
+} from './trends';
 
 const FREE_CAP = 3;
 // Image edit/generation model. Overridable via env. Keep default in sync
@@ -47,6 +53,13 @@ interface GenerateBody {
   // appends to the base prompt before scoping/branching. See
   // lib/prompts.ts for the framing note (opt-in only, never auto-applied).
   modifiers?: Record<string, string[]>;
+  // Remote-trend opt-in. When set, this function fetches the trend
+  // doc by id from Firestore via Admin SDK and uses its canonical
+  // promptTemplate for this generation. The client does NOT send the
+  // prompt itself — sending only `trendId` is what prevents a modified
+  // client from substituting an arbitrary prompt. Mirrors the local
+  // dev route at app/api/generate+api.ts. See trends.ts.
+  trendId?: string;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -84,13 +97,20 @@ async function checkRateLimit(uid: string): Promise<void> {
   });
 }
 
-async function checkQuotaAndCategory(uid: string, category: string): Promise<void> {
+async function checkQuotaAndCategory(
+  uid: string,
+  category: string,
+  trend: ServerTrendingDoc | null,
+): Promise<void> {
   const userRef = admin.firestore().collection('users').doc(uid);
   const snap = await userRef.get();
   if (!snap.exists) throw new functions.https.HttpsError('not-found', 'User not found');
   const user = snap.data() as { freeGenerationsUsed?: number; subscriptionStatus?: string };
   const isPro = user.subscriptionStatus === 'pro';
-  if (isPremiumCategory(category) && !isPro) {
+  // For trends, premium-ness lives on the trend doc (admin-controlled);
+  // for static categories, it's the catalog flag. Both gate the same way.
+  const requiresPro = trend ? trend.isPremium : isPremiumCategory(category);
+  if (requiresPro && !isPro) {
     const err: any = new Error('Paywall required: premium category');
     err.status = 402;
     throw err;
@@ -207,8 +227,35 @@ export const generate = functions
 
       await checkRateLimit(uid);
 
+      // ─── Resolve remote trend (if requested) ─────────────────────────
+      //
+      // The client may send a `trendId` instead of relying on the static
+      // catalog. We fetch the trend doc via Admin SDK and use its
+      // canonical promptTemplate + sensitiveCategory + isPremium flags
+      // downstream — NEVER anything the client claims about the prompt.
+      // Missing or expired trends refuse the request. Mirrors the local
+      // dev route at app/api/generate+api.ts.
+      let resolvedTrend: ServerTrendingDoc | null = null;
+      if (body.trendId) {
+        try {
+          resolvedTrend = await fetchServerTrend(body.trendId);
+        } catch (e) {
+          if (e instanceof TrendNotFoundError) {
+            res.status(404).send('Trend not found.');
+            return;
+          }
+          if (e instanceof TrendNotLiveError) {
+            res.status(410).send('This trend is no longer available.');
+            return;
+          }
+          console.error('[fn/generate] trend lookup failed:', e);
+          res.status(503).send('Could not load this trend. Please try again.');
+          return;
+        }
+      }
+
       try {
-        await checkQuotaAndCategory(uid, body.category);
+        await checkQuotaAndCategory(uid, body.category, resolvedTrend);
       } catch (e: any) {
         if (e?.status === 402) {
           res.status(402).send(e.message);
@@ -223,14 +270,22 @@ export const generate = functions
       // this handler operates on cleaned input.
       body.selectedPeopleLabels = sanitizeLabels(body.selectedPeopleLabels);
 
+      // A request is "sensitive" either because the static category is
+      // sensitive OR (for trends) the trend doc's sensitiveCategory flag
+      // is true. Both converge here so the gate logic is unchanged.
+      const isSensitiveRequest = resolvedTrend
+        ? resolvedTrend.sensitiveCategory
+        : isMinorSensitiveCategory(body.category);
+
       // ─── Server-side minor-detection gate (CRITICAL safety check) ────
       //
       // The client sends `containsMinor` derived from its own detect step,
       // but a modified client can omit or lie. For minor-sensitive
-      // categories (race-swap, gender-swap, ethnicity-blend) we re-run
-      // detection here and refuse if any person appears under 18. The
-      // detection result is also used to populate the moderation_log entry
-      // below with the server-derived truth.
+      // categories (race-swap, gender-swap, ethnicity-blend) AND
+      // sensitive trends, we re-run detection here and refuse if any
+      // person appears under 18. The detection result is also used to
+      // populate the moderation_log entry below with the server-derived
+      // truth.
       //
       // Costs ~1-2s of extra Gemini latency on the sensitive paths only.
       // age-transform and military-forces don't trigger this (different
@@ -242,7 +297,7 @@ export const generate = functions
       // and let the user retry than to leak the check.
       let serverDetectedMinor: boolean | null = null;
       let serverDetectedPeopleCount: number | null = null;
-      if (isMinorSensitiveCategory(body.category)) {
+      if (isSensitiveRequest) {
         try {
           const detection = await runPeopleDetection(body.imageBase64);
           serverDetectedPeopleCount = detection.people.length;
@@ -261,6 +316,7 @@ export const generate = functions
                   uid,
                   categoryId: body.category,
                   subcategoryIds: body.subcategoryIds,
+                  trendId: body.trendId ?? null,
                   totalPeopleInImage: body.totalPeopleInImage ?? null,
                   selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
                   containsMinor: body.containsMinor ?? null,
@@ -304,13 +360,15 @@ export const generate = functions
             generationId,
             categoryId: body.category,
             subcategoryIds: body.subcategoryIds,
+            trendId: body.trendId ?? null,
             totalPeopleInImage: body.totalPeopleInImage ?? null,
             selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
             containsMinor: body.containsMinor ?? null,
             // Server-derived flag. Populated only when the gate ran
-            // (minor-sensitive category); null otherwise. When the gate
-            // ran AND we got here, the value is `false` — the gate
-            // already refused the request when it was `true`.
+            // (minor-sensitive category OR sensitiveCategory trend);
+            // null otherwise. When the gate ran AND we got here, the
+            // value is `false` — the gate already refused the request
+            // when it was `true`.
             serverDetectedMinor,
             serverDetectedPeopleCount,
             outcome: 'proceeding',
@@ -400,7 +458,13 @@ export const generate = functions
         // already committed real work worth reporting).
         let promptSource: 'composed' | 'composed-fallback' | 'static' | 'sequential' | null = null;
         let totalAttempts = 0;
-        const meta = getPrompt(body.category, subId);
+        // Prompt resolution: trend (when resolved) takes precedence —
+        // we use the server-validated label + promptTemplate from the
+        // trending doc rather than the static catalog. Mirrors the
+        // local-dev route at app/api/generate+api.ts.
+        const meta: { label: string; prompt: string } | null = resolvedTrend
+          ? { label: resolvedTrend.label, prompt: resolvedTrend.promptTemplate }
+          : getPrompt(body.category, subId);
         if (!meta) {
           const reason = `unknown subcategory ${body.category}/${subId}`;
           console.warn(`[fn/generate] ${reason}`);

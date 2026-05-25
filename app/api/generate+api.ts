@@ -27,6 +27,12 @@ import {
 } from '@/lib/prompts';
 import { composePrompt } from '@/lib/composePrompt';
 import { runPeopleDetection } from '@/lib/serverDetection';
+import {
+  fetchServerTrend,
+  TrendNotFoundError,
+  TrendNotLiveError,
+  type ServerTrendingDoc,
+} from '@/lib/trends-server';
 
 // Image edit/generation model. Overridable via .env so we can try newer
 // previews (e.g. gemini-3.1-flash-image-preview) without a code change.
@@ -63,6 +69,11 @@ interface GenerateBody {
   // server resolves these to prompt snippets via appendAccessoryPrompt
   // and appends to the base prompt before scoping/branching.
   modifiers?: Record<string, string[]>;
+  // Remote-trend opt-in (see lib/gemini.ts GenerateRequest docstring).
+  // When set, this server re-fetches the trend doc and uses its
+  // canonical promptTemplate. We NEVER trust a promptTemplate the
+  // client might try to inject; only the trendId is honored.
+  trendId?: string;
 }
 
 function getGenAI(): GoogleGenerativeAI {
@@ -200,13 +211,52 @@ export async function POST(request: Request): Promise<Response> {
 
   const generationId = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
+  // ─── Resolve remote trend (if requested) ──────────────────────────
+  //
+  // When the client sends a `trendId`, fetch the canonical trend doc
+  // server-side and use ITS promptTemplate + flags downstream — never
+  // anything the client might try to send. A missing or expired trend
+  // refuses the request entirely. See lib/trends-server.ts for the
+  // shape and security posture.
+  //
+  // For telemetry symmetry, we expect `subcategoryIds` to be [trendId]
+  // when trendId is set; we don't enforce that but the loop below uses
+  // the trend's prompt regardless of subId.
+  let resolvedTrend: ServerTrendingDoc | null = null;
+  if (body.trendId) {
+    try {
+      resolvedTrend = await fetchServerTrend(body.trendId);
+    } catch (e) {
+      if (e instanceof TrendNotFoundError) {
+        return new Response('Trend not found.', { status: 404 });
+      }
+      if (e instanceof TrendNotLiveError) {
+        // Use 410 Gone — semantically correct for an expired/retired
+        // resource and lets the client distinguish from a typo.
+        return new Response('This trend is no longer available.', { status: 410 });
+      }
+      console.error('[api/generate] trend lookup failed:', e);
+      return new Response('Could not load this trend. Please try again.', { status: 503 });
+    }
+  }
+
+  // The minor-detection gate considers a request "sensitive" either
+  // because the static category is sensitive OR (for trends) the trend
+  // doc's sensitiveCategory flag is true. Both paths converge here so
+  // the rest of the handler doesn't need to know whether we're on a
+  // trend or a static category.
+  const isSensitiveRequest = resolvedTrend
+    ? resolvedTrend.sensitiveCategory
+    : isMinorSensitiveCategory(body.category);
+
   // ─── Server-side minor-detection gate (CRITICAL safety check) ─────
   //
   // The client sends a `containsMinor` flag derived from its own detect
   // step, but a modified client can omit or lie about it. For minor-
-  // sensitive categories (race-swap, gender-swap, ethnicity-blend) we
-  // re-run detection server-side and refuse if any visible person
-  // appears under 18. Mirrors the gate in functions/src/generate.ts.
+  // sensitive categories (race-swap, gender-swap, ethnicity-blend) AND
+  // sensitive trends we re-run detection server-side and refuse if any
+  // visible person appears under 18. Mirrors the gate in
+  // functions/src/generate.ts.
   //
   // We deliberately don't re-detect for ALL categories — age-transform
   // is the entire-point-is-age-changes category, and military-forces
@@ -217,7 +267,7 @@ export async function POST(request: Request): Promise<Response> {
   // alongside the client-supplied hint, so an analyst can see both.
   let serverDetectedMinor: boolean | null = null;
   let serverDetectionPeopleCount: number | null = null;
-  if (isMinorSensitiveCategory(body.category)) {
+  if (isSensitiveRequest) {
     try {
       const detection = await runPeopleDetection(body.imageBase64);
       serverDetectionPeopleCount = detection.people.length;
@@ -232,6 +282,7 @@ export async function POST(request: Request): Promise<Response> {
             generationId,
             categoryId: body.category,
             subcategoryIds: body.subcategoryIds,
+            trendId: body.trendId ?? null,
             totalPeopleInImage: body.totalPeopleInImage ?? null,
             selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
             containsMinor: body.containsMinor ?? null,
@@ -279,11 +330,13 @@ export async function POST(request: Request): Promise<Response> {
       generationId,
       categoryId: body.category,
       subcategoryIds: body.subcategoryIds,
+      trendId: body.trendId ?? null,
       totalPeopleInImage: body.totalPeopleInImage ?? null,
       selectedPeopleCount: body.selectedPeopleLabels?.length ?? null,
       containsMinor: body.containsMinor ?? null,
-      // Server-derived flag (only populated for minor-sensitive
-      // categories where the gate ran). null = gate didn't run.
+      // Server-derived flag (only populated when the sensitive gate
+      // ran — minor-sensitive static category OR sensitiveCategory
+      // trend). null = gate didn't run.
       serverDetectedMinor,
       serverDetectedPeopleCount: serverDetectionPeopleCount,
       outcome: 'proceeding',
@@ -338,7 +391,14 @@ export async function POST(request: Request): Promise<Response> {
             }),
           );
         };
-        const meta = getPrompt(body.category, subId);
+        // Prompt resolution: trend (when resolved) takes precedence —
+        // we pull label + prompt from the server-validated trend doc
+        // rather than the static catalog. For the static-category
+        // path this is unchanged. Synthesizing a minimal SubcategoryMeta
+        // shape lets the rest of the loop stay agnostic.
+        const meta: { label: string; prompt: string } | null = resolvedTrend
+          ? { label: resolvedTrend.label, prompt: resolvedTrend.promptTemplate }
+          : getPrompt(body.category, subId);
         if (!meta) {
           const reason = `unknown subcategory ${body.category}/${subId}`;
           console.warn(`[api/generate] ${reason}`);

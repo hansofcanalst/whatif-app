@@ -50,5 +50,26 @@ service cloud.firestore {
     match /moderation_log/{id} {
       allow read, write: if false;
     }
+    // Remote-updatable "Trending This Week" carousel docs. Authored
+    // exclusively by the admin (scripts/add-trend.js or the Firebase
+    // console — both go through Admin SDK / console which bypasses
+    // these rules). The client reads them to populate the home-screen
+    // carousel; the generate endpoint re-fetches them server-side to
+    // resolve the canonical promptTemplate.
+    //
+    // Read is limited to active==true docs so a paginating client
+    // can't see drafts or expired/disabled trends. Date-window
+    // filtering (startDate/endDate) is enforced client-side in
+    // isTrendLive AND server-side in isServerTrendLive — Firestore
+    // rules can't model the optional-bounded-window predicate
+    // cleanly in a single rule, but the duplicate check covers any
+    // stale-cache window.
+    //
+    // No client writes — only `scripts/add-trend.js` (Admin SDK) or
+    // the Firebase console can publish, edit, or retire a trend.
+    match /trending/{trendId} {
+      allow read: if resource.data.active == true;
+      allow write: if false;
+    }
   }
 }

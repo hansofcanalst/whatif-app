@@ -38,6 +38,16 @@ export interface GenerateRequest {
   // subcategory prompt before all the scoping/branching logic. Unknown
   // ids are silently skipped server-side.
   modifiers?: Record<string, string[]>;
+  // Remote-trend opt-in. When set, the server fetches the trend doc
+  // by id from Firestore and uses its canonical promptTemplate for
+  // this generation. The client does NOT send the prompt itself —
+  // sending only `trendId` is what prevents a modified client from
+  // substituting an arbitrary prompt. The server also re-applies the
+  // active+date-window check and (for sensitiveCategory trends) the
+  // minor-detection gate. When trendId is present, `category` should
+  // be 'trending' and `subcategoryIds` should be [trendId] for
+  // telemetry symmetry. See PROJECT_OVERVIEW.md "Trending categories".
+  trendId?: string;
 }
 
 export interface GenerateResponseItem {

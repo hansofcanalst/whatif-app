@@ -5,6 +5,127 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-25 14:05 EDT — Add remote-updatable Trending categories
+
+**What & why:** Foundation for riding TikTok-style viral trends
+without an App Store release. Trends are authored to Firestore
+(`trending/{trendId}`) and rendered in a new "Trending This Week 🔥"
+horizontal carousel above the home-screen photo uploader. Clients
+fetch with stale-while-revalidate against an AsyncStorage cache so
+the carousel paints instantly on cold launch and survives offline.
+
+**Security posture (the critical part):**
+
+- `firestore.rules` — added `trending/{trendId}`: public-read-when-
+  `active == true`, all client writes denied. Only Admin SDK
+  (scripts/add-trend.mjs) or the Firebase console can publish, edit,
+  or retire a trend.
+- The wire contract carries **only `trendId`** — never a
+  `promptTemplate`. The server (both `app/api/generate+api.ts` and
+  `functions/src/generate.ts`) re-fetches the canonical doc by id
+  and uses ITS promptTemplate. A modified client substituting its
+  own prompt is structurally impossible.
+- Both server resolvers (`lib/trends-server.ts` for local-dev via
+  Firestore REST, `functions/src/trends.ts` for production via
+  firebase-admin) re-check `active == true` AND the
+  startDate/endDate window. Refuse with 410 Gone on stale/expired,
+  404 on not-found, 503 on transient failure.
+- Trends with `sensitiveCategory: true` plug into the existing
+  minor-detection gate — same `runPeopleDetection` call as race-swap
+  / gender-swap / ethnicity-blend, just gated by the trend doc's
+  flag instead of `isMinorSensitiveCategory(category)`.
+- `trend.isPremium` re-paywalls behind Pro server-side; the Cloud
+  Function quota+category check is updated to accept a
+  `ServerTrendingDoc | null` and route premium-ness through it.
+- `trendId` charset is restricted (`/^[A-Za-z0-9_-]{1,128}$/`) at
+  both resolvers so a hostile client can't path-traverse into
+  another Firestore collection.
+
+**Changes (12 files):**
+
+- New: `lib/trends.ts` — `TrendingDoc` type, `fetchTrendsFromFirestore`,
+  `loadTrendsStaleWhileRevalidate` (AsyncStorage cache), `isTrendLive`
+  filter.
+- New: `lib/trends-server.ts` — server-side resolver for the local-dev
+  route. Uses the Firestore REST API directly so it doesn't pull
+  react-native modules through `lib/firebase.ts`.
+- New: `functions/src/trends.ts` — production resolver via firebase-
+  admin. Same shape + same `isServerTrendLive` logic, kept in sync
+  with lib/trends-server.ts as a hard requirement.
+- New: `components/TrendingCarousel.tsx` — horizontal carousel,
+  FRAME-styled cards with per-trend gradient backgrounds (CSS linear-
+  gradient on web; solid fallback on native — `expo-linear-gradient`
+  is a future swap).
+- New: `functions/scripts/add-trend.mjs` — admin publish script.
+  Plain ESM (not .ts) because Node 22 runs ESM natively and a tsc /
+  tsx step adds weight without buying real safety on a 60-line tool.
+  Picks up Application Default Credentials by default; honors
+  `GOOGLE_APPLICATION_CREDENTIALS` for CI.
+- New: `functions/package.json` script — `npm run add-trend`.
+- Edit: `firestore.rules` — added the `trending/{trendId}` rule
+  (public read when active, no client writes).
+- Edit: `lib/gemini.ts` — `GenerateRequest` gets optional `trendId`.
+- Edit: `hooks/useGeneration.ts` — `start()` accepts `trendId` +
+  `trendLabel`, forwards trendId to the server and uses trendLabel
+  for the pending slot tile (since `getCategory('trending')` returns
+  undefined).
+- Edit: `app/api/generate+api.ts` — resolves the trend (404/410/503
+  on failure) BEFORE the minor-detection gate, then uses
+  `trend.sensitiveCategory` to drive the sensitive-request flag and
+  `trend.promptTemplate` as the per-variant base prompt. moderation_log
+  rows now carry `trendId`.
+- Edit: `functions/src/generate.ts` — same shape as the local-dev
+  route. `checkQuotaAndCategory` now takes a `ServerTrendingDoc | null`
+  to route premium-ness through the trend doc.
+- Edit: `app/(tabs)/home.tsx` — wires the carousel above the photo
+  uploader, runs the stale-while-revalidate trend loader on mount,
+  adds a `RefreshControl` for pull-to-refresh, mirrors the full
+  category-gate stack (photo → detection → safety verdict → minor
+  → premium → consent) for trend taps, reuses the consent modal for
+  premium trends.
+- Edit: `PROJECT_OVERVIEW.md` — new §6.1 "Trending categories
+  (remote-updatable)" + the `trending/{trendId}` schema entry in §5
+  + `trendId` added to the moderation_log shape.
+
+**Admin tooling — recommendation:** `functions/scripts/add-trend.mjs`
+over a markdown how-to. The script enforces required-field validation
+(id charset, label length, prompt length, gradient non-empty), shows
+CREATE vs UPDATE in its console output, and preserves `createdAt`
+across edits. A markdown doc would re-create the same field-by-field
+data entry through the Firebase console UI but lose the validation
+and the in-app preview that comes from rerunning a one-line command.
+
+**Verification:**
+- `npx tsc --noEmit` (app) — clean.
+- `cd functions && npx tsc --noEmit` — clean.
+- `npm test` — 19/19 prompt snapshot tests pass (no prompt-catalog
+  changes; this fix is orthogonal).
+- Read-side rules sanity-check: the home query is
+  `where('active', '==', true)` with `orderBy('sortOrder')` — covered
+  by the default single-field indexes, no composite-index deploy
+  needed.
+
+**Manual steps for you:**
+
+1. **Deploy the rules** so `trending/{trendId}` is published:
+   `firebase deploy --only firestore:rules`.
+2. **Authenticate once for the admin script**:
+   `gcloud auth application-default login`.
+   (Or set `GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json` for CI.)
+3. **Publish your first trend**: edit the `TREND` object at the top
+   of `functions/scripts/add-trend.mjs` and run
+   `cd functions && npm run add-trend`. The script ships with a
+   seeded "1970s Disco" example you can use as a smoke test.
+4. **Optional: verify the rules** via the Firebase console's Rules
+   Playground — `get` on `trending/{your-trend-id}` from an
+   unauthenticated session should `allow` when `active == true` and
+   `deny` otherwise.
+5. The Cloud Functions changes need a redeploy before the production
+   path picks up trend handling:
+   `firebase deploy --only functions:generate`.
+
+---
+
 ## 2026-05-25 12:51 EDT — Fix Release-only launch crash (EXC_BAD_ACCESS in convertNSExceptionToJSError)
 
 **What & why:** `npx expo run:ios --configuration Release` produced an app

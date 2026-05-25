@@ -805,12 +805,15 @@ generationId                 string | undefined  — only present when outcome =
                                                    is created
 categoryId                   string
 subcategoryIds               string[]
+trendId                      string | null      — set when the request resolved a Trending doc;
+                                                   null for static-category generations
 totalPeopleInImage           number | null      — client-reported headcount
 selectedPeopleCount          number | null      — # of people the user chose to transform
 containsMinor                boolean | null     — client-supplied HINT only (untrusted)
 serverDetectedMinor          boolean | null     — server's re-detection truth; only populated
-                                                   when the minor gate ran (i.e. category was
-                                                   minor-sensitive). null = gate did not run.
+                                                   when the sensitive gate ran (minor-sensitive
+                                                   static category OR sensitiveCategory trend).
+                                                   null = gate did not run.
 serverDetectedPeopleCount    number | null      — # of people the server's detect call saw,
                                                    for cross-checking against the client count
 outcome                      'refused-minor-gate' | 'proceeding'
@@ -821,6 +824,32 @@ timestamp                    Timestamp
 Local-dev (`app/api/generate+api.ts`) writes the equivalent shape
 to stdout as `[api/generate] moderation_log <JSON>` instead of
 Firestore — same field names so a tailing dev can grep them.
+
+`trending/{trendId}` — admin-authored, remote-updatable carousel
+docs. Public read for `active == true` (firestore.rules). All
+writes denied — only Admin SDK (scripts/add-trend.mjs or the
+Firebase console) can create or edit. Mirrors §6.1 for the
+publish flow + security posture.
+
+```
+id                           string             — same as the doc id; mirrored for client convenience
+label                        string             — display name (e.g. "1970s Disco")
+emoji                        string             — single-glyph icon for the card
+subtitle                     string             — short hook text shown under the label
+promptTemplate               string             — CANONICAL prompt sent to Gemini.
+                                                   Client receives it for display only and NEVER
+                                                   sends it back; server re-fetches by trendId.
+gradientColors               string[]           — hex colors for the card gradient
+isPremium                    boolean            — gates behind Pro (server re-checks subscription)
+sensitiveCategory            boolean            — true ⇒ server runs the minor-detection gate,
+                                                   same as race-swap / gender-swap / ethnicity-blend
+active                       boolean            — visibility toggle (rules-enforced read filter)
+sortOrder                    number             — ascending; admin controls carousel order
+startDate                    Timestamp | null   — optional scheduling lower bound
+endDate                      Timestamp | null   — optional scheduling upper bound (auto-expire)
+createdAt                    Timestamp
+updatedAt                    Timestamp
+```
 
 ### Cloud Storage paths
 
@@ -910,6 +939,147 @@ ConsentModal gate.
 
 Total: 33 subcategories (6 race + 3 gender + 6 age + 14 military +
 4 ethnicity-blend).
+
+---
+
+## 6.1 Trending categories (remote-updatable)
+
+A second, **dynamic** track of transformations alongside the static
+catalog. Lets us push a new trend (e.g. a viral "make this guy ___"
+format) by writing a single Firestore doc — no rebuild, no App Store
+review. Renders in a dedicated "Trending This Week 🔥" carousel above
+the photo uploader on the home screen.
+
+### Data flow
+
+```
+admin                                                   client
+  │                                                       │
+  │ scripts/add-trend.mjs / Firebase console             │
+  ▼                                                       │
+trending/{trendId}  ──────────────────────────────────►  Home mount
+  (Admin SDK write, bypasses rules)                       fetch w/ stale-while-revalidate
+                                                          (AsyncStorage cache rehydrate first,
+                                                          Firestore refresh in background)
+                                                          │
+                                                          ▼
+                                                       <TrendingCarousel>
+                                                          │ (user picks photo, taps a trend)
+                                                          ▼
+                                                       useGeneration.start({
+                                                          categoryId: 'trending',
+                                                          subcategoryIds: [trendId],
+                                                          trendId,
+                                                          ...
+                                                       })
+                                                          │ POST { ..., trendId }
+                                                          ▼
+                                                       generate endpoint (local-dev OR Cloud Fn)
+                                                          │
+                                                          ▼
+                                                       fetchServerTrend(trendId)
+                                                          │ — fetches canonical doc
+                                                          │ — refuses inactive / out-of-window
+                                                          ▼
+                                                       use trend.promptTemplate as the prompt
+                                                       (NEVER anything from the client body)
+```
+
+### Security posture (CRITICAL)
+
+The whole point of trends is that prompts are authored remotely. That
+makes them a higher-value attack surface than the static catalog. The
+mitigations:
+
+1. **Firestore rules: write-deny, read-when-active.**
+   `trending/{trendId}` allows read only when `active == true`. All
+   client writes are denied — only Admin SDK (scripts/add-trend.mjs)
+   or the Firebase console can create / edit / retire a trend.
+
+2. **Client never sends a prompt.** The request body carries `trendId`
+   only (see `GenerateRequest` in `lib/gemini.ts`). The server fetches
+   the canonical `trending/{trendId}` doc and uses ITS `promptTemplate`.
+   A modified client substituting its own prompt is structurally
+   impossible — the field doesn't exist in the contract.
+
+3. **Server-side active + date-window re-check.** Both the local-dev
+   route (`fetchServerTrend` in `lib/trends-server.ts`) and the Cloud
+   Function (`fetchServerTrend` in `functions/src/trends.ts`) refuse
+   trends with `active == false` or where `now < startDate` /
+   `now > endDate`. Returns 410 Gone to the client. A client with a
+   stale cache of a since-retired trend can't generate against it.
+
+4. **Sensitive-category gate carries through.** When a trend has
+   `sensitiveCategory: true`, the server re-runs people detection and
+   refuses if any visible person appears under 18 — same path as the
+   existing race-swap / gender-swap / ethnicity-blend gate, just
+   driven by the trend doc instead of `isMinorSensitiveCategory`.
+   Mirrored at both endpoints.
+
+5. **Premium gate carries through.** `trend.isPremium === true` paywalls
+   the trend behind Pro. The Cloud Function re-checks the user's
+   `subscriptionStatus` server-side; the home screen also gates client-
+   side for UX but is not trusted.
+
+6. **trendId charset is restricted.** Both server resolvers validate
+   `trendId` against `/^[A-Za-z0-9_-]{1,128}$/` so a hostile client
+   can't path-traverse into a different collection or smuggle metadata
+   into the URL.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `lib/trends.ts` | Client types, Firestore fetch, AsyncStorage cache, `isTrendLive` filter |
+| `lib/trends-server.ts` | Server-side resolver for the LOCAL-DEV route (uses Firestore REST API) |
+| `functions/src/trends.ts` | Server-side resolver for the Cloud Function (uses firebase-admin) |
+| `components/TrendingCarousel.tsx` | Horizontal carousel + FRAME-styled trend cards |
+| `app/(tabs)/home.tsx` | Mount-time fetch, pull-to-refresh, trend-tap gates |
+| `app/api/generate+api.ts` | Resolves trend, applies sensitive gate, uses canonical prompt |
+| `functions/src/generate.ts` | Same as above for production |
+| `functions/scripts/add-trend.mjs` | Admin script for publishing a trend |
+| `firestore.rules` | `trending/{trendId}` public-read-when-active, no client writes |
+
+### Publishing a trend (the admin flow)
+
+1. Open `functions/scripts/add-trend.mjs` and edit the `TREND` object
+   at the top.
+2. Authenticate once: `gcloud auth application-default login` (or set
+   `GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON).
+3. Run `cd functions && npm run add-trend`.
+4. The script does a `set(..., { merge: false })`, so re-running with
+   the same `id` REPLACES the live trend — that's how you edit. The
+   `createdAt` field is preserved across edits; `updatedAt` is always
+   refreshed.
+5. Clients pick up the change on their next home-screen mount or pull-
+   to-refresh — usually within minutes.
+
+The script is `.mjs` rather than `.ts` deliberately: Node 22 runs ESM
+natively and the script is short, so a TypeScript build step / a
+`tsx` dev dep would add weight without buying meaningful safety on a
+60-line admin tool. If we ever grow it into a CLI with subcommands,
+move it into `functions/src/scripts/` so the existing tsc pipeline
+compiles it.
+
+### Manual Firebase console steps
+
+The collection and rules deploy automatically when you push
+`firestore.rules`, but the very first publish needs a couple of
+one-time prep steps:
+
+1. **Deploy the rules.** From the repo root:
+   `firebase deploy --only firestore:rules`.
+2. **(Optional) Pre-create the `trending` collection** by running the
+   admin script once with the seeded example. The first `set()` call
+   creates the collection implicitly, so this is just convenience.
+3. **Verify the public-read rule** by opening any of your published
+   trend docs from an unauthenticated session in the Rules Playground:
+   `read /databases/(default)/documents/trending/{your-id}` should
+   return `allow` for `active == true` and `deny` otherwise.
+
+No composite-index migration is needed — the home-screen query uses
+`where('active', '==', true)` and `orderBy('sortOrder', 'asc')`, which
+the single-field default index already covers.
 
 ---
 

@@ -1,11 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, Pressable, Alert, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  Pressable,
+  Alert,
+  Platform,
+  RefreshControl,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { PhotoUploader } from '@/components/PhotoUploader';
 import { CategoryGrid } from '@/components/CategoryGrid';
 import { GenerationCounter } from '@/components/GenerationCounter';
 import { HomeOnboardingCard } from '@/components/HomeOnboardingCard';
 import { PeopleSelector } from '@/components/PeopleSelector';
+import { TrendingCarousel } from '@/components/TrendingCarousel';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { ConsentModal } from '@/components/ConsentModal';
 import { ScanLine } from '@/components/ui/PulseIndicators';
@@ -16,6 +27,14 @@ import { Category } from '@/constants/categories';
 import { PickedImage } from '@/hooks/useImagePicker';
 import { requestDetection } from '@/lib/detect';
 import { hashBase64, getCachedDetection, cacheDetection } from '@/lib/detectionCache';
+import {
+  loadTrendsStaleWhileRevalidate,
+  fetchTrendsFromFirestore,
+  persistCachedTrends,
+  isTrendLive,
+  type TrendingDoc,
+} from '@/lib/trends';
+import { useGeneration } from '@/hooks/useGeneration';
 import { colors, fontFamily, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
@@ -38,6 +57,18 @@ export default function Home() {
   const { isActive: isPro } = useSubscriptionStore();
   const [paywall, setPaywall] = useState(false);
 
+  // Trending state. We seed from AsyncStorage so the carousel renders
+  // instantly on cold launch (offline-safe), then refresh in the
+  // background. Pull-to-refresh re-runs the same fetch. Date-window
+  // filtering is applied client-side via isTrendLive — Firestore can't
+  // model the compound (active && startDate <= now && endDate >= now)
+  // predicate in a single index without overconstraining the query,
+  // and the trend set is tiny so client filtering is cheap.
+  const [trends, setTrends] = useState<TrendingDoc[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const visibleTrends = useMemo(() => trends.filter((t) => isTrendLive(t)), [trends]);
+  const { start: startGeneration } = useGeneration();
+
   // Consent gate for premium (likeness-remix) categories. Tracked in a
   // useRef rather than state because the acknowledgment shouldn't cause a
   // re-render when flipped, and it's deliberately component-local (not
@@ -46,6 +77,10 @@ export default function Home() {
   const hasConsentedRef = useRef(false);
   const [consentVisible, setConsentVisible] = useState(false);
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+  // Set when a premium TREND requires the consent modal — we route the
+  // confirm handler to startTrendGeneration with this trend, distinct
+  // from pendingCategoryId which routes to the subcategory picker.
+  const [pendingTrend, setPendingTrend] = useState<TrendingDoc | null>(null);
 
   // Tracks whether the user has explicitly acknowledged a "flagged"
   // safety verdict for the currently-loaded photo. We don't want to
@@ -187,6 +222,153 @@ export default function Home() {
     setPhoto(img?.uri ?? null, img?.base64 ?? null);
   };
 
+  // Stale-while-revalidate trends loader. Runs once on mount: cached
+  // entries paint synchronously, then a network fetch (if it succeeds)
+  // overwrites them and updates AsyncStorage for the next launch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { cached, refresh } = await loadTrendsStaleWhileRevalidate();
+        if (!cancelled && cached.length > 0) setTrends(cached);
+        const fresh = await refresh;
+        if (!cancelled) setTrends(fresh);
+      } catch (e) {
+        console.warn('[home] trends load failed', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Pull-to-refresh: re-fetch trends and persist. We do NOT clear
+  // the existing list while refreshing — the spinner overlay is
+  // enough feedback. On failure, the user keeps the cards they were
+  // already looking at.
+  const onRefreshTrends = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const fresh = await fetchTrendsFromFirestore();
+      setTrends(fresh);
+      await persistCachedTrends(fresh);
+    } catch (e) {
+      console.warn('[home] trend refresh failed', e);
+      show("Couldn't refresh trends. Try again in a sec.", 'error');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [show]);
+
+  // Trend-tap handler. Mirrors handleSelect for static categories
+  // (photo, detection, safety, minor, premium, consent gates) but
+  // dispatches directly into the generation pipeline once the gates
+  // clear — there's no subcategory picker for trends because each
+  // trend is a single one-shot prompt.
+  const startTrendGeneration = useCallback(
+    (trend: TrendingDoc) => {
+      if (!image) return;
+      startGeneration({
+        imageBase64: image.base64,
+        categoryId: 'trending',
+        subcategoryIds: [trend.id],
+        trendId: trend.id,
+        trendLabel: trend.label,
+        onPaywall: () => setPaywall(true),
+        onReady: () => router.push('/generate/results'),
+      });
+    },
+    [image, router, startGeneration],
+  );
+
+  const handleTrendSelect = useCallback(
+    (trend: TrendingDoc) => {
+      if (!image) {
+        show('Upload a photo first.', 'error');
+        return;
+      }
+      if (detectionStatus === 'detecting') {
+        show('Still detecting people — hang on a sec.', 'info');
+        return;
+      }
+      if (safetyVerdict?.decision === 'blocked') {
+        show(`Can't transform this photo: ${safetyVerdict.reason}`, 'error');
+        return;
+      }
+      if (
+        safetyVerdict?.decision === 'flagged' &&
+        !safetyAcknowledgedRef.current
+      ) {
+        const proceed = () => {
+          safetyAcknowledgedRef.current = true;
+          handleTrendSelect(trend);
+        };
+        const title = 'Heads up';
+        const message = `${safetyVerdict.reason}\n\nDo you want to continue?`;
+        if (Platform.OS === 'web') {
+          if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
+            proceed();
+          }
+          return;
+        }
+        Alert.alert(title, message, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: proceed },
+        ]);
+        return;
+      }
+      if (detectedPeople.length > 1 && selectedPersonIds.length === 0) {
+        show('Pick at least one person to transform.', 'error');
+        return;
+      }
+
+      // Premium + sensitive trends apply the same gates as premium
+      // categories. Sensitive (minor-gated) trends additionally
+      // hard-block when a minor is detected — server re-verifies,
+      // so the client gate is for UX only.
+      if (trend.sensitiveCategory && containsMinor) {
+        show("This trend isn't available on photos that include a minor.", 'error');
+        return;
+      }
+      if (trend.isPremium) {
+        if (containsMinor) {
+          show(
+            "This trend isn't available when the photo includes a minor.",
+            'error',
+          );
+          return;
+        }
+        if (!isPro) {
+          setPaywall(true);
+          return;
+        }
+        if (!hasConsentedRef.current) {
+          // Trends can be premium-and-likeness-sensitive too; reuse
+          // the consent modal so the contract with the user is the
+          // same as for ethnicity-blend. We stash the trend by id in
+          // pendingCategoryId so the existing confirm handler can
+          // route correctly.
+          setPendingTrend(trend);
+          setConsentVisible(true);
+          return;
+        }
+      }
+
+      startTrendGeneration(trend);
+    },
+    [
+      image,
+      detectionStatus,
+      safetyVerdict,
+      detectedPeople.length,
+      selectedPersonIds.length,
+      containsMinor,
+      isPro,
+      show,
+      startTrendGeneration,
+    ],
+  );
+
   const navigateToCategory = useCallback(
     (categoryId: string) => {
       // NOTE: do NOT call setPhoto here. The photo already went into the store
@@ -294,13 +476,20 @@ export default function Home() {
     hasConsentedRef.current = true;
     setConsentVisible(false);
     const id = pendingCategoryId;
+    const trend = pendingTrend;
     setPendingCategoryId(null);
-    if (id) navigateToCategory(id);
+    setPendingTrend(null);
+    if (trend) {
+      startTrendGeneration(trend);
+    } else if (id) {
+      navigateToCategory(id);
+    }
   };
 
   const handleConsentClose = () => {
     setConsentVisible(false);
     setPendingCategoryId(null);
+    setPendingTrend(null);
   };
 
   // Gate on `image` too, not just detection state. With `image` now derived
@@ -319,7 +508,17 @@ export default function Home() {
         <Text style={styles.logo}>What<Text style={styles.logoAccent}>If</Text></Text>
         <GenerationCounter />
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefreshTrends}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
+      >
         {/* FRAME hero — three-word tagline where the verb lives in the
             accent. Short copy, tight leading, reads as a tool tagline. */}
         <View style={styles.hero}>
@@ -336,6 +535,16 @@ export default function Home() {
             returns null. Lives between the hero and the photo uploader
             so it points at the very next thing the user should do. */}
         <HomeOnboardingCard />
+
+        {/* Trending This Week carousel — remote-updatable from Firestore,
+            rendered above the photo uploader so users see the hook
+            first. Empty list (no trends published or all out-of-window)
+            renders nothing; the rest of the home screen is unchanged. */}
+        <TrendingCarousel
+          trends={visibleTrends}
+          isPro={isPro}
+          onSelect={handleTrendSelect}
+        />
 
         <PhotoUploader image={image} onPicked={handlePicked} />
 
