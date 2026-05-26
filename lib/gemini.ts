@@ -59,6 +59,24 @@ export class QuotaExceededError extends Error {
   }
 }
 
+// Typed wrapper for any non-OK HTTP response that arrives BEFORE the
+// NDJSON stream opens (auth, validation, the minor-gate's 403, the
+// detection-failure 503, etc.). Carries the status code so callers can
+// branch on retryability — a 403 from the minor gate is a terminal
+// policy refusal and must NOT invite retry, while a 503 from a
+// transient detection failure is legitimately retryable. See
+// hooks/useGeneration.ts where this is consumed.
+export class GenerationHttpError extends Error {
+  readonly status: number;
+  readonly body: string;
+  constructor(status: number, body: string) {
+    super(`Generation failed (${status})${body ? `: ${body}` : ''}`);
+    this.name = 'GenerationHttpError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 // NDJSON event shape emitted by the streaming /api/generate endpoint and
 // the Cloud Function mirror. Events arrive one per line; each event
 // corresponds to either a lifecycle boundary (`start`, `done`, `fatal`)
@@ -137,7 +155,7 @@ export async function streamGeneration(
   if (res.status === 402) throw new QuotaExceededError();
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Generation failed (${res.status}): ${body}`);
+    throw new GenerationHttpError(res.status, body);
   }
 
   // Expo Router's dev server + Node both give us a ReadableStream body.

@@ -90,10 +90,22 @@ export default function ResultsScreen() {
   // actually complete, the bar jumps forward to truth; in between, it
   // creeps based on elapsed time. Capped at 95% so we never claim done
   // before the stream actually closes.
+  //
+  // Also splits failed slots by `kind`:
+  //   - terminal: server policy refusal (HTTP 403 minor gate). Retry
+  //     must not be offered for these slots and a retry-all must never
+  //     re-fire them.
+  //   - transient: model 5xx / network / detection-gate 503 / per-variant
+  //     failures. Retry is legitimate.
+  // A slot with status==='failed' and no kind defaults to transient
+  // (back-compat — only the minor-gate path sets terminal).
   const progress = useMemo(() => {
     const total = generationSlots.length;
     const complete = generationSlots.filter((s) => s.status === 'complete').length;
-    const failed = generationSlots.filter((s) => s.status === 'failed').length;
+    const failedSlots = generationSlots.filter((s) => s.status === 'failed');
+    const failed = failedSlots.length;
+    const terminalFailed = failedSlots.filter((s) => s.kind === 'terminal').length;
+    const transientFailed = failed - terminalFailed;
     // Both complete and failed tiles count toward "bar filled" — we don't
     // want the bar to stall on a failed variant since the remaining work
     // has moved on. The text below preserves the complete/failed split.
@@ -111,7 +123,7 @@ export default function ResultsScreen() {
     // the stream being complete — full 100% only happens when the block
     // unmounts on `done`.
     const pct = Math.min(0.95, Math.max(realPct, timePct));
-    return { total, complete, failed, settled, pct };
+    return { total, complete, failed, terminalFailed, transientFailed, settled, pct };
     // tick is intentionally a dep — it forces a recompute every 250ms so
     // the time-based estimate advances. generationSlots covers real
     // event arrivals.
@@ -228,11 +240,39 @@ export default function ResultsScreen() {
             On a partial failure (some succeeded, some failed) we don't
             show this — the user can tap the successful tiles and the
             failed ones explain themselves with the red "!". This banner
-            is for the "nothing came back, what do I do" case. */}
+            is for the "nothing came back, what do I do" case.
+
+            Two flavors:
+              - All terminal (every failure is a server policy refusal
+                from the minor gate, HTTP 403): show a final, neutral
+                message and do NOT offer Try Again — retry on the same
+                photo would just hit the gate again, and inviting it
+                would mis-frame a deliberate refusal as a transient
+                glitch. The copy intentionally avoids stating or
+                implying any reason a person was flagged.
+              - Any transient failure present (all-transient OR mixed
+                terminal+transient): show the retry-friendly panel. The
+                user can manually deselect terminal variants on the
+                picker before re-running so retry never re-fires them. */}
         {!generationInFlight &&
         usingSlots &&
         progress.total > 0 &&
-        progress.failed === progress.total ? (
+        progress.failed === progress.total &&
+        progress.transientFailed === 0 ? (
+          <View style={styles.failureBlock}>
+            <Text style={styles.failureTitle}>
+              This transformation isn&apos;t available for this photo.
+            </Text>
+            <Text style={styles.failureBody}>
+              Try a different photo or pick another transformation.
+            </Text>
+          </View>
+        ) : null}
+        {!generationInFlight &&
+        usingSlots &&
+        progress.total > 0 &&
+        progress.failed === progress.total &&
+        progress.transientFailed > 0 ? (
           <View style={styles.failureBlock}>
             <Text style={styles.failureTitle}>All transformations failed</Text>
             <Text style={styles.failureBody}>

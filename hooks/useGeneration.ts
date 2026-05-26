@@ -5,6 +5,7 @@ import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import {
   streamGeneration,
   QuotaExceededError,
+  GenerationHttpError,
   type GenerationEvent,
   type GenerateResponseItem,
 } from '@/lib/gemini';
@@ -190,15 +191,39 @@ export function useGeneration() {
           onPaywall();
           return null;
         }
-        const msg = e instanceof Error ? e.message : 'Generation failed.';
-        setError(msg);
+        // Distinguish a policy refusal (HTTP 403 from the server-side
+        // minor gate) from transient failures (5xx, network, fatal
+        // events). A 403 is a deliberate, permanent refusal for this
+        // photo + category combination — the results screen must mark
+        // those slots as terminal so it does NOT offer Try Again, and
+        // the user-facing message must not state or imply a minor was
+        // detected. Everything else (5xx including the detection-gate
+        // 503, network errors, fatal stream events) is transient and
+        // keeps the existing retry affordance.
+        const isTerminalRefusal =
+          e instanceof GenerationHttpError && e.status === 403;
+        const slotMessage = isTerminalRefusal
+          ? "This transformation isn't available for this photo."
+          : e instanceof Error
+            ? e.message
+            : 'Generation failed.';
+        const slotKind: 'transient' | 'terminal' = isTerminalRefusal
+          ? 'terminal'
+          : 'transient';
+        // Top-level error state is read by the picker screen's toast
+        // when start() returns before navigation happens. On a 403 we
+        // always navigate to /results (via onReady below) so the toast
+        // path won't run, but if the request was rejected synchronously
+        // before initSlots ever fired, the picker still wants a safe
+        // string to show. Use the same neutral copy.
+        setError(slotMessage);
         // Any pending slots become failures so the user sees what went
         // wrong rather than an infinite spinner. We also invoke onReady
         // in case the error came before any events — the results screen
         // is a better place to show the error than the prior screen.
         const { generationSlots } = useGenerationStore.getState();
         for (const slot of generationSlots) {
-          if (slot.status === 'pending') failSlot(slot.index, msg);
+          if (slot.status === 'pending') failSlot(slot.index, slotMessage, slotKind);
         }
         if (!notifiedReady) {
           notifiedReady = true;

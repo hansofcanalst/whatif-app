@@ -29,6 +29,16 @@ export interface GenerationSlot {
   status: 'pending' | 'complete' | 'failed';
   result?: GenerationResult;
   error?: string;
+  // Failure kind, set when status === 'failed'. Drives whether the
+  // results screen offers retry:
+  //   - 'transient' → safe to retry (model 5xx, network blip, detection
+  //     fail-closed 503, per-variant model errors). Existing UX.
+  //   - 'terminal'  → policy refusal (server 403 from the minor gate).
+  //     The Try Again button is hidden for this result; retry must
+  //     never re-fire a terminal slot.
+  // Optional for back-compat with code paths that don't set it; the
+  // results screen treats an unset kind on a failed slot as transient.
+  kind?: 'transient' | 'terminal';
 }
 
 interface GenerationState {
@@ -99,7 +109,10 @@ interface GenerationState {
   // a new run or navigates away.
   initSlots: (slots: GenerationSlot[]) => void;
   resolveSlot: (index: number, result: GenerationResult) => void;
-  failSlot: (index: number, error: string) => void;
+  // `kind` defaults to 'transient' to preserve existing call sites
+  // (per-variant stream errors, fatal events) — only the minor-gate
+  // 403 path passes 'terminal' to mark the failure non-retryable.
+  failSlot: (index: number, error: string, kind?: 'transient' | 'terminal') => void;
   finishStream: () => void;
   clearSlots: () => void;
 
@@ -206,11 +219,13 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       ),
     });
   },
-  failSlot: (index, error) => {
+  failSlot: (index, error, kind = 'transient') => {
     const { generationSlots } = get();
     set({
       generationSlots: generationSlots.map((s) =>
-        s.index === index ? { ...s, status: 'failed' as const, error } : s,
+        s.index === index
+          ? { ...s, status: 'failed' as const, error, kind }
+          : s,
       ),
     });
   },

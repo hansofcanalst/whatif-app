@@ -5,6 +5,51 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-26 — Distinguish 403 minor-gate refusal from transient failures on the results screen
+
+**Symptom:** A 403 from the server-side minor gate flowed through
+`streamGeneration` as a generic `Error("Generation failed (403): …")`,
+the hook flipped every pending slot to `failed` with that message, and
+the results screen unconditionally rendered the "All transformations
+failed / This usually clears in a minute / Try Again" panel — mis-framing
+a deliberate, permanent policy refusal as a transient glitch and
+inviting a retry that would just hit the gate again.
+
+**Root cause:** `lib/gemini.ts streamGeneration` collapsed every non-OK
+HTTP status (other than 402) into a stringified `Error`. The status code
+never made it to the UI layer, so the results screen couldn't tell a
+403 (terminal refusal) from a 503 (detection fail-closed, legitimately
+retryable) from any other 5xx.
+
+**Fix:**
+- `lib/gemini.ts` — new `GenerationHttpError` carrying `status` + `body`;
+  thrown in place of the stringified Error.
+- `stores/generationStore.ts` — added optional `kind: 'transient' |
+  'terminal'` to `GenerationSlot`; `failSlot()` takes an optional kind
+  (defaults to 'transient' for back-compat).
+- `hooks/useGeneration.ts` — on `GenerationHttpError` with status 403,
+  tag pending slots as `kind: 'terminal'` with the neutral copy "This
+  transformation isn't available for this photo." Everything else (5xx
+  including the 503 detection-gate path, network, fatal) stays
+  `transient` with existing copy.
+- `app/generate/results.tsx` — bottom panel now has two flavors. When
+  every failure is terminal: show "This transformation isn't available
+  for this photo." and hide Try Again. When any transient failure
+  exists (all-transient or mixed-all-failed): keep the existing
+  retry-friendly panel.
+
+**Mixed-batch posture:** Today the 403 is request-level (gates the
+whole batch), so mixed terminal+transient can't happen in practice. The
+framework now supports it: a single terminal slot won't suppress retry
+for a transient sibling, and because Try Again navigates back to the
+picker (no auto-fire), retry never re-runs the 403'd item without an
+explicit user re-selection.
+
+**Verification:** `npx tsc --noEmit` (root + functions) clean.
+`npm test` 19/19, 7 snapshots intact.
+
+---
+
 ## 2026-05-25 — Make `resolveApiBase()` work when `hostUri` is empty (`expo run:ios` debug builds)
 
 **Symptom:** After fixing the relative-URL issue, detection threw
