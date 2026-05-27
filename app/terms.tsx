@@ -10,7 +10,7 @@ import { colors, spacing, typography } from '@/constants/theme';
 // they're enforceable rather than vague. Replace contact email + any
 // jurisdiction notes before submitting to App Store / Play Store.
 
-const LAST_UPDATED = 'April 2026';
+const LAST_UPDATED = 'May 27, 2026';
 
 export default function TermsScreen() {
   const router = useRouter();
@@ -164,7 +164,7 @@ export default function TermsScreen() {
 
         <Section title="Contact">
           <P>
-            Questions: <B>[email protected]</B>.
+            Questions: <B>[YOUR_EMAIL]</B>.
           </P>
         </Section>
       </ScrollView>

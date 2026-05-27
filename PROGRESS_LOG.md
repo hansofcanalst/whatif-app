@@ -5,6 +5,42 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-27 — Wire in-app Profile rows to the hosted policy URLs; sync in-app copies
+
+**Context:** Followed up on the HTML drafts (entry below) by pointing
+the Profile screen's Privacy/Terms rows at the hosted GitHub Pages URLs
+so policy updates no longer require an app release, and brought the
+in-app fallback screens into sync with the canonical HTML.
+
+**Changes:**
+- `app/(tabs)/profile.tsx` — added `Linking` to the `react-native`
+  import; added two top-level constants
+  (`PRIVACY_URL = https://hansofcanalst.github.io/whatif-legal/privacy.html`,
+  `TERMS_URL = .../terms.html`) with a short comment explaining why
+  Profile opens the hosted version while the in-app screens stay as
+  offline fallbacks; replaced the two `router.push('/privacy'|'/terms'
+  as never)` handlers with `Linking.openURL(URL).catch(console.warn-
+  style)`; removed the now-stale typed-routes cast comment that sat
+  above the privacy/terms rows (the cast at the dev prompt-eval long-
+  press handler below is self-evident on its own).
+- `app/privacy.tsx`, `app/terms.tsx` — updated `LAST_UPDATED` from
+  `'April 2026'` to `'May 27, 2026'` to match the HTML versions, and
+  replaced the `[email protected]` contact stub with `[YOUR_EMAIL]`
+  so the in-app and hosted copies share the same placeholder convention
+  (user fills both in once they pick a contact address).
+
+**Rationale for keeping the in-app screens:** Only the Profile rows
+linked to them, so they're effectively orphaned UI now. But they're
+cheap to keep, remain reachable via deep link / `router.push`, and
+serve as an offline-accessible fallback for the rare user who hits
+Profile without connectivity. Deleting them would be a real-but-small
+loss of robustness with no maintenance upside.
+
+**Verification:** `npx tsc --noEmit` clean. No tests touch these
+files (snapshot tests cover only prompt catalogs).
+
+---
+
 ## 2026-05-27 — Draft real Privacy Policy and Terms of Service as standalone HTML for GitHub Pages hosting
 
 **Context:** App Store submission requires real, publicly hosted Privacy

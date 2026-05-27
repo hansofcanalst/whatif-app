@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Pressable, Alert, Platform, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { ChevronRight, Sparkles } from 'lucide-react-native';
@@ -15,6 +15,12 @@ import { exportAccountData, type ExportProgress } from '@/lib/exportData';
 import { captureError } from '@/lib/sentry';
 import { config } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+
+// Profile rows open the hosted GitHub Pages versions so legal updates
+// don't require an app release. The in-app /privacy and /terms screens
+// remain as offline fallbacks reachable via deep link.
+const PRIVACY_URL = 'https://hansofcanalst.github.io/whatif-legal/privacy.html';
+const TERMS_URL = 'https://hansofcanalst.github.io/whatif-legal/terms.html';
 
 export default function Profile() {
   const router = useRouter();
@@ -238,19 +244,22 @@ export default function Profile() {
             Settings
           </Text>
           <View style={styles.settingsCard}>
-            {/* Casts avoid a stale typed-routes diagnostic — Expo Router's
-                generated `.expo/types/router.d.ts` only learns about new
-                routes after the dev server runs once. The cast unblocks
-                typecheck pre-restart; once Metro regenerates, the cast
-                is a no-op. Standard Expo Router workaround. */}
             <SettingRow
               label="Privacy Policy"
-              onPress={() => router.push('/privacy' as never)}
+              onPress={() =>
+                Linking.openURL(PRIVACY_URL).catch((e) =>
+                  console.warn('[profile] open privacy URL failed', e)
+                )
+              }
             />
             <View style={styles.divider} />
             <SettingRow
               label="Terms of Service"
-              onPress={() => router.push('/terms' as never)}
+              onPress={() =>
+                Linking.openURL(TERMS_URL).catch((e) =>
+                  console.warn('[profile] open terms URL failed', e)
+                )
+              }
             />
             <View style={styles.divider} />
             <SettingRow

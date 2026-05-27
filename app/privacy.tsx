@@ -11,7 +11,7 @@ import { colors, spacing, typography } from '@/constants/theme';
 // this in place now means the Profile screen's stub row navigates
 // somewhere truthful instead of nowhere.
 
-const LAST_UPDATED = 'April 2026';
+const LAST_UPDATED = 'May 27, 2026';
 
 export default function PrivacyScreen() {
   const router = useRouter();
@@ -139,7 +139,7 @@ export default function PrivacyScreen() {
 
         <Section title="Contact">
           <P>
-            Questions or requests: <B>[email protected]</B>.
+            Questions or requests: <B>[YOUR_EMAIL]</B>.
           </P>
         </Section>
       </ScrollView>
