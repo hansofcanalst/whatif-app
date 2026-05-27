@@ -5,6 +5,55 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-27 — Draft real Privacy Policy and Terms of Service as standalone HTML for GitHub Pages hosting
+
+**Context:** App Store submission requires real, publicly hosted Privacy
+Policy and Terms URLs. The in-app `app/privacy.tsx` and `app/terms.tsx`
+screens were first-pass drafts using a placeholder `[email protected]`
+contact and were never intended to satisfy a reviewer or stand as the
+canonical legal documents.
+
+**Added:**
+- `legal/privacy.html` — standalone, self-contained HTML privacy policy
+  covering: what we collect (uploaded photos, account info, generation
+  history, subscription state, telemetry, crash reports, device
+  metadata); how we use it; the sub-processor list (Google Gemini,
+  Firebase, Sentry, Apple, RevenueCat-when-active); US data residency
+  with EEA/UK transfer note; retention; user rights (GDPR + CCPA
+  language); the 17+ rating and server-side minor-detection safety
+  layer; security; change-notification posture; contact.
+- `legal/terms.html` — standalone HTML ToS covering: acceptance,
+  17+ eligibility, account, service description, user content +
+  narrow operating license (no model-training use), AI-output
+  disclaimer and disclosure obligation, detailed acceptable-use list
+  (including the no-minors / no-impersonation / no-bypass-the-gate
+  clauses), subscriptions/auto-renewal/refunds, IP, third-party
+  services, copyright complaints procedure, all-caps warranty and
+  liability disclaimers, indemnification, termination, Apple App Store
+  EULA addendum (eight required clauses), governing-law placeholder,
+  changes, miscellaneous, contact.
+
+**Placeholders left intentionally:** `[YOUR_EMAIL]`,
+`[YOUR_LEGAL_NAME_OR_ENTITY]`, `[YOUR_COUNTRY/STATE]`,
+`[YOUR_COUNTY/CITY, STATE/COUNTRY]`, `[YOUR_MAILING_ADDRESS_OR_OMIT]`.
+User explicitly asked not to invent a contact email.
+
+**Caveat surfaced to the user:** Reasonable starting templates only,
+not legal advice. Given the app handles user photos and runs minor
+detection, attorney review is recommended before relying on them.
+
+**Hosting:** Files are standalone (self-contained CSS, no build step)
+and ready to copy into a dedicated `whatif-legal` GitHub Pages repo
+under hansofcanalst, producing URLs like
+`https://hansofcanalst.github.io/whatif-legal/privacy.html` and
+`/terms.html` for App Store Connect. Step-by-step instructions given
+in the chat reply.
+
+**No code touched** — purely additive in the `legal/` directory. No
+typecheck or test impact.
+
+---
+
 ## 2026-05-26 — Distinguish 403 minor-gate refusal from transient failures on the results screen
 
 **Symptom:** A 403 from the server-side minor gate flowed through

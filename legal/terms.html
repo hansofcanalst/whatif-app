@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms of Service &mdash; WhatIf</title>
+  <meta name="description" content="Terms of Service for the WhatIf iOS application.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="">
+  <style>
+    :root {
+      --text: #1a1d23;
+      --text-muted: #5b6573;
+      --accent: #4f46e5;
+      --border: #e5e7eb;
+      --bg: #ffffff;
+      --bg-alt: #f8fafc;
+      --warn-bg: #fffbeb;
+      --warn-border: #fde68a;
+      --warn-text: #92400e;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 24px 96px;
+    }
+    header.page-header {
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 0 0 8px;
+    }
+    h1 {
+      font-size: 32px;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      letter-spacing: -0.01em;
+    }
+    .meta {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin: 0;
+    }
+    .meta span + span::before { content: "·"; margin: 0 8px; }
+    nav.toc {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 40px;
+    }
+    nav.toc h2 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    nav.toc ol { margin: 0; padding-left: 22px; }
+    @media (min-width: 640px) {
+      nav.toc ol { columns: 2; column-gap: 32px; }
+    }
+    nav.toc li { padding: 2px 0; break-inside: avoid; }
+    nav.toc a { color: var(--text); text-decoration: none; }
+    nav.toc a:hover { color: var(--accent); text-decoration: underline; }
+    h2.section {
+      font-size: 22px;
+      margin: 48px 0 16px;
+      padding-top: 12px;
+      letter-spacing: -0.005em;
+      scroll-margin-top: 24px;
+    }
+    h2.section:first-of-type { margin-top: 16px; }
+    h3 {
+      font-size: 17px;
+      margin: 28px 0 10px;
+      letter-spacing: -0.005em;
+    }
+    p { margin: 0 0 14px; }
+    ul, ol.body { padding-left: 22px; margin: 0 0 14px; }
+    li { margin: 4px 0; }
+    a { color: var(--accent); }
+    strong { font-weight: 600; color: var(--text); }
+    .callout {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 24px 0;
+      font-size: 15px;
+    }
+    .callout strong { color: var(--warn-text); }
+    .allcaps {
+      text-transform: uppercase;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+    .placeholder {
+      background: #fef3c7;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.92em;
+    }
+    footer.page-footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 14px;
+      text-align: center;
+    }
+    @media print {
+      .container { padding: 0; max-width: none; }
+      nav.toc { display: none; }
+      h2.section { page-break-after: avoid; }
+      a { color: var(--text); text-decoration: none; }
+      .callout { border: 1px solid #ccc; background: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <p class="eyebrow">WhatIf</p>
+      <h1>Terms of Service</h1>
+      <p class="meta">
+        <span>Effective: May 27, 2026</span>
+        <span>Last updated: May 27, 2026</span>
+      </p>
+    </header>
+
+    <p>
+      These Terms of Service ("<strong>Terms</strong>") govern your
+      access to and use of the WhatIf mobile application and any related
+      services (collectively, the "<strong>Service</strong>"), provided
+      by <span class="placeholder">[YOUR_LEGAL_NAME_OR_ENTITY]</span>
+      ("<strong>WhatIf</strong>", "we", "us", or "our"). Please read
+      these Terms carefully &mdash; they include important provisions
+      about acceptable use, AI-generated content, subscriptions, and
+      limitations of liability.
+    </p>
+
+    <div class="callout">
+      <strong>Please note.</strong> WhatIf produces AI-generated images.
+      Outputs are synthetic depictions, not real photographs. You are
+      responsible for how you use the photos you upload and the images
+      you generate, including obtaining any necessary consents and
+      complying with applicable laws.
+    </div>
+
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#acceptance">Acceptance of these Terms</a></li>
+        <li><a href="#eligibility">Eligibility</a></li>
+        <li><a href="#account">Your account</a></li>
+        <li><a href="#service">Description of the Service</a></li>
+        <li><a href="#content">Your content and licenses</a></li>
+        <li><a href="#ai-output">AI-generated content</a></li>
+        <li><a href="#acceptable-use">Acceptable use</a></li>
+        <li><a href="#subscriptions">Subscriptions and payments</a></li>
+        <li><a href="#ip">Intellectual property</a></li>
+        <li><a href="#third-parties">Third-party services</a></li>
+        <li><a href="#copyright">Copyright complaints</a></li>
+        <li><a href="#disclaimer">Disclaimer of warranties</a></li>
+        <li><a href="#liability">Limitation of liability</a></li>
+        <li><a href="#indemnification">Indemnification</a></li>
+        <li><a href="#termination">Termination</a></li>
+        <li><a href="#apple">Additional terms for Apple App Store</a></li>
+        <li><a href="#law">Governing law and disputes</a></li>
+        <li><a href="#changes">Changes to these Terms</a></li>
+        <li><a href="#misc">Miscellaneous</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="acceptance" class="section">1. Acceptance of these Terms</h2>
+    <p>
+      By downloading, installing, accessing, or using the Service, you
+      agree to be bound by these Terms and by our
+      <a href="privacy.html">Privacy Policy</a>, which is incorporated
+      here by reference. If you do not agree, you must not use the
+      Service. If you are using the Service on behalf of an organization,
+      you represent that you have authority to bind that organization to
+      these Terms.
+    </p>
+
+    <h2 id="eligibility" class="section">2. Eligibility</h2>
+    <p>
+      You must be at least <strong>17 years old</strong> to use the
+      Service, consistent with the App's 17+ App Store rating. If you
+      are between 17 and the age of majority in your jurisdiction, you
+      represent that a parent or legal guardian has reviewed and agreed
+      to these Terms on your behalf.
+    </p>
+    <p>
+      The Service is not directed at children under 13, and we do not
+      knowingly permit children under 13 to register or use the Service.
+      The Service additionally enforces a server-side safety check
+      (described in <a href="privacy.html#children">our Privacy Policy</a>)
+      that refuses certain identity-sensitive transformations when any
+      person visible in the uploaded photo is detected as appearing to
+      be under 18.
+    </p>
+
+    <h2 id="account" class="section">3. Your account</h2>
+    <p>
+      Some features of the Service require an account. You agree to
+      provide accurate, current, and complete information when
+      registering, and to keep that information up to date. You are
+      responsible for safeguarding your sign-in credentials and for all
+      activity that occurs under your account. Notify us immediately at
+      the address in <a href="#contact">Section 20</a> if you suspect
+      unauthorized use of your account.
+    </p>
+    <p>
+      You may delete your account at any time from <em>Profile &rarr;
+      Delete Account</em> inside the App. Account deletion is
+      irreversible and removes your stored photos, generated results,
+      gallery records, and account profile from our systems, subject to
+      the retention limits described in our Privacy Policy.
+    </p>
+
+    <h2 id="service" class="section">4. Description of the Service</h2>
+    <p>
+      WhatIf lets you upload photos and generate AI-transformed versions
+      of them across categories such as race, age, gender presentation,
+      military and uniformed-services attire, and mixed-heritage blends.
+      Outputs are produced by Google's Gemini image model and are
+      AI-generated depictions &mdash; not real photographs &mdash; of the
+      input subject. The available categories, transformations, and
+      features may change over time at our discretion.
+    </p>
+
+    <h2 id="content" class="section">5. Your content and licenses</h2>
+
+    <h3>5.1 Your ownership</h3>
+    <p>
+      You retain whatever rights you already have in the photos you
+      upload to the Service ("<strong>User Content</strong>") and in any
+      images the Service generates from your User Content ("<strong>Generated
+      Output</strong>"). We do not claim ownership of your User Content
+      or your Generated Output.
+    </p>
+
+    <h3>5.2 License you grant to us</h3>
+    <p>
+      To operate the Service, you grant us a worldwide, non-exclusive,
+      royalty-free, sublicensable license to host, store, transmit,
+      process, display, and otherwise use your User Content and Generated
+      Output <strong>solely for the purpose of providing, maintaining,
+      securing, and improving the Service for you</strong> (including
+      sending User Content to our Gemini API processor to perform the
+      requested transformation, storing the results in our backend so
+      they appear in your gallery, and displaying them back to you).
+      This license ends when you delete the relevant content or your
+      account, subject to a brief operational delay and any legally
+      required retention.
+    </p>
+    <p>
+      We do <strong>not</strong> use your User Content or your Generated
+      Output to train AI models, and we do not authorize our
+      sub-processors to use it to train their own models other than as
+      strictly necessary to deliver the requested transformation under
+      their terms.
+    </p>
+
+    <h3>5.3 Your representations about uploaded content</h3>
+    <p>By uploading User Content, you represent and warrant that:</p>
+    <ul>
+      <li>You own or have all rights, licenses, consents, and
+        permissions necessary to upload it and to have it processed by
+        the Service;</li>
+      <li>Every identifiable person in the photo has given you
+        permission to upload their image and to have it transformed by
+        an AI service (or, if you are the only person in the photo, you
+        are giving that permission yourself);</li>
+      <li>The User Content does not violate any third party's rights
+        (including intellectual property, privacy, publicity, or moral
+        rights) and does not violate any applicable law.</li>
+    </ul>
+
+    <h2 id="ai-output" class="section">6. AI-generated content</h2>
+    <p>
+      <strong>Outputs are synthetic.</strong> Every image the Service
+      produces is generated by an AI model based on your input. It is
+      not a photograph of the depicted person doing or being the
+      depicted thing. Outputs may contain inaccuracies, distortions,
+      stereotyping, or other artifacts. We make no representation that
+      any output is accurate, complete, lifelike, suitable for any
+      particular purpose, or free of bias.
+    </p>
+    <p>
+      <strong>Disclosure when you share.</strong> If you publish or
+      share Generated Output anywhere outside the App &mdash; including
+      social media, messaging platforms, websites, or print &mdash; you
+      are responsible for clearly disclosing that the image is
+      AI-generated, where required by the platform you're posting to or
+      by applicable law. Many platforms now require this disclosure;
+      check their policies before posting.
+    </p>
+    <p>
+      <strong>No identity, deception, or unlawful use.</strong> You may
+      not use Generated Output to impersonate any real person; to
+      deceive others into believing the output is a real photograph; to
+      harass, defame, or harm any person; to claim a likeness you do
+      not have rights to use; or for any purpose that violates law.
+    </p>
+
+    <h2 id="acceptable-use" class="section">7. Acceptable use</h2>
+    <p>You agree NOT to use the Service to:</p>
+    <ul>
+      <li>upload a photo of another person without that person's
+        consent;</li>
+      <li>upload a photo of, or attempt to generate content depicting,
+        anyone under 18 in a sexualized, romantic, violent, or
+        identity-altering manner &mdash; the App enforces a server-side
+        block for the most sensitive categories when a minor is
+        detected, and attempting to bypass that block violates these
+        Terms;</li>
+      <li>generate sexual content, pornography, content depicting
+        minors in any sexual or romantic context, content depicting
+        graphic violence, or content that promotes self-harm, hate,
+        harassment, or unlawful acts;</li>
+      <li>generate content intended to defraud, defame, intimidate, or
+        impersonate any real person or organization (including
+        politicians, celebrities, public figures, or private
+        individuals);</li>
+      <li>produce content infringing any third party's intellectual
+        property, privacy, publicity, or moral rights;</li>
+      <li>reverse-engineer, scrape, copy, decompile, or otherwise
+        attempt to derive the source code, prompts, or model weights of
+        the Service;</li>
+      <li>interfere with, disrupt, overload, or circumvent the security
+        or rate limits of the Service;</li>
+      <li>use the Service to build, train, or evaluate any competing
+        AI model or product;</li>
+      <li>resell, sublicense, or commercially redistribute the Service
+        or any output as a stand-alone product;</li>
+      <li>use the Service in any way that violates applicable law or
+        the rules of any jurisdiction in which you access it.</li>
+    </ul>
+    <p>
+      We may, at our sole discretion, refuse, suspend, or remove any
+      generation, account, or content that we believe violates these
+      Terms or risks harm to users, third parties, or the Service.
+    </p>
+
+    <h2 id="subscriptions" class="section">8. Subscriptions and payments</h2>
+    <p>
+      Certain features of the Service (collectively, "<strong>WhatIf
+      Pro</strong>") are available only through a paid subscription.
+      Subscription pricing, features, and durations are described in the
+      App and may change over time, with notice where required.
+    </p>
+    <p>
+      <strong>Billing.</strong> Subscriptions purchased through the
+      Apple App Store are processed by Apple and governed by Apple's
+      Terms of Service and your payment method on file with Apple. By
+      starting a subscription, you authorize Apple (and, where
+      applicable, our payments partner) to charge the applicable fees
+      to your payment method on a recurring basis until you cancel.
+    </p>
+    <p>
+      <strong>Auto-renewal.</strong> Subscriptions automatically renew
+      at the end of each billing period at the then-current rate unless
+      you cancel at least 24 hours before the end of the current
+      period. You can manage and cancel your subscription in your
+      device's account settings (Settings &rarr; [Your Name] &rarr;
+      Subscriptions on iOS).
+    </p>
+    <p>
+      <strong>Refunds.</strong> Refunds for purchases made through the
+      App Store must be requested directly from Apple under Apple's
+      refund policy. We do not have the ability to issue refunds for
+      App Store purchases. Outside of legally required refund rights,
+      all fees are non-refundable.
+    </p>
+    <p>
+      <strong>Free generations.</strong> Users without an active Pro
+      subscription receive a limited number of free generations as
+      described in the App. The number, scope, and availability of free
+      generations may change at our discretion.
+    </p>
+
+    <h2 id="ip" class="section">9. Intellectual property</h2>
+    <p>
+      The Service, including its software, designs, text, graphics,
+      logos, prompts, models, and the WhatIf name and brand, is owned by
+      us or our licensors and is protected by intellectual property and
+      other laws. Subject to your compliance with these Terms, we grant
+      you a limited, personal, non-exclusive, non-transferable,
+      revocable license to download and use the App on a device you own
+      or control, solely for your personal, non-commercial use of the
+      Service.
+    </p>
+    <p>
+      Except for the rights expressly granted in these Terms, no other
+      rights are granted to you, whether by implication, estoppel, or
+      otherwise.
+    </p>
+
+    <h2 id="third-parties" class="section">10. Third-party services</h2>
+    <p>
+      The Service uses third-party providers, including Google's Gemini
+      API, Google Firebase, Sentry, Apple services, and (when active)
+      RevenueCat. Your use of those providers' services through the App
+      is also subject to their own terms and privacy policies. We are
+      not responsible for the acts, omissions, or content of any
+      third-party service.
+    </p>
+
+    <h2 id="copyright" class="section">11. Copyright complaints</h2>
+    <p>
+      We respect the intellectual property rights of others. If you
+      believe that content available through the Service infringes your
+      copyright, please send a written notice to the contact in
+      <a href="#contact">Section 20</a> including: (a) an electronic or
+      physical signature of the rights-holder or authorized agent; (b)
+      identification of the copyrighted work claimed to be infringed;
+      (c) identification of the allegedly infringing material and
+      information sufficient to locate it; (d) your contact information;
+      (e) a statement that you have a good-faith belief that the use is
+      not authorized; and (f) a statement, under penalty of perjury,
+      that the information is accurate and that you are authorized to
+      act on behalf of the rights-holder. We may remove or disable
+      access to allegedly infringing content and terminate the accounts
+      of repeat infringers.
+    </p>
+
+    <h2 id="disclaimer" class="section">12. Disclaimer of warranties</h2>
+    <p class="allcaps">
+      The Service is provided "as is" and "as available", without
+      warranties of any kind, whether express, implied, statutory, or
+      otherwise. To the maximum extent permitted by law, we disclaim
+      all warranties, including the implied warranties of
+      merchantability, fitness for a particular purpose,
+      non-infringement, and any warranties arising out of course of
+      dealing or usage of trade.
+    </p>
+    <p>
+      Without limiting the foregoing, we do not warrant that the
+      Service will be uninterrupted, secure, error-free, or free of
+      harmful components, or that any AI-generated content will meet
+      your expectations, be free of bias, or be suitable for any
+      particular purpose. Your use of the Service is at your own risk.
+    </p>
+
+    <h2 id="liability" class="section">13. Limitation of liability</h2>
+    <p class="allcaps">
+      To the maximum extent permitted by law, in no event shall WhatIf,
+      its affiliates, officers, directors, employees, agents, or
+      licensors be liable for any indirect, incidental, special,
+      consequential, exemplary, or punitive damages, or for any loss of
+      profits, revenue, data, goodwill, or business opportunity, arising
+      out of or relating to your use of (or inability to use) the
+      Service, whether based on warranty, contract, tort (including
+      negligence), statute, or any other legal theory, even if we have
+      been advised of the possibility of such damages.
+    </p>
+    <p class="allcaps">
+      In no event will our aggregate liability for any claim arising
+      out of or relating to the Service exceed the greater of (a) the
+      amounts you paid us for the Service in the twelve months
+      preceding the event giving rise to the claim, or (b) US&nbsp;$100.
+    </p>
+    <p>
+      Some jurisdictions do not allow the exclusion or limitation of
+      certain damages, so some of the above may not apply to you. In
+      those jurisdictions our liability is limited to the smallest
+      extent permitted by law.
+    </p>
+
+    <h2 id="indemnification" class="section">14. Indemnification</h2>
+    <p>
+      You agree to defend, indemnify, and hold harmless WhatIf and its
+      affiliates, officers, directors, employees, and agents from and
+      against any claims, liabilities, damages, losses, and expenses
+      (including reasonable legal fees) arising out of or in any way
+      connected with: (a) your access to or use of the Service; (b)
+      your User Content or Generated Output; (c) your violation of
+      these Terms; or (d) your violation of any law or the rights of
+      any third party.
+    </p>
+
+    <h2 id="termination" class="section">15. Termination</h2>
+    <p>
+      You may stop using the Service and delete your account at any
+      time from inside the App. We may suspend or terminate your access
+      to the Service, with or without notice, if we believe you have
+      violated these Terms (in particular, the
+      <a href="#acceptable-use">Acceptable Use</a> section), if your
+      continued use creates risk for us or other users, or if required
+      by law. We aim to act proportionately, but reserve the right to
+      take immediate action where warranted. Sections that by their
+      nature should survive termination (including Sections 5.1, 9,
+      12&ndash;14, 16&ndash;19) will survive.
+    </p>
+
+    <h2 id="apple" class="section">16. Additional terms for Apple App Store</h2>
+    <p>
+      If you obtained the App from the Apple App Store, the following
+      additional terms apply. You acknowledge and agree that:
+    </p>
+    <ol class="body">
+      <li>These Terms are concluded between you and WhatIf only, and
+        not with Apple. Apple is not responsible for the App or its
+        content.</li>
+      <li>The license granted to you for the App is a limited,
+        non-transferable license to use the App on any Apple-branded
+        product that you own or control, as permitted by the Usage
+        Rules in the Apple Media Services Terms and Conditions.</li>
+      <li>Apple has no obligation to provide any maintenance or support
+        for the App.</li>
+      <li>To the maximum extent permitted by applicable law, Apple
+        has no warranty obligation with respect to the App. Any other
+        claims, losses, liabilities, damages, costs, or expenses
+        attributable to a failure to conform to any warranty are our
+        responsibility (or that of the warranty provider).</li>
+      <li>Apple is not responsible for addressing claims you or any
+        third party may have relating to the App or your use of the
+        App, including: (i) product-liability claims; (ii) any claim
+        that the App fails to conform to any applicable legal or
+        regulatory requirement; and (iii) claims arising under
+        consumer-protection, privacy, or similar legislation.</li>
+      <li>In the event of any third-party claim that the App or your
+        possession or use of the App infringes that third party's
+        intellectual property rights, WhatIf, and not Apple, will be
+        solely responsible for the investigation, defense, settlement,
+        and discharge of any such claim.</li>
+      <li>You represent and warrant that you are not located in a
+        country that is subject to a U.S. Government embargo, or that
+        has been designated by the U.S. Government as a "terrorist
+        supporting" country, and that you are not listed on any U.S.
+        Government list of prohibited or restricted parties.</li>
+      <li>Apple and Apple's subsidiaries are third-party beneficiaries
+        of these Terms, and upon your acceptance of these Terms, Apple
+        will have the right (and will be deemed to have accepted the
+        right) to enforce these Terms against you as a third-party
+        beneficiary.</li>
+    </ol>
+
+    <h2 id="law" class="section">17. Governing law and disputes</h2>
+    <p>
+      These Terms and any dispute arising out of or relating to them or
+      the Service will be governed by the laws of
+      <span class="placeholder">[YOUR_STATE/COUNTRY]</span>, without
+      regard to its conflict-of-laws principles. You agree to submit to
+      the exclusive jurisdiction of the courts located in
+      <span class="placeholder">[YOUR_COUNTY/CITY, STATE/COUNTRY]</span>
+      for the resolution of any such dispute, except where prohibited
+      by law.
+    </p>
+    <p>
+      If you are a consumer based in the European Economic Area or the
+      United Kingdom, this Section does not affect mandatory consumer
+      protections under the law of your country of residence, and you
+      may bring proceedings in the courts of your country of residence.
+    </p>
+
+    <h2 id="changes" class="section">18. Changes to these Terms</h2>
+    <p>
+      We may update these Terms from time to time. When we do, we will
+      revise the "Last updated" date at the top of this page. For
+      material changes, we will provide additional notice (for example,
+      an in-app banner or a notification) before the changes take
+      effect. Your continued use of the Service after an update means
+      you accept the revised Terms. If you do not agree, you must stop
+      using the Service.
+    </p>
+
+    <h2 id="misc" class="section">19. Miscellaneous</h2>
+    <p>
+      <strong>Entire agreement.</strong> These Terms, together with our
+      <a href="privacy.html">Privacy Policy</a> and any additional terms
+      we expressly reference, constitute the entire agreement between
+      you and us regarding the Service.
+    </p>
+    <p>
+      <strong>Severability.</strong> If any provision of these Terms is
+      held to be invalid or unenforceable, that provision will be
+      enforced to the maximum extent permitted, and the remaining
+      provisions will continue in full force and effect.
+    </p>
+    <p>
+      <strong>No waiver.</strong> Our failure to enforce any right or
+      provision of these Terms will not be deemed a waiver of that
+      right or provision.
+    </p>
+    <p>
+      <strong>Assignment.</strong> You may not assign or transfer these
+      Terms or any rights under them without our prior written consent.
+      We may assign these Terms freely, including in connection with a
+      merger, acquisition, sale of assets, or operation of law.
+    </p>
+    <p>
+      <strong>Notices.</strong> We may provide notices to you through
+      the App or by email at the address associated with your account.
+      You may send notices to us at the address in
+      <a href="#contact">Section 20</a>.
+    </p>
+
+    <h2 id="contact" class="section">20. Contact</h2>
+    <p>
+      If you have any questions about these Terms, please contact us at:
+    </p>
+    <p>
+      <strong>Email:</strong> <span class="placeholder">[YOUR_EMAIL]</span><br>
+      <strong>Postal address:</strong>
+      <span class="placeholder">[YOUR_MAILING_ADDRESS_OR_OMIT]</span>
+    </p>
+
+    <footer class="page-footer">
+      <p>
+        &copy; <span id="year">2026</span>
+        <span class="placeholder">[YOUR_LEGAL_NAME_OR_ENTITY]</span>. All
+        rights reserved. &mdash;
+        <a href="privacy.html">Privacy Policy</a>
+      </p>
+    </footer>
+  </main>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
