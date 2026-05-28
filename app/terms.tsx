@@ -164,7 +164,7 @@ export default function TermsScreen() {
 
         <Section title="Contact">
           <P>
-            Questions: <B>[YOUR_EMAIL]</B>.
+            Questions: <B>contact@olytoma.com</B>.
           </P>
         </Section>
       </ScrollView>

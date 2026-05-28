@@ -139,7 +139,7 @@ export default function PrivacyScreen() {
 
         <Section title="Contact">
           <P>
-            Questions or requests: <B>[YOUR_EMAIL]</B>.
+            Questions or requests: <B>contact@olytoma.com</B>.
           </P>
         </Section>
       </ScrollView>

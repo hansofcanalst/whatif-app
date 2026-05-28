@@ -5,6 +5,46 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-28 — Fill legal-document placeholders across all four policy files
+
+**Substitutions applied:**
+- `[YOUR_EMAIL]` → `contact@olytoma.com` (1 spot each in
+  `legal/privacy.html`, `legal/terms.html`, `app/privacy.tsx`,
+  `app/terms.tsx`).
+- `[YOUR_LEGAL_NAME_OR_ENTITY]` → `Olytoma LLC` (preamble + footer in
+  both HTML files; tsx files don't reference an entity).
+- `[YOUR_COUNTRY/STATE]` and `[YOUR_STATE/COUNTRY]` (the inconsistent
+  drafting variant in terms.html) → `Connecticut, USA`.
+- Venue clause: replaced the wider phrase `the courts located in
+  [PLACEHOLDER]` → `the state and federal courts located in
+  Connecticut, USA` (user confirmed the adjusted phrasing to avoid a
+  duplicated "courts located in").
+- `[YOUR_MAILING_ADDRESS_OR_OMIT]`: deleted the entire postal-address
+  line plus the now-orphaned `<br>` and "Postal address:" label in
+  both HTML contact blocks. User explicitly chose not to publish a
+  mailing address.
+
+**HTML cleanup:** removed the `<span class="placeholder">…</span>`
+wrappers everywhere a real value replaced a placeholder, so the
+filled-in values no longer render with the yellow highlight that
+signaled "still a placeholder".
+
+**Stopped before guessing:** caught one slug (`[YOUR_STATE/COUNTRY]` in
+the terms.html governing-law clause) that didn't literally match the
+user's list — it was my original drafting inconsistency vs the
+`[YOUR_COUNTRY/STATE]` in privacy.html. Asked the user to confirm
+rather than assume, then applied `Connecticut, USA`. Also confirmed the
+venue grammar fix before applying.
+
+**Verification:**
+- `grep -n "\[YOUR" ...4-files` → no matches (exit 1).
+- `grep -c "contact@olytoma.com" ...4-files` → 1 per file (4 total).
+- `Olytoma LLC` → 2 per HTML (preamble + footer), 0 in tsx (expected).
+- `Connecticut` → 1 in privacy.html, 2 in terms.html, 0 in tsx.
+- `npx tsc --noEmit` → exit 0, clean.
+
+---
+
 ## 2026-05-27 — Wire in-app Profile rows to the hosted policy URLs; sync in-app copies
 
 **Context:** Followed up on the HTML drafts (entry below) by pointing
