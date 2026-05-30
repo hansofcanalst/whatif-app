@@ -162,11 +162,27 @@ Server-only (no EXPO_PUBLIC_ prefix):
    `git grep '\[email protected\]'`.
 7. Install Firebase "Resize Images" extension for server-side thumbnails
 8. Upgrade `firebase-functions` ^5 → ^6 (has breaking changes — defer)
-9. Configure RevenueCat (offerings, API keys, webhook secret) — paywall
-   is currently non-functional without it
-10. Deploy Cloud Functions (`firebase deploy --only functions`) and set
-    `EXPO_PUBLIC_CLOUD_FUNCTIONS_URL` to point the client at them.
-    Functions code is ready; never been deployed.
+9. **v1.1 — re-enable RevenueCat / Pro paywall.** v1 ships with
+   monetization deliberately disabled via the `V1_MONETIZATION_ENABLED`
+   flag in `constants/config.ts` (ethnicity-blend temporarily free,
+   PaywallModal not reachable, ProBadge hidden). To re-enable in v1.1:
+   (a) create RC offering + iOS/Android API keys; (b) `eas env:create`
+   the two `EXPO_PUBLIC_REVENUECAT_API_KEY_{IOS,ANDROID}` vars for
+   the `production` environment; (c) flip `V1_MONETIZATION_ENABLED` to
+   true; (d) restore `'ethnicity-blend'` to `PREMIUM_CATEGORIES` in
+   BOTH `lib/prompts.ts` and `functions/src/prompts.ts`; (e) flip
+   `isPremium: true` back on ethnicity-blend in `constants/categories.ts`;
+   (f) `npm run test:update`. See PROGRESS_LOG 2026-05-30 for details.
+
+## Recently completed (kept here as a brief audit trail; prune as it grows)
+
+- 2026-05-29 — Cloud Functions deployed to production
+  (`us-central1-whatif-98256.cloudfunctions.net`). `signBlob` permission
+  gap fixed by granting the App Engine default service account the
+  Service Account Token Creator role. Minor-gate verified working in
+  prod on race-swap + gender-swap.
+- 2026-05-30 — `eas.json` created, app.json bundle id fixed to
+  `com.olytoma.whatif`, monetization disabled for v1 launch.
 
 ## Notes / gotchas
 

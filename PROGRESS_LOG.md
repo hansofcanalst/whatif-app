@@ -103,18 +103,24 @@ Ran via `npm run test:update`. All 19 tests pass, 7 snapshots
 - `cd functions && npx tsc --noEmit` — clean.
 - `npm test` — 19/19 pass, 1 snapshot updated.
 
+**Cloud Functions production status (correction to my Phase 1 report):**
+Functions were deployed to production on 2026-05-29 — earlier than I
+had recorded in CLAUDE.md's active-todos list. The `signBlob`
+permission gap (Cloud Function signing the V4 URLs that serve
+generation results from Storage) was fixed by granting the App Engine
+default service account the Service Account Token Creator role.
+Minor-gate verified working in prod on race-swap + gender-swap
+(synthetic minors refused, clear adults pass). CLAUDE.md item #10
+removed; recent-completions note added.
+
 **Still TODO before first build (handed off to user):**
 1. `eas login` (interactive — Claude can't authenticate on user's
    behalf). After login, Claude will run `eas env:create` for the
    eight production env vars enumerated in `eas.json._doc`.
-2. Deploy Cloud Functions: `cd functions && firebase deploy --only
-   functions`. They've never been deployed. Without this, the
-   production build's `EXPO_PUBLIC_CLOUD_FUNCTIONS_URL` would point at
-   a URL that 404s on `/generate` and `/detect`.
-3. Phase 3 (separate doc): exact build + submit command sequence
+2. Phase 3 (separate doc): exact build + submit command sequence
    including per-prompt guidance for Apple ID / 2FA / cert /
    provisioning-profile choices.
-4. Phase 4: physical-device smoke-test checklist before App Store
+3. Phase 4: physical-device smoke-test checklist before App Store
    submit tap.
 
 **Skipped for v1 (deferred to v1.1):**
