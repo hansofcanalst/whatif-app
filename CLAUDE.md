@@ -173,6 +173,17 @@ Server-only (no EXPO_PUBLIC_ prefix):
    BOTH `lib/prompts.ts` and `functions/src/prompts.ts`; (e) flip
    `isPremium: true` back on ethnicity-blend in `constants/categories.ts`;
    (f) `npm run test:update`. See PROGRESS_LOG 2026-05-30 for details.
+10. **v1.1 — re-enable Sentry source-map upload.** v1 ships with the
+    `@sentry/react-native` build-phase upload disabled via
+    `SENTRY_DISABLE_AUTO_UPLOAD=true` (plaintext production EAS env
+    var) because the upload script hard-fails without auth env vars.
+    Crashes are still captured at runtime; only stack traces are
+    unsymbolicated (Hermes byte offsets). To re-enable: create three
+    EAS production env vars — `SENTRY_ORG` + `SENTRY_PROJECT`
+    (plaintext) + `SENTRY_AUTH_TOKEN` (secret visibility) — then
+    `eas env:delete --environment production --name
+    SENTRY_DISABLE_AUTO_UPLOAD`. See `EAS_ENV_VARS.md` and
+    PROGRESS_LOG 2026-05-30 for the exact commands.
 
 ## Recently completed (kept here as a brief audit trail; prune as it grows)
 

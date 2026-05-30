@@ -21,8 +21,10 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "What If needs access to your photos so you can transform them.",
-        "NSCameraUsageDescription": "What If needs access to your camera to take a photo for transformation."
-      }
+        "NSCameraUsageDescription": "What If needs access to your camera to take a photo for transformation.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.olytoma.whatif",
@@ -32,7 +34,8 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {

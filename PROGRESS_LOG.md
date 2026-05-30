@@ -5,6 +5,67 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-30 — Disable Sentry source-map auto-upload (first EAS build failed at fastlane)
+
+**Context:** First production EAS build (`eas build --platform ios
+--profile production`) failed at the "Run fastlane" Xcode step. The
+`@sentry/react-native` plugin injects a build-phase script that calls
+`sentry-cli sourcemaps upload`; with no `SENTRY_ORG` /
+`SENTRY_AUTH_TOKEN` set in the build env, that script errors out and
+fails the whole archive. My Phase 1 audit flagged this as a "silent
+no-op, not blocking" — that was incorrect. The runtime SDK no-ops
+when DSN is missing; the BUILD-TIME upload step does not.
+
+**Fix:** Created a new production EAS environment variable
+`SENTRY_DISABLE_AUTO_UPLOAD=true` (plaintext visibility — it's a
+boolean toggle, not a secret). The Sentry build-phase script checks
+this var and skips the entire upload sequence (source maps + native
+debug symbols) cleanly when set. Created via:
+
+```sh
+eas env:create --environment production --name SENTRY_DISABLE_AUTO_UPLOAD \
+  --value true --visibility plaintext --scope project --non-interactive
+```
+
+**Impact:** Crash reports from the v1 production build will be
+unsymbolicated (Hermes byte offsets instead of function names in
+stack traces). Crash tracking itself still works — runtime
+`Sentry.init()` runs and captures exceptions; only the
+release-association + source-map lookup is missing. Adequate for v1.
+
+**v1.1 re-enable** (to get readable stack traces):
+1. Sign in to sentry.io, create the project (or use an existing one
+   for olytoma).
+2. Note the org slug and project slug.
+3. Account → Auth Tokens → Create new token, scope
+   `project:releases` (sufficient for source-map upload).
+4. Create three EAS env vars:
+   ```sh
+   eas env:create --environment production --name SENTRY_ORG \
+     --value <slug> --visibility plaintext --scope project --non-interactive
+   eas env:create --environment production --name SENTRY_PROJECT \
+     --value <slug> --visibility plaintext --scope project --non-interactive
+   eas env:create --environment production --name SENTRY_AUTH_TOKEN \
+     --value <token> --visibility secret --scope project --non-interactive
+   ```
+   Token gets `secret` visibility — write-only, never readable after
+   creation; the org and project slugs are plaintext (they appear in
+   sentry.io URLs anyway).
+5. Delete the disable flag:
+   ```sh
+   eas env:delete --environment production --name SENTRY_DISABLE_AUTO_UPLOAD
+   ```
+6. Confirm next build's fastlane log shows
+   `[sentry] Uploading source maps...` and the resulting
+   sentry.io release has artifacts attached.
+
+**Files touched:** `EAS_ENV_VARS.md` (added the new var to the
+required-for-production list, plus the three v1.1 vars under a new
+section); `CLAUDE.md` (added a new active-todo #10 for Sentry source-
+map re-enable). No source-code changes.
+
+---
+
 ## 2026-05-30 — EAS production-build prep (Phase 2 of first App Store submission)
 
 **Context:** Phase 1 audit (read-only) surfaced several release-only
