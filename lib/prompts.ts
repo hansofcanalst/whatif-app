@@ -296,11 +296,15 @@ export const PROMPTS: CategoryPromptMap = {
   },
 };
 
-// Pre-launch: only ethnicity-blend remains premium. political-mashup and
-// celebrity-mashup were removed entirely (see the comment in PROMPTS above).
-// Keep this as a Set so adding a new premium category later is a one-line
-// change.
-const PREMIUM_CATEGORIES = new Set(['ethnicity-blend']);
+// V1 stub: empty for the App Store v1 launch — monetization is OFF, so
+// no category is gated as Pro-only. ethnicity-blend was the sole entry
+// here pre-stub; it stays in MINOR_SENSITIVE_CATEGORIES below because
+// the minor-gate is independent of the paywall and must still refuse
+// blends on photos containing minors. See V1_MONETIZATION_ENABLED in
+// constants/config.ts for the v1.1 re-enable recipe (one of the listed
+// steps is restoring `'ethnicity-blend'` to this Set on BOTH this file
+// and functions/src/prompts.ts — they must stay in sync per CLAUDE.md).
+const PREMIUM_CATEGORIES = new Set<string>([]);
 
 export function getPrompt(category: string, subcategory: string): SubcategoryMeta | null {
   return PROMPTS[category]?.[subcategory] ?? null;

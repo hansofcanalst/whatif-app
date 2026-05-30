@@ -46,6 +46,32 @@ export const config = {
   imageQuality: 0.8,
 };
 
+// V1 launch flag — monetization is OFF for the App Store v1 build.
+//
+// Why: RevenueCat keys (EXPO_PUBLIC_REVENUECAT_API_KEY_IOS /
+// EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID) are not yet configured, and
+// Apple rejects builds that show a paywall users can't actually
+// complete. v1 ships with paywall UI hidden, ethnicity-blend free,
+// and no Pro badge anywhere. The RevenueCat SDK, useSubscription
+// hook, subscriptionStore, and PaywallModal all remain in the codebase
+// and compile cleanly — they just sit dormant.
+//
+// To re-enable monetization in v1.1:
+//   1. Create the RC offering in the RevenueCat dashboard (pro
+//      entitlement, weekly/monthly/yearly products).
+//   2. Add the two API keys to EAS Secrets:
+//        eas env:create --environment production --name EXPO_PUBLIC_REVENUECAT_API_KEY_IOS --value <key> --visibility secret
+//        eas env:create --environment production --name EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID --value <key> --visibility secret
+//   3. Flip V1_MONETIZATION_ENABLED below to true.
+//   4. Re-add 'ethnicity-blend' to PREMIUM_CATEGORIES in
+//      lib/prompts.ts AND functions/src/prompts.ts.
+//   5. Flip `isPremium: true` back on ethnicity-blend in
+//      constants/categories.ts.
+//   6. Update the snapshot test: `npm run test:update`.
+//
+// See PROGRESS_LOG.md 2026-05-30 for the full v1 stub rationale.
+export const V1_MONETIZATION_ENABLED = false;
+
 export function assertFirebaseConfigured(): void {
   const missing = Object.entries(config.firebase)
     .filter(([, v]) => !v)

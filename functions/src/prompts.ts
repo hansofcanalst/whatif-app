@@ -250,9 +250,14 @@ export const PROMPTS: CategoryPromptMap = {
   },
 };
 
-// Mirror of lib/prompts.ts — only ethnicity-blend remains premium after
-// the pre-launch safety pass.
-const PREMIUM_CATEGORIES = new Set(['ethnicity-blend']);
+// V1 stub: empty for the App Store v1 launch — monetization is OFF in
+// the client (see V1_MONETIZATION_ENABLED in constants/config.ts), so
+// the server must NOT 402 on any category either. Otherwise
+// checkQuotaAndCategory() in functions/src/generate.ts would block
+// ethnicity-blend even though the client treats it as free. Must stay
+// in sync with lib/prompts.ts per CLAUDE.md. v1.1 re-enable: restore
+// `'ethnicity-blend'` here AND in lib/prompts.ts.
+const PREMIUM_CATEGORIES = new Set<string>([]);
 
 export function getPrompt(category: string, subcategory: string): SubcategoryMeta | null {
   return PROMPTS[category]?.[subcategory] ?? null;

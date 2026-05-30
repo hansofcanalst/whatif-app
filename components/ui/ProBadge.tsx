@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, type ViewStyle } from 'react-native';
 import { Sparkles } from 'lucide-react-native';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+import { V1_MONETIZATION_ENABLED } from '@/constants/config';
 
 type ProBadgeSize = 'sm' | 'md' | 'lg';
 
@@ -36,6 +37,13 @@ interface ProBadgeProps {
 // alignSelf:'flex-start'. All three pass their own `style` prop with
 // the positional rule; the visual chrome stays consistent.
 export function ProBadge({ size = 'md', style }: ProBadgeProps) {
+  // V1 stub: render nothing while monetization is disabled. All four
+  // call sites (CategoryCard lock corner, GenerationCounter top-bar,
+  // Profile plan card, PaywallModal hero) keep their existing layouts
+  // and conditional render logic; the badge itself just becomes
+  // invisible until V1_MONETIZATION_ENABLED flips back to true.
+  // See V1_MONETIZATION_ENABLED in constants/config.ts.
+  if (!V1_MONETIZATION_ENABLED) return null;
   const variant = SIZE_VARIANTS[size];
   return (
     <View style={[styles.base, variant.container, style]}>

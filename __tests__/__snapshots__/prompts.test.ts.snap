@@ -312,7 +312,7 @@ BASE_PROMPT_TEXT"
 exports[`isPremiumCategory snapshot of premium membership across the catalog 1`] = `
 {
   "age-transform": false,
-  "ethnicity-blend": true,
+  "ethnicity-blend": false,
   "gender-swap": false,
   "military-forces": false,
   "race-swap": false,

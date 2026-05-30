@@ -17,7 +17,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.whatif.app",
+      "bundleIdentifier": "com.olytoma.whatif",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "What If needs access to your photos so you can transform them.",
@@ -25,15 +25,14 @@
       }
     },
     "android": {
-      "package": "com.whatif.app",
+      "package": "com.olytoma.whatif",
       "adaptiveIcon": {
         "backgroundColor": "#0B0B0F"
       },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {

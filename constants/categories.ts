@@ -86,7 +86,11 @@ export const CATEGORIES: Category[] = [
     id: 'ethnicity-blend',
     label: 'Ethnicity Blend',
     description: 'What if your heritage was mixed?',
-    isPremium: true,
+    // V1 stub: flipped from true → false so the category is free for
+    // the App Store v1 launch. See V1_MONETIZATION_ENABLED in
+    // constants/config.ts for re-enable steps. Must stay in sync with
+    // PREMIUM_CATEGORIES in lib/prompts.ts + functions/src/prompts.ts.
+    isPremium: false,
     subcategories: [
       { id: 'half-japanese', label: 'Half Japanese', promptTemplate: `${BASE} Transform this person to look like they are half Japanese and half their current ethnicity. Blend features naturally — this should look like a real person of mixed Japanese heritage.` },
       { id: 'half-nigerian', label: 'Half Nigerian', promptTemplate: `${BASE} Transform this person to look like they are half Nigerian and half their current ethnicity. Blend features naturally.` },

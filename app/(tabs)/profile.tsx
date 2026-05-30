@@ -13,7 +13,7 @@ import { ReauthModal } from '@/components/ReauthModal';
 import { signOut, deleteAccount, finishAccountDeletion, ReauthRequiredError } from '@/lib/auth';
 import { exportAccountData, type ExportProgress } from '@/lib/exportData';
 import { captureError } from '@/lib/sentry';
-import { config } from '@/constants/config';
+import { config, V1_MONETIZATION_ENABLED } from '@/constants/config';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 
 // Profile rows open the hosted GitHub Pages versions so legal updates
@@ -233,8 +233,18 @@ export default function Profile() {
               <Text style={styles.planMeta}>
                 {used}/{config.freeGenerationCap} generations used · {remaining} remaining
               </Text>
-              <View style={{ height: spacing.md }} />
-              <Button label="Upgrade to Pro" onPress={() => setPaywall(true)} />
+              {/* V1 stub: paywall trigger hidden while monetization is OFF.
+                  The PaywallModal component, the `paywall` state, and the
+                  RevenueCat plumbing all remain intact — only the user-
+                  facing affordance to OPEN the paywall is hidden. v1.1
+                  re-enables by flipping V1_MONETIZATION_ENABLED in
+                  constants/config.ts (plus the RC env-var setup steps). */}
+              {V1_MONETIZATION_ENABLED ? (
+                <>
+                  <View style={{ height: spacing.md }} />
+                  <Button label="Upgrade to Pro" onPress={() => setPaywall(true)} />
+                </>
+              ) : null}
             </>
           )}
         </Card>
