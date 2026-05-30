@@ -1,23 +1,4 @@
 {
-  "_doc": {
-    "_": "DO NOT add EXPO_PUBLIC_* values here in plaintext — they end up in git. Use EAS environment variables instead. See PROGRESS_LOG.md 2026-05-30 for the v1 setup.",
-    "secrets_required_for_production": [
-      "EXPO_PUBLIC_FIREBASE_API_KEY",
-      "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN",
-      "EXPO_PUBLIC_FIREBASE_PROJECT_ID",
-      "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
-      "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-      "EXPO_PUBLIC_FIREBASE_APP_ID",
-      "EXPO_PUBLIC_CLOUD_FUNCTIONS_URL",
-      "EXPO_PUBLIC_SENTRY_DSN"
-    ],
-    "secrets_required_for_v1_1_when_monetization_re_enables": [
-      "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS",
-      "EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID"
-    ],
-    "create_each_secret": "eas env:create --environment production --name <NAME> --value <VALUE> --visibility sensitive --scope project",
-    "list_existing": "eas env:list --environment production"
-  },
   "cli": {
     "version": ">= 19.0.0",
     "appVersionSource": "local"
