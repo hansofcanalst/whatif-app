@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Link } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { Button } from '@/components/ui/Button';
 import { FeatureCarousel } from '@/components/ui/FeatureCarousel';
 import { useToast } from '@/components/ui/Toast';
@@ -88,20 +89,35 @@ export default function Login() {
 
   const handleApple = async () => {
     try {
+      // Firebase's Apple credential exchange (JS SDK → signInWithIdp)
+      // requires a nonce to bind the identity token to this request and
+      // block replay. The dance: make a raw random nonce, send Apple the
+      // SHA-256 HASH of it, then hand Firebase the RAW nonce. Apple embeds
+      // the hash in the returned identity token; Firebase re-hashes our
+      // raw nonce and checks the two match. Skipping this is what made
+      // sign-in fail with auth/invalid-credential — surfaced (misleadingly)
+      // as a "wrong email or password" toast. See signInWithAppleIdToken.
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
       const cred = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
       if (cred.identityToken) {
-        await signInWithAppleIdToken(cred.identityToken);
+        await signInWithAppleIdToken(cred.identityToken, rawNonce);
       }
     } catch (e: any) {
-      // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`); show
-      // friendly message for everything else.
+      // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`); show a
+      // provider-specific message for everything else so an Apple failure
+      // never masquerades as an email/password error again.
       if (e?.code === 'ERR_REQUEST_CANCELED') return;
-      show(friendlyAuthErrorMessage(e), 'error');
+      show(friendlyAuthErrorMessage(e, 'apple'), 'error');
     }
   };
 

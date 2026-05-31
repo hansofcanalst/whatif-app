@@ -146,9 +146,34 @@ export function subscribeToAuth(callback: (user: AuthUser | null) => void) {
  * coverage gap is better than a generic "Something went wrong" that hides
  * a real failure mode from the user). Always returns a string suitable
  * for `show(msg, 'error')`.
+ *
+ * `provider` tells us which sign-in path produced the error so the
+ * OAuth/Apple cases get an accurate message instead of the password text.
+ * Defaults to `'password'`, so existing email/password callers are
+ * unaffected.
  */
-export function friendlyAuthErrorMessage(err: unknown): string {
+export function friendlyAuthErrorMessage(
+  err: unknown,
+  provider: 'password' | 'apple' = 'password',
+): string {
   const code = (err as { code?: string })?.code;
+
+  // ── Apple / OAuth credential-exchange failures ──────────────────────
+  // The native Apple → Firebase exchange (signInWithCredential) fails with
+  // `auth/invalid-credential` (malformed/expired identity token, bad
+  // audience) or `auth/missing-or-invalid-nonce` (the hash Apple embedded
+  // didn't match the raw nonce we handed Firebase). These must NOT fall
+  // into the password branch below — a mislabeled "wrong password" toast
+  // on an Apple failure cost us a debugging session once already.
+  //   - missing-or-invalid-nonce is OAuth-only, so it matches regardless
+  //     of `provider`.
+  //   - invalid-credential only diverts here for the Apple path; the
+  //     password path keeps collapsing it into the anti-enumeration
+  //     message below (see that comment for why).
+  const APPLE_FAILED = "Couldn't sign in with Apple. Please try again or use email.";
+  if (code === 'auth/missing-or-invalid-nonce') return APPLE_FAILED;
+  if (provider === 'apple' && code === 'auth/invalid-credential') return APPLE_FAILED;
+
   switch (code) {
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
