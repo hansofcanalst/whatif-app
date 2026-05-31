@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { FeatureCarousel } from '@/components/ui/FeatureCarousel';
 import { useToast } from '@/components/ui/Toast';
 import { signInWithEmail, signInWithAppleIdToken, friendlyAuthErrorMessage } from '@/lib/auth';
+import { captureError } from '@/lib/sentry';
 import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
 // Marketing carousel images. Mix of portrait + scene photos from
@@ -88,6 +89,19 @@ export default function Login() {
   };
 
   const handleApple = async () => {
+    // ─── TEMPORARY DEBUG INSTRUMENTATION — remove once diagnosed ──────────
+    // Apple Sign In fails on TestFlight with the friendly "Couldn't sign in
+    // with Apple" toast, which proves the Firebase code is one of exactly
+    // two values — auth/missing-or-invalid-nonce (a client/nonce bug) or
+    // auth/invalid-credential (token audience / Firebase config) — but not
+    // which. This block captures the RAW Firebase code plus the identity
+    // token's `aud` and `nonce`-claim presence so a single on-device
+    // screenshot disambiguates them. It is surfaced in the toast, echoed to
+    // the device console, and sent to Sentry (durable backup). To revert:
+    // restore the `if (cred.identityToken)` guard and the
+    // `show(friendlyAuthErrorMessage(e, 'apple'), 'error')` line below, and
+    // drop `tokenInfo`, the JWT decode, the console.log, and captureError.
+    let tokenInfo = ''; // [debug] decoded token summary, shown in the catch toast
     try {
       // Firebase's Apple credential exchange (JS SDK → signInWithIdp)
       // requires a nonce to bind the identity token to this request and
@@ -109,15 +123,50 @@ export default function Login() {
         ],
         nonce: hashedNonce,
       });
-      if (cred.identityToken) {
-        await signInWithAppleIdToken(cred.identityToken, rawNonce);
+
+      // [debug] Apple can hand back a null identityToken (see expo/expo#16415).
+      // The old `if (cred.identityToken)` guard swallowed that case silently —
+      // no call, no throw, no toast, so the button looked dead. Make it loud
+      // so "Apple gave us nothing" is distinguishable from "Firebase rejected
+      // the token". (Also narrows the type to string for the call below.)
+      if (!cred.identityToken) {
+        show('[debug] Apple returned no identityToken', 'error');
+        return;
       }
+
+      // [debug] Decode the identity-token JWT payload (NO verification — we
+      // only read claims). `aud` should be our bundle id (com.olytoma.whatif)
+      // and `nonce` should be present (the SHA-256 hash Apple echoed back). An
+      // aud mismatch points at auth/invalid-credential; a missing nonce points
+      // at auth/missing-or-invalid-nonce. Wrapped so a decode failure can never
+      // block the real sign-in.
+      try {
+        const seg = (cred.identityToken.split('.')[1] ?? '')
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const pad = seg.length % 4 ? '='.repeat(4 - (seg.length % 4)) : '';
+        const claims = JSON.parse(atob(seg + pad));
+        tokenInfo = ` aud=${claims.aud} nonce=${claims.nonce ? 'yes' : 'MISSING'}`;
+      } catch {
+        tokenInfo = ' decode-failed';
+      }
+
+      await signInWithAppleIdToken(cred.identityToken, rawNonce);
     } catch (e: any) {
-      // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`); show a
-      // provider-specific message for everything else so an Apple failure
-      // never masquerades as an email/password error again.
+      // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`).
       if (e?.code === 'ERR_REQUEST_CANCELED') return;
-      show(friendlyAuthErrorMessage(e, 'apple'), 'error');
+      // [debug] Surface the RAW Firebase code + token summary (instead of the
+      // friendly message) so the failing code is screenshot-able on-device.
+      // console.log feeds device logs; captureError is the durable Sentry
+      // backup. Revert to `show(friendlyAuthErrorMessage(e, 'apple'), 'error')`.
+      console.log('[apple-signin-error]', e?.code, e?.message, tokenInfo);
+      captureError(e, {
+        where: 'handleApple',
+        code: e?.code,
+        message: e?.message,
+        token: tokenInfo,
+      });
+      show(`[debug] ${e?.code || 'unknown'}${tokenInfo}`, 'error');
     }
   };
 
