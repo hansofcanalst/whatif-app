@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,9 @@ import * as Crypto from 'expo-crypto';
 import { Button } from '@/components/ui/Button';
 import { FeatureCarousel } from '@/components/ui/FeatureCarousel';
 import { useToast } from '@/components/ui/Toast';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { signInWithEmail, signInWithAppleIdToken, friendlyAuthErrorMessage } from '@/lib/auth';
+import { auth } from '@/lib/firebase';
 import { captureError } from '@/lib/sentry';
 import { colors, fontFamily, radii, spacing, typography } from '@/constants/theme';
 
@@ -67,6 +69,8 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  // Ref so "Forgot password?" can focus the email field when it's empty.
+  const emailRef = useRef<TextInput>(null);
 
   // Show the marketing carousel hero on wide viewports only. On
   // mobile (native or narrow web) the carousel would push the login
@@ -88,20 +92,27 @@ export default function Login() {
     }
   };
 
+  // Password reset. Anti-enumeration: we ALWAYS show the same neutral
+  // success message — whether or not the address has an account, and
+  // even if Firebase throws — so an attacker can't probe which emails
+  // are registered. Real errors are captured to Sentry for us, not the
+  // user. Uses the email field if filled; otherwise nudges + focuses it.
+  const handleForgotPassword = async () => {
+    const target = email.trim();
+    if (!target) {
+      show('Enter your email above first, then tap Forgot password.', 'info');
+      emailRef.current?.focus();
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, target);
+    } catch (e) {
+      captureError(e, { where: 'forgotPassword' });
+    }
+    show('If that email exists, a reset link has been sent.', 'success');
+  };
+
   const handleApple = async () => {
-    // ─── TEMPORARY DEBUG INSTRUMENTATION — remove once diagnosed ──────────
-    // Apple Sign In fails on TestFlight with the friendly "Couldn't sign in
-    // with Apple" toast, which proves the Firebase code is one of exactly
-    // two values — auth/missing-or-invalid-nonce (a client/nonce bug) or
-    // auth/invalid-credential (token audience / Firebase config) — but not
-    // which. This block captures the RAW Firebase code plus the identity
-    // token's `aud` and `nonce`-claim presence so a single on-device
-    // screenshot disambiguates them. It is surfaced in the toast, echoed to
-    // the device console, and sent to Sentry (durable backup). To revert:
-    // restore the `if (cred.identityToken)` guard and the
-    // `show(friendlyAuthErrorMessage(e, 'apple'), 'error')` line below, and
-    // drop `tokenInfo`, the JWT decode, the console.log, and captureError.
-    let tokenInfo = ''; // [debug] decoded token summary, shown in the catch toast
     try {
       // Firebase's Apple credential exchange (JS SDK → signInWithIdp)
       // requires a nonce to bind the identity token to this request and
@@ -123,50 +134,13 @@ export default function Login() {
         ],
         nonce: hashedNonce,
       });
-
-      // [debug] Apple can hand back a null identityToken (see expo/expo#16415).
-      // The old `if (cred.identityToken)` guard swallowed that case silently —
-      // no call, no throw, no toast, so the button looked dead. Make it loud
-      // so "Apple gave us nothing" is distinguishable from "Firebase rejected
-      // the token". (Also narrows the type to string for the call below.)
-      if (!cred.identityToken) {
-        show('[debug] Apple returned no identityToken', 'error');
-        return;
+      if (cred.identityToken) {
+        await signInWithAppleIdToken(cred.identityToken, rawNonce);
       }
-
-      // [debug] Decode the identity-token JWT payload (NO verification — we
-      // only read claims). `aud` should be our bundle id (com.olytoma.whatif)
-      // and `nonce` should be present (the SHA-256 hash Apple echoed back). An
-      // aud mismatch points at auth/invalid-credential; a missing nonce points
-      // at auth/missing-or-invalid-nonce. Wrapped so a decode failure can never
-      // block the real sign-in.
-      try {
-        const seg = (cred.identityToken.split('.')[1] ?? '')
-          .replace(/-/g, '+')
-          .replace(/_/g, '/');
-        const pad = seg.length % 4 ? '='.repeat(4 - (seg.length % 4)) : '';
-        const claims = JSON.parse(atob(seg + pad));
-        tokenInfo = ` aud=${claims.aud} nonce=${claims.nonce ? 'yes' : 'MISSING'}`;
-      } catch {
-        tokenInfo = ' decode-failed';
-      }
-
-      await signInWithAppleIdToken(cred.identityToken, rawNonce);
     } catch (e: any) {
       // Silent on user-cancelled (Apple's `ERR_REQUEST_CANCELED`).
       if (e?.code === 'ERR_REQUEST_CANCELED') return;
-      // [debug] Surface the RAW Firebase code + token summary (instead of the
-      // friendly message) so the failing code is screenshot-able on-device.
-      // console.log feeds device logs; captureError is the durable Sentry
-      // backup. Revert to `show(friendlyAuthErrorMessage(e, 'apple'), 'error')`.
-      console.log('[apple-signin-error]', e?.code, e?.message, tokenInfo);
-      captureError(e, {
-        where: 'handleApple',
-        code: e?.code,
-        message: e?.message,
-        token: tokenInfo,
-      });
-      show(`[debug] ${e?.code || 'unknown'}${tokenInfo}`, 'error');
+      show(friendlyAuthErrorMessage(e, 'apple'), 'error');
     }
   };
 
@@ -187,7 +161,7 @@ export default function Login() {
         ) : (
           <View style={styles.brand}>
             <Text style={styles.logo}>
-              What<Text style={styles.logoAccent}>If</Text>
+              Me <Text style={styles.logoAccent}>But</Text>
             </Text>
             <Text style={styles.tagline}>See yourself in a whole new way.</Text>
           </View>
@@ -221,6 +195,14 @@ export default function Login() {
                 style={styles.input}
               />
             </View>
+            <Pressable
+              onPress={handleForgotPassword}
+              style={styles.forgotRow}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot password? Send a reset link"
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
             <Button label="Log in" onPress={handleEmail} loading={loading} />
           </View>
 
@@ -330,4 +312,9 @@ const styles = StyleSheet.create({
   linkRow: { alignItems: 'center', padding: spacing.md },
   linkText: { ...typography.body, color: colors.textSecondary },
   linkAccent: { color: colors.accent, fontWeight: '700' },
+  // Small right-aligned secondary action under the password field —
+  // text link styling, not a button, so it sits below the primary CTA
+  // in the visual hierarchy.
+  forgotRow: { alignSelf: 'flex-end', paddingVertical: spacing.xs },
+  forgotText: { ...typography.caption, color: colors.accent, fontWeight: '600' },
 });

@@ -11,6 +11,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { useToast } from '@/components/ui/Toast';
 import { CategoryIcon } from '@/components/CategoryIcon';
+import { V1_MONETIZATION_ENABLED } from '@/constants/config';
 import { colors, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function GenerateCategoryScreen() {
@@ -97,6 +98,18 @@ export default function GenerateCategoryScreen() {
       .filter((row) => row.accessories.length > 0);
   }, [category, selected]);
 
+  // Single chokepoint for the paywall trigger. With v1 monetization OFF
+  // (V1_MONETIZATION_ENABLED=false) the paywall must never appear, so we
+  // surface a soft, non-commercial toast instead of opening PaywallModal.
+  // Mirrors the home screen so the behavior is identical across triggers.
+  const showPaywall = () => {
+    if (!V1_MONETIZATION_ENABLED) {
+      show("You've reached your free Me Buts. More coming soon!", 'info');
+      return;
+    }
+    setPaywall(true);
+  };
+
   const handleGenerate = async () => {
     if (!base64) {
       show('Photo data missing — please re-pick your photo.', 'error');
@@ -124,7 +137,7 @@ export default function GenerateCategoryScreen() {
       categoryId: category.id,
       subcategoryIds: Array.from(selected),
       modifiers: Object.keys(modifiers).length > 0 ? modifiers : undefined,
-      onPaywall: () => setPaywall(true),
+      onPaywall: showPaywall,
       onReady: () => {
         // Defense against a racy double-navigation if `onReady` fires
         // more than once (the hook guards against that, but a defensive

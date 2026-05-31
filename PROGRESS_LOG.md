@@ -5,6 +5,61 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-05-31 — Build 6: remove Apple debug instrumentation, gate paywall, rebrand → "Me But", add Forgot Password
+
+**Context:** Pre-Build-6 cleanup + launch prep. Apple Sign In is verified
+working in production, so the temporary diagnostic block could come out;
+v1 ships monetization-OFF so the dead paywall must never surface; the App
+Store name is changing to **Me But**; and the login screen needed a
+password-reset affordance. No rate-limit work — launch is free, cost is
+capped via Google Cloud budget alerts, not in-app limits.
+
+**Changes:**
+1. **Removed temporary Apple debug instrumentation** (`app/(auth)/login.tsx`):
+   restored `handleApple` to its pre-debug form — `if (cred.identityToken)
+   { await signInWithAppleIdToken(...) }` guard, `show(friendlyAuthError
+   Message(e, 'apple'), 'error')` in the catch, silent return on
+   `ERR_REQUEST_CANCELED`. Dropped the JWT decode block, `tokenInfo`, the
+   `console.log`, the debug toasts, and the now-unused `captureError`
+   import. (captureError was re-added later for Change 4 — see below.)
+2. **Gated the paywall behind `V1_MONETIZATION_ENABLED`** so the dead
+   Subscribe sheet can never appear in v1. Defense-in-depth:
+   - `PaywallModal` returns `null` when the flag is off.
+   - Both trigger screens route every paywall site through one local
+     `showPaywall()` chokepoint that, when the flag is off, fires a soft
+     toast — *"You've reached your free Me Buts. More coming soon!"* — with
+     no Subscribe button. Converged sites: `home.tsx` (canGenerate gate
+     via `onPaywall`, premium-category gate, premium-trend gate) and
+     `[categoryId].tsx` (`onPaywall`). The `useGeneration` server-quota
+     path also routes through `onPaywall`, so it inherits the soft toast.
+3. **Rebranded WhatIf → "Me But" in user-facing strings only.** Files:
+   `app.json` (expo.name + 4 iOS/Android permission strings), login /
+   signup / splash (`_layout.tsx`) / index wordmarks (`What`+`If` →
+   `Me `+`But`), `result/[id].tsx` eyebrow (`ME BUT`), `generate/results.tsx`
+   ("Your Me Buts"), `HomeOnboardingCard` ("Welcome to Me But"),
+   `PaywallModal` title ("Unlock Unlimited Me Buts"), `FilteredResultPanel`
+   (share captions ×2, share title, on-image watermark text),
+   `app/+html.tsx` (title + OG/Twitter/Apple meta ×5), `privacy.tsx`,
+   `terms.tsx` (×3), `lib/exportData.ts` (README title + share dialog).
+   **Left internal:** bundle id `com.olytoma.whatif`, package.json name,
+   folder names, function/var/store names, Firebase project id, git repo,
+   and code comments mentioning WhatIf.
+4. **Added "Forgot password?" link** (`app/(auth)/login.tsx`, Sign In tab
+   only). Calls `sendPasswordResetEmail(auth, email)`. Uses the email
+   field if filled; if empty, shows an inline nudge and focuses the field
+   (added `emailRef`). Anti-enumeration: ALWAYS shows the exact success
+   toast *"If that email exists, a reset link has been sent."* — even on
+   throw — and routes real errors to `captureError(e, { where:
+   'forgotPassword' })`. Styled as a small right-aligned text link, not a
+   button.
+
+**Verification:** `npx tsc --noEmit` clean; `npm test` → 19 passed, 7
+snapshots passed. Brand sweep confirms no user-facing "What If"/"WhatIf"
+strings remain (only code comments + the `ios/WhatIf` entitlements path in
+`app.config.js`). Not committed — left for manual review. No EAS builds run.
+
+---
+
 ## 2026-05-31 — Fix Apple Sign In (missing nonce) + per-profile aps-environment
 
 **Context:** Apple Sign In failed on the v1 production build — the native

@@ -122,7 +122,7 @@ export default function PrivacyScreen() {
 
         <Section title="Children">
           <P>
-            What If is not directed at children under 13. We don't knowingly
+            Me But is not directed at children under 13. We don't knowingly
             collect data from children under 13. The app's people detection step
             additionally blocks the most sensitive transformation categories
             whenever any visible person is flagged as appearing under 18.

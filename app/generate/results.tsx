@@ -184,7 +184,7 @@ export default function ResultsScreen() {
         </Pressable>
         <View style={styles.headerTitle}>
           <Text style={styles.headerLabel}>Results</Text>
-          <Text style={styles.title}>Your What Ifs</Text>
+          <Text style={styles.title}>Your Me Buts</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>

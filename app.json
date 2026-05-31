@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "What If",
+    "name": "Me But",
     "slug": "whatif",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,11 +20,11 @@
       "bundleIdentifier": "com.olytoma.whatif",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "What If needs access to your photos so you can transform them.",
-        "NSCameraUsageDescription": "What If needs access to your camera to take a photo for transformation.",
+        "NSPhotoLibraryUsageDescription": "Me But needs access to your photos so you can transform them.",
+        "NSCameraUsageDescription": "Me But needs access to your camera to take a photo for transformation.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "package": "com.olytoma.whatif",
@@ -48,8 +48,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow What If to access your photos.",
-          "cameraPermission": "Allow What If to use your camera so you can take a photo to transform."
+          "photosPermission": "Allow Me But to access your photos.",
+          "cameraPermission": "Allow Me But to use your camera so you can take a photo to transform."
         }
       ],
       "@sentry/react-native"

@@ -35,6 +35,7 @@ import {
   type TrendingDoc,
 } from '@/lib/trends';
 import { useGeneration } from '@/hooks/useGeneration';
+import { V1_MONETIZATION_ENABLED } from '@/constants/config';
 import { colors, fontFamily, layout, radii, spacing, typography } from '@/constants/theme';
 
 export default function Home() {
@@ -56,6 +57,20 @@ export default function Home() {
   } = useGenerationStore();
   const { isActive: isPro } = useSubscriptionStore();
   const [paywall, setPaywall] = useState(false);
+
+  // Single chokepoint for every paywall trigger on this screen. With v1
+  // monetization OFF (V1_MONETIZATION_ENABLED=false) the paywall must
+  // never appear, so we surface a soft, non-commercial toast instead of
+  // opening PaywallModal. When monetization is re-enabled in v1.1 this
+  // opens the sheet exactly as before. Routing all triggers through here
+  // keeps their behavior identical.
+  const showPaywall = useCallback(() => {
+    if (!V1_MONETIZATION_ENABLED) {
+      show("You've reached your free Me Buts. More coming soon!", 'info');
+      return;
+    }
+    setPaywall(true);
+  }, [show]);
 
   // Trending state. We seed from AsyncStorage so the carousel renders
   // instantly on cold launch (offline-safe), then refresh in the
@@ -274,7 +289,7 @@ export default function Home() {
         subcategoryIds: [trend.id],
         trendId: trend.id,
         trendLabel: trend.label,
-        onPaywall: () => setPaywall(true),
+        onPaywall: showPaywall,
         onReady: () => router.push('/generate/results'),
       });
     },
@@ -339,7 +354,7 @@ export default function Home() {
           return;
         }
         if (!isPro) {
-          setPaywall(true);
+          showPaywall();
           return;
         }
         if (!hasConsentedRef.current) {
@@ -459,7 +474,7 @@ export default function Home() {
         return;
       }
       if (!isPro) {
-        setPaywall(true);
+        showPaywall();
         return;
       }
       if (!hasConsentedRef.current) {
@@ -505,7 +520,7 @@ export default function Home() {
           the right. Sits on the page bg (not elevated) so it reads as
           "document chrome" rather than a toolbar. */}
       <View style={styles.topBar}>
-        <Text style={styles.logo}>What<Text style={styles.logoAccent}>If</Text></Text>
+        <Text style={styles.logo}>Me <Text style={styles.logoAccent}>But</Text></Text>
         <GenerationCounter />
       </View>
       <ScrollView

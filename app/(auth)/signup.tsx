@@ -36,7 +36,7 @@ export default function Signup() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.brand}>
           <Text style={styles.logo}>
-            What<Text style={styles.logoAccent}>If</Text>
+            Me <Text style={styles.logoAccent}>But</Text>
           </Text>
           <Text style={styles.tagline}>Join the multiverse.</Text>
         </View>

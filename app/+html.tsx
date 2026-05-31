@@ -29,7 +29,7 @@ export default function Root({ children }: PropsWithChildren) {
             override via expo-router's <Head> or by setting document.title
             imperatively if a per-screen title becomes important; this is
             the fallback for direct loads / social-share cards. */}
-        <title>What If — AI photo transformations</title>
+        <title>Me But — AI photo transformations</title>
         <meta
           name="description"
           content="Drop a photo, pick a direction (race, age, gender, mashups, military uniforms), and see yourself across the multiverse — AI photo transformations made fun."
@@ -43,14 +43,14 @@ export default function Root({ children }: PropsWithChildren) {
             "no preview" treatment. Wire it up when there's a real
             shareable hero image. */}
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="What If — AI photo transformations" />
+        <meta property="og:title" content="Me But — AI photo transformations" />
         <meta
           property="og:description"
           content="Drop a photo. Pick a direction. See yourself across the multiverse."
         />
-        <meta property="og:site_name" content="What If" />
+        <meta property="og:site_name" content="Me But" />
         <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content="What If — AI photo transformations" />
+        <meta name="twitter:title" content="Me But — AI photo transformations" />
         <meta
           name="twitter:description"
           content="Drop a photo. Pick a direction. See yourself across the multiverse."
@@ -61,7 +61,7 @@ export default function Root({ children }: PropsWithChildren) {
             without browser chrome. */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="What If" />
+        <meta name="apple-mobile-web-app-title" content="Me But" />
 
 
         {/* Inter — FRAME's UI font. JetBrains Mono — FRAME's wordmark / mono

@@ -7,6 +7,7 @@ import { ProBadge } from './ProBadge';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from './Toast';
 import { colors, radii, spacing, typography } from '@/constants/theme';
+import { V1_MONETIZATION_ENABLED } from '@/constants/config';
 
 interface PaywallModalProps {
   visible: boolean;
@@ -67,6 +68,13 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
     }
   };
 
+  // v1 ships with monetization OFF, so the paywall must never render.
+  // Defense-in-depth: the call sites already route to a soft "free cap"
+  // toast instead of opening this sheet, but returning null here
+  // guarantees it can't appear even if some path sets visible=true.
+  // Re-enable by flipping V1_MONETIZATION_ENABLED in constants/config.ts.
+  if (!V1_MONETIZATION_ENABLED) return null;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -83,7 +91,7 @@ export function PaywallModal({ visible, onClose }: PaywallModalProps) {
           </Pressable>
           <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }}>
             <ProBadge size="lg" style={styles.badgePosition} />
-            <Text style={styles.title}>Unlock Unlimited What Ifs</Text>
+            <Text style={styles.title}>Unlock Unlimited Me Buts</Text>
             <Text style={styles.subtitle}>
               See yourself in every corner of the multiverse — no caps, no watermarks.
             </Text>

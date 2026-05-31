@@ -206,7 +206,7 @@ function timestampToISO(ts: { toDate?: () => Date } | null | undefined): string 
 
 function buildReadme(generationCount: number): string {
   return [
-    'What If — Account Data Export',
+    'Me But — Account Data Export',
     '=============================',
     '',
     `This archive contains your account data and ${generationCount} generation${
@@ -280,7 +280,7 @@ async function deliver(zipped: Blob | string, filename: string): Promise<void> {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(file.uri, {
       mimeType: 'application/zip',
-      dialogTitle: 'Save your What If data',
+      dialogTitle: 'Save your Me But data',
       UTI: 'public.zip-archive',
     });
   } else {

@@ -103,7 +103,7 @@ export default function ResultScreen() {
             for context with its glyph. */}
         <View style={styles.heroCaption}>
           <Text style={styles.eyebrow}>
-            WHAT IF{hasMultiple ? <Text style={styles.eyebrowMono}> · VARIANT {idxNum + 1} OF {total}</Text> : null}
+            ME BUT{hasMultiple ? <Text style={styles.eyebrowMono}> · VARIANT {idxNum + 1} OF {total}</Text> : null}
           </Text>
           <Text style={styles.headline} numberOfLines={2}>
             {current.label}

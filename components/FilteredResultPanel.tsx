@@ -116,9 +116,9 @@ export function FilteredResultPanel({
   // when subcategoryLabel is empty.
   const buildShareCaption = () => {
     if (subcategoryLabel) {
-      return `What if I were ${subcategoryLabel}? Made with What If ✦`;
+      return `What if I were ${subcategoryLabel}? Made with Me But ✦`;
     }
-    return `Made with What If ✦`;
+    return `Made with Me But ✦`;
   };
 
   /**
@@ -211,7 +211,7 @@ export function FilteredResultPanel({
           if (navAny.canShare?.({ files: [file] })) {
             await navAny.share({
               files: [file],
-              title: 'What If',
+              title: 'Me But',
               text: buildShareCaption(),
             });
             return;
@@ -301,7 +301,7 @@ export function FilteredResultPanel({
             opt into a clean export. */}
         {watermark ? (
           <View style={styles.watermarkPill} pointerEvents="none">
-            <Text style={styles.watermarkText}>What If</Text>
+            <Text style={styles.watermarkText}>Me But</Text>
             <Sparkles size={11} color={colors.textPrimary} strokeWidth={2.5} />
           </View>
         ) : null}

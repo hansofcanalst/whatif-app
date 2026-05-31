@@ -73,7 +73,7 @@ export function HomeOnboardingCard() {
           <Sparkles size={16} color={colors.accentText} strokeWidth={2.25} />
         </GlyphTile>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Welcome to What If</Text>
+          <Text style={styles.title}>Welcome to Me But</Text>
           <Text style={styles.body}>
             Drop a photo below to get started. We'll detect everyone in it,
             then you pick how to transform them — race, age, gender, and more.

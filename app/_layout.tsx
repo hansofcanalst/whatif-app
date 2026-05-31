@@ -120,7 +120,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       <View style={errStyles.splash}>
         <View style={errStyles.splashBrand}>
           <Text style={errStyles.splashLogo}>
-            What<Text style={errStyles.splashLogoAccent}>If</Text>
+            Me <Text style={errStyles.splashLogoAccent}>But</Text>
           </Text>
         </View>
         <LoadingSpinner taglines={false} />
