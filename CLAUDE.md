@@ -184,6 +184,20 @@ Server-only (no EXPO_PUBLIC_ prefix):
     `eas env:delete --environment production --name
     SENTRY_DISABLE_AUTO_UPLOAD`. See `EAS_ENV_VARS.md` and
     PROGRESS_LOG 2026-05-30 for the exact commands.
+11. **v1.1 — full "Sign in with Apple" setup (web + revocation).** v1
+    only wires the NATIVE iOS Apple flow (identity token →
+    `signInWithCredential`, token `aud` = bundle id), which needs only
+    the enabled Firebase Apple provider — no Services ID. Deferred:
+    (a) **Web Apple Sign In** — create an Apple **Services ID** + Sign in
+    with Apple **key (.p8)**, fill Firebase Console → Apple provider's
+    "Services ID" + "OAuth code flow" (Team ID, Key ID, private key);
+    only then does `reauthWithApplePopup` / web login work (web `aud` =
+    Services ID, which Firebase must recognize). (b) **Token revocation**
+    — Apple mandates revocation-on-account-delete for apps offering
+    account creation; the same key lets Firebase revoke Apple tokens in
+    `deleteAccount`. v1 is compliant enough because account deletion
+    falls back to email/password reauth (Apple reauth is native-fallback
+    only). See PROGRESS_LOG 2026-05-31.
 
 ## Recently completed (kept here as a brief audit trail; prune as it grows)
 
