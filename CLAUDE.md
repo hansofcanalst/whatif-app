@@ -211,9 +211,11 @@ Server-only (no EXPO_PUBLIC_ prefix):
 
 ## Notes / gotchas
 
-- **Auto-commit hook** appears to be running on Windows (every file
-  change becomes "auto: update project files" commits). On Mac you may
-  want to commit manually for cleaner history.
+- **Auto-commit hook (removed).** A Claude Code `Stop` hook used to live
+  in `.claude/settings.local.json`; it ran `git add . && git commit -m
+  "auto: update project files" && git push origin main` at the end of
+  every turn, squashing logical commits and pushing to `main` without
+  review. Removed 2026-05-31 — commits and pushes are now manual.
 - **CORS on Firebase Storage** is configured to allow `localhost:8081`
   and `localhost:19006` (see `gsutil cors get gs://whatif-98256.firebasestorage.app`).
   Add your production web domain when shipping.
