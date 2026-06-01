@@ -177,9 +177,9 @@ export default function Profile() {
   };
 
   const remaining = userDoc
-    ? Math.max(0, config.freeGenerationCap - userDoc.freeGenerationsUsed)
+    ? Math.max(0, config.freeGenerationCap - (userDoc.freeGenerationsUsed ?? 0))
     : 0;
-  const used = userDoc ? userDoc.freeGenerationsUsed : 0;
+  const used = userDoc ? (userDoc.freeGenerationsUsed ?? 0) : 0;
 
   return (
     <SafeAreaView style={styles.safe}>

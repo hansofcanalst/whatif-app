@@ -85,11 +85,11 @@ export function useGeneration() {
   const canGenerate = useCallback((): boolean => {
     if (isActive) return true;
     if (!userDoc) return false;
-    return userDoc.freeGenerationsUsed < config.freeGenerationCap;
+    return (userDoc.freeGenerationsUsed ?? 0) < config.freeGenerationCap;
   }, [isActive, userDoc]);
 
   const remaining = userDoc
-    ? Math.max(0, config.freeGenerationCap - userDoc.freeGenerationsUsed)
+    ? Math.max(0, config.freeGenerationCap - (userDoc.freeGenerationsUsed ?? 0))
     : 0;
 
   const start = useCallback(
