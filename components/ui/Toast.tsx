@@ -10,10 +10,14 @@ interface ToastItem {
   kind: ToastKind;
 }
 interface ToastCtx {
-  show: (message: string, kind?: ToastKind) => void;
+  show: (message: string, kind?: ToastKind, duration?: number) => void;
 }
 
 const Ctx = createContext<ToastCtx>({ show: () => {} });
+
+// Default auto-dismiss for a toast. Callers can override per-message via
+// show(msg, kind, durationMs) — e.g. a longer dwell for important copy.
+const DEFAULT_TOAST_DURATION_MS = 5500;
 
 /**
  * FRAME error/info banner pattern:
@@ -28,13 +32,16 @@ const Ctx = createContext<ToastCtx>({ show: () => {} });
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
-  const show = useCallback((message: string, kind: ToastKind = 'info') => {
-    const id = Date.now() + Math.random();
-    setItems((prev) => [...prev, { id, message, kind }]);
-    setTimeout(() => {
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    }, 3200);
-  }, []);
+  const show = useCallback(
+    (message: string, kind: ToastKind = 'info', duration: number = DEFAULT_TOAST_DURATION_MS) => {
+      const id = Date.now() + Math.random();
+      setItems((prev) => [...prev, { id, message, kind }]);
+      setTimeout(() => {
+        setItems((prev) => prev.filter((i) => i.id !== id));
+      }, duration);
+    },
+    [],
+  );
 
   return (
     <Ctx.Provider value={{ show }}>

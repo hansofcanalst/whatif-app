@@ -5,6 +5,78 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-01 — Fix "NaN/3 FREE" counter + first-generation soft-lock for new accounts
+
+**Context:** Build 6 testing surfaced that a brand-new account (Apple Sign
+In, never generated) showed *"NaN/3 FREE"* in the home counter and got the
+soft toast *"You've reached your free Me Buts…"* on its first generation
+attempt — blocked before anything ran. Investigation traced it to a
+`users/{uid}` doc that **exists but is missing `freeGenerationsUsed`**
+(`undefined`): `Math.max(0, 3 - undefined)` = `NaN`, and
+`undefined < 3` = `false` so `canGenerate()` blocks. Root cause is a race:
+two writers create the user doc off the same post-auth signal —
+`ensureUserDoc` (full create) and `registerPushToken` (merge-create). When
+the push-token merge won the create, `ensureUserDoc` saw the doc already
+existed and returned it as-is, never backfilling the field. Latent (all
+causal code predates Build 6); Build 6 only changed the blocked-path
+symptom (paywall modal → soft toast) and made it more visible. Only bites
+real devices (push registration no-ops on simulators) with notifications
+allowed, on first sign-in (doc doesn't exist yet). Investigation-only
+first; then fixed in three commits.
+
+**Changes:**
+1. **Defense-in-depth defaults (`?? 0`).** Every client read of
+   `userDoc.freeGenerationsUsed` now defaults to 0: `canGenerate()` and
+   `remaining` in `hooks/useGeneration.ts`; `remaining` + `used` in
+   `app/(tabs)/profile.tsx`. Stops NaN rendering and unblocks
+   already-affected users immediately (server tolerates the missing field
+   and backfills via increment on first success). `canGenerate()` control
+   flow untouched — only the field reads.
+2. **Closed the create race at its root.**
+   - `lib/firestore.ts`: `ensureUserDoc` now **reconciles an
+     existing-but-partial doc** on every call — backfills any missing base
+     field with its default, idempotently (no-op on a healthy doc).
+     Best-effort + try/catch so a denied write never breaks auth. Skips the
+     redundant re-read on the healthy path.
+   - `lib/notifications.ts`: `registerPushToken` uses **`updateDoc`**
+     instead of `setDoc({merge})`, so it can never CREATE the doc (throws
+     `not-found` if called too early; caught and logged).
+   - `app/_layout.tsx`: push registration is **gated on a confirmed-loaded
+     `userDoc`**, guaranteeing `ensureUserDoc` ran first (also stops the
+     token being dropped on the very first launch).
+   - `firestore.rules`: **initialization carve-out** — the owner may ADD an
+     absent `freeGenerationsUsed` (→ 0) / `subscriptionStatus` (→ 'free')
+     so the backfill is permitted, while a usage reset (5 → 0) or a
+     self-granted upgrade stays denied.
+   - **ACTION REQUIRED:** run `firebase deploy --only firestore:rules` —
+     the client-side backfill is denied until the rules ship. Not deployed
+     in this change set.
+3. **Toast duration 3.2s → 5.5s.** `components/ui/Toast.tsx`: default
+   auto-dismiss is now `DEFAULT_TOAST_DURATION_MS = 5500`, and `show()`
+   gained an **optional third `duration` param** (`show(msg, kind,
+   durationMs)`) for per-message overrides. Backwards-compatible — no
+   caller changes needed.
+
+**Forgot Password (investigation only — deferred past Build 7):** the
+toast appears but no email arrives. By design (`app/(auth)/login.tsx`
+`handleForgotPassword`) the success toast fires **unconditionally**
+(anti-enumeration) and any `sendPasswordResetEmail` error is swallowed
+into `captureError` — so "toast, no email" is exactly what a silent
+failure looks like; the toast is not proof of sending. Most likely either
+(a) the Firebase **Email/Password provider is disabled** (app is
+Apple-first) → `auth/operation-not-allowed`, or (b) the **test user is
+Apple-only** (no password credential / `@privaterelay.appleid.com`) →
+`auth/user-not-found`. Email/password sign-IN working in-app would confirm
+the provider is enabled, pointing at (b). **Recommend:** check Firebase
+Console → Authentication → Sign-in method (Email/Password enabled?), and
+check **Sentry** for the `forgotPassword` breadcrumb — the captured
+Firebase `code` is the definitive answer.
+
+**Verification:** `npx tsc --noEmit` clean after each commit; `npm test`
+green after commit 3. No `eas build` run.
+
+---
+
 ## 2026-05-31 — Build 6: remove Apple debug instrumentation, gate paywall, rebrand → "Me But", add Forgot Password
 
 **Context:** Pre-Build-6 cleanup + launch prep. Apple Sign In is verified
