@@ -58,21 +58,67 @@ export interface GenerationDoc {
 export async function ensureUserDoc(user: User): Promise<UserDoc> {
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
+
+  // Canonical base shape + defaults for a fresh user. Used both to CREATE
+  // the doc on first sign-in and to BACKFILL any individual field that's
+  // missing if the doc already exists (the reconcile branch below).
+  const base: Partial<UserDoc> = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+    freeGenerationsUsed: 0,
+    subscriptionStatus: 'free',
+    subscriptionExpiry: null,
+    revenueCatId: null,
+  };
+
+  let wrote = false;
+
   if (!snap.exists()) {
-    const base: Partial<UserDoc> = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      freeGenerationsUsed: 0,
-      subscriptionStatus: 'free',
-      subscriptionExpiry: null,
-      revenueCatId: null,
-    };
     await setDoc(ref, { ...base, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    wrote = true;
+  } else {
+    // Reconcile an existing-but-partial doc. Another writer can create
+    // users/{uid} via a merge write BEFORE this runs — historically the
+    // push-token registration (now hardened to updateDoc), and the
+    // RevenueCat webhook. That leaves the base fields absent; a missing
+    // `freeGenerationsUsed` renders "NaN/3 FREE" and makes canGenerate()
+    // block the user forever, because the client can't otherwise add the
+    // field (firestore.rules treats it as server-controlled). Backfill
+    // any missing base field with its default. Idempotent: fields already
+    // present are left untouched, so this is a no-op on a healthy doc.
+    //
+    // Best-effort: backfilling `freeGenerationsUsed` / `subscriptionStatus`
+    // needs the initialization carve-out in firestore.rules (absent -> 0 /
+    // 'free'). If those rules aren't deployed yet the write is denied; we
+    // swallow it — the `?? 0` reads keep the UI sane and the generate
+    // Cloud Function backfills `freeGenerationsUsed` server-side on the
+    // first successful generation regardless.
+    const data = snap.data();
+    const backfill: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(base)) {
+      if (!(key in data)) backfill[key] = value;
+    }
+    if (Object.keys(backfill).length > 0) {
+      backfill.updatedAt = serverTimestamp();
+      try {
+        await setDoc(ref, backfill, { merge: true });
+        wrote = true;
+      } catch (e) {
+        console.warn('[firestore] ensureUserDoc backfill failed (continuing)', e);
+      }
+    }
   }
-  const fresh = await getDoc(ref);
-  return fresh.data() as UserDoc;
+
+  // Re-read only when we actually wrote. On a healthy existing doc the
+  // snapshot we already hold is authoritative (its timestamps are already
+  // resolved), so we skip a redundant round-trip on the hot auth path.
+  if (wrote) {
+    const fresh = await getDoc(ref);
+    return fresh.data() as UserDoc;
+  }
+  return snap.data() as UserDoc;
 }
 
 export async function getUserDoc(uid: string): Promise<UserDoc | null> {

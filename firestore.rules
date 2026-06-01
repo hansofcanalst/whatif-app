@@ -4,9 +4,30 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow create: if request.auth != null && request.auth.uid == uid;
+      // `subscriptionStatus` and `freeGenerationsUsed` are server-controlled
+      // (the RevenueCat webhook and the generate Cloud Function write them
+      // via the Admin SDK, which bypasses these rules). Clients may not
+      // MODIFY them — that would let a user grant themselves Pro or reset
+      // their free-generation count.
+      //
+      // Carve-out: a client MAY INITIALIZE either field when it is ABSENT,
+      // and only to its safe default (freeGenerationsUsed -> 0,
+      // subscriptionStatus -> 'free'). This lets ensureUserDoc() backfill a
+      // doc that another writer (push-token registration, the RC webhook)
+      // created via a merge write before the base fields were set — the
+      // "NaN/3 FREE" / permanent soft-lock bug. Initializing to the default
+      // is not a cheat (0 used / free is the honest starting state), and
+      // once the field is present the carve-out no longer applies, so a
+      // usage reset (5 -> 0) or a self-granted upgrade stays denied.
       allow update: if request.auth != null && request.auth.uid == uid
-        && !('subscriptionStatus' in request.resource.data.diff(resource.data).affectedKeys())
-        && !('freeGenerationsUsed' in request.resource.data.diff(resource.data).affectedKeys());
+        && (
+          !('subscriptionStatus' in request.resource.data.diff(resource.data).affectedKeys())
+          || (!('subscriptionStatus' in resource.data) && request.resource.data.subscriptionStatus == 'free')
+        )
+        && (
+          !('freeGenerationsUsed' in request.resource.data.diff(resource.data).affectedKeys())
+          || (!('freeGenerationsUsed' in resource.data) && request.resource.data.freeGenerationsUsed == 0)
+        );
       // Owners can delete their own account (the Profile screen's
       // "Delete Account" flow). Required for App Store policy and
       // GDPR/CCPA right-to-erasure compliance.

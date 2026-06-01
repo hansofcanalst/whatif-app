@@ -34,7 +34,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { captureError } from './sentry';
 
@@ -127,15 +127,20 @@ export async function registerPushToken(uid: string): Promise<string | null> {
     // record platform + a timestamp; multiple devices for one user
     // overwrite each other for now (single-token model). Multi-device
     // is a future expansion (token list with expiry).
-    await setDoc(
-      doc(db, 'users', uid),
-      {
-        expoPushToken: token,
-        expoPushTokenPlatform: Platform.OS,
-        expoPushTokenUpdatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+    //
+    // updateDoc — NOT setDoc-with-merge — on purpose: this must NEVER
+    // create users/{uid}. A merge-create here raced ensureUserDoc and
+    // could win, leaving the doc without `freeGenerationsUsed` ->
+    // "NaN/3 FREE" + a permanent generation soft-lock for new accounts
+    // (see PROGRESS_LOG 2026-06-01). updateDoc throws `not-found` when the
+    // doc is absent; the surrounding try/catch logs it and returns null.
+    // The caller (app/_layout.tsx) only invokes this once the user doc is
+    // confirmed loaded, so the doc reliably exists by the time we're here.
+    await updateDoc(doc(db, 'users', uid), {
+      expoPushToken: token,
+      expoPushTokenPlatform: Platform.OS,
+      expoPushTokenUpdatedAt: serverTimestamp(),
+    });
     console.log(`[push] token registered (${Platform.OS})`);
     return token;
   } catch (e) {

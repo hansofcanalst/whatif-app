@@ -32,7 +32,7 @@ try {
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, userDoc, loading } = useAuth();
   useSubscription();
   const segments = useSegments();
   const pathname = usePathname();
@@ -80,17 +80,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     setSentryUser(user?.uid ?? null);
   }, [user, setSentryUser]);
 
-  // Register the device's Expo push token whenever a user is signed in.
-  // No-ops on web, simulators, and signed-out sessions. We only need to
-  // run this once per (uid, device) pair, but registerPushToken is
-  // idempotent at the Firestore level so re-running on every effect
-  // tick is fine — it's a single setDoc with merge.
+  // Register the device's Expo push token once a user is signed in AND
+  // their Firestore user doc is confirmed loaded. Gating on `userDoc`
+  // (not just `user`) guarantees ensureUserDoc has already created the
+  // doc, so registerPushToken's updateDoc finds it instead of racing the
+  // create — the race that left new accounts with a doc missing
+  // `freeGenerationsUsed` ("NaN/3 FREE" + soft-lock; see PROGRESS_LOG
+  // 2026-06-01). No-ops on web, simulators, and signed-out sessions.
+  // registerPushToken is idempotent at the Firestore level, so re-running
+  // on an effect tick is harmless.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !userDoc) return;
     registerPushToken(user.uid).catch((e) =>
       console.warn('[layout] push registration failed', e),
     );
-  }, [user]);
+  }, [user, userDoc]);
 
   // Notification-tap deep-linking. When the user taps a "your
   // generation is ready" push, the notification's data.route field
