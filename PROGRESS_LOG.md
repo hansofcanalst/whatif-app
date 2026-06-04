@@ -5,6 +5,71 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-03 — App Store reviewer quota exemption (`quotaExempt` flag)
+
+**Context:** Apple's reviewer needs to fully test generation, but the free
+tier hard-caps lifetime generations at 3. Goal: exempt ONE account (the
+reviewer demo login) from the cap without weakening it for anyone else.
+Quota only — the minor-gate / safety path is untouched.
+
+**Discovery — the cap lives in two independent enforcement points + two
+cosmetic displays:**
+- **Server:** `functions/src/generate.ts` `checkQuotaAndCategory` — hardcoded
+  `FREE_CAP = 3` vs per-user `freeGenerationsUsed`; throws 402. Pro
+  (`subscriptionStatus === 'pro'`) already bypasses.
+- **Client GATE:** `hooks/useGeneration.ts` `canGenerate()` — hardcoded
+  `config.freeGenerationCap = 3` vs per-user `freeGenerationsUsed`. `start()`
+  calls it and **short-circuits to the paywall BEFORE any network request.**
+  So the client blocks locally — a server-only exemption is never reached.
+  This is why the fix required a client edit + a new build, not just a
+  function deploy.
+- **Displays (cosmetic):** `app/(tabs)/profile.tsx`,
+  `components/GenerationCounter.tsx`.
+- Local-dev `/api/generate` does NOT enforce quota (prod Cloud Function path
+  only). Pro-bypass differs by side (server reads `userDoc.subscriptionStatus`;
+  client reads RevenueCat `isActive`), so flipping the doc to 'pro' wouldn't
+  unblock the client and would also change premium gating — rejected in favor
+  of a dedicated `quotaExempt` flag.
+
+**Changes:**
+1. `functions/src/generate.ts` — `checkQuotaAndCategory` skips the cap when
+   `user.quotaExempt` is true. Premium gate, rate limiter, and downstream
+   minor gate untouched. The post-success `freeGenerationsUsed` increment
+   still runs (usage/audit record preserved).
+2. `hooks/useGeneration.ts` — `canGenerate()` returns true when
+   `userDoc.quotaExempt`, mirroring the server. Required because the client
+   blocks before sending.
+3. `lib/firestore.ts` — `quotaExempt?: boolean` added to `UserDoc`. NOT added
+   to `ensureUserDoc` defaults, so it stays absent/false for every normal user.
+4. `firestore.rules` — clients may not CREATE-with (other than `false`) or
+   UPDATE `quotaExempt`; only the Admin SDK / console (which bypass rules) can
+   set it true. Closes the self-exemption hole a new unguarded field would
+   otherwise open.
+
+**Deployed (server-side, no rebuild):** `firebase deploy --only
+firestore:rules` then `--only functions` to `whatif-98256`. Rules compiled
+clean; all 6 functions updated successfully.
+
+**Still required to activate for the reviewer:**
+- **Build 11** — the client gate change (#2) ships only in a new build. Until
+  then an exempt account is still blocked at #4 by the OLD client gate.
+- **Set the flag** — on the reviewer's `users/{uid}` doc set `quotaExempt:
+  true` (boolean) via Firebase console or Admin SDK. Do it before the reviewer
+  signs in (`userDoc` is read once at sign-in, not live-subscribed).
+
+**Verification:** root + functions `tsc` clean; 19 tests / 7 snapshots pass;
+diff confirmed localized — no minor-gate symbol (`runPeopleDetection`,
+`isMinorSensitiveCategory`, `isSensitiveRequest`, `serverDetectedMinor`)
+appears anywhere in it. Live behavioral checks (exempt account 5+ gens; fresh
+account refused at #4) are pending Build 11 + flag-set; the non-exempt refusal
+is unchanged by inspection (when `quotaExempt` is absent/false the condition
+is byte-for-byte the old one).
+
+**Out of scope (unchanged):** the known TOCTOU race in quota enforcement; the
+global cap stays 3 for every other user.
+
+---
+
 ## 2026-06-01 — Fix "NaN/3 FREE" counter + first-generation soft-lock for new accounts
 
 **Context:** Build 6 testing surfaced that a brand-new account (Apple Sign

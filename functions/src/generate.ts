@@ -105,7 +105,11 @@ async function checkQuotaAndCategory(
   const userRef = admin.firestore().collection('users').doc(uid);
   const snap = await userRef.get();
   if (!snap.exists) throw new functions.https.HttpsError('not-found', 'User not found');
-  const user = snap.data() as { freeGenerationsUsed?: number; subscriptionStatus?: string };
+  const user = snap.data() as {
+    freeGenerationsUsed?: number;
+    subscriptionStatus?: string;
+    quotaExempt?: boolean;
+  };
   const isPro = user.subscriptionStatus === 'pro';
   // For trends, premium-ness lives on the trend doc (admin-controlled);
   // for static categories, it's the catalog flag. Both gate the same way.
@@ -115,7 +119,14 @@ async function checkQuotaAndCategory(
     err.status = 402;
     throw err;
   }
-  if (!isPro && (user.freeGenerationsUsed ?? 0) >= FREE_CAP) {
+  // `quotaExempt` lifts ONLY the free-generation lifetime cap, and only
+  // for a single allow-listed account (the App Store reviewer demo login).
+  // It is server-controlled — firestore.rules denies client writes, and the
+  // Admin SDK / Firebase console is the sole writer — and is absent/false
+  // for every normal user. It does NOT bypass the premium-category gate
+  // above, the per-minute rate limiter, or the downstream minor-detection
+  // gate. Quota only — never safety.
+  if (!isPro && !user.quotaExempt && (user.freeGenerationsUsed ?? 0) >= FREE_CAP) {
     const err: any = new Error('Paywall required: free quota exceeded');
     err.status = 402;
     throw err;

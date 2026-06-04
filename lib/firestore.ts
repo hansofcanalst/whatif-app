@@ -22,6 +22,14 @@ export interface UserDoc {
   displayName: string | null;
   photoURL: string | null;
   freeGenerationsUsed: number;
+  // Server-only allow-list flag. When true the free-generation lifetime
+  // cap is lifted for this one account (the App Store reviewer demo login)
+  // on BOTH client (`canGenerate` in hooks/useGeneration.ts) and server
+  // (`checkQuotaAndCategory` in functions/src/generate.ts). Absent/false
+  // for every normal user; locked server-side in firestore.rules so a
+  // client can't self-exempt. Quota only — does not touch premium gating
+  // or any safety gate.
+  quotaExempt?: boolean;
   subscriptionStatus: 'free' | 'pro';
   subscriptionExpiry: Timestamp | null;
   revenueCatId: string | null;

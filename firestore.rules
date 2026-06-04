@@ -3,12 +3,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null && request.auth.uid == uid;
-      // `subscriptionStatus` and `freeGenerationsUsed` are server-controlled
-      // (the RevenueCat webhook and the generate Cloud Function write them
-      // via the Admin SDK, which bypasses these rules). Clients may not
-      // MODIFY them — that would let a user grant themselves Pro or reset
-      // their free-generation count.
+      // `quotaExempt` is a server-only allow-list flag (reviewer cap
+      // exemption). A client must never grant itself the exemption, so it
+      // may only CREATE its doc without the field (or explicitly false).
+      // The Admin SDK / console — which bypass these rules — are the only
+      // writers that set it true.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && (!('quotaExempt' in request.resource.data) || request.resource.data.quotaExempt == false);
+      // `subscriptionStatus`, `freeGenerationsUsed`, and `quotaExempt` are
+      // server-controlled (the RevenueCat webhook and the generate Cloud
+      // Function write them via the Admin SDK, which bypasses these rules).
+      // Clients may not MODIFY them — that would let a user grant themselves
+      // Pro, reset their free-generation count, or exempt themselves from
+      // the cap.
       //
       // Carve-out: a client MAY INITIALIZE either field when it is ABSENT,
       // and only to its safe default (freeGenerationsUsed -> 0,
@@ -27,7 +34,11 @@ service cloud.firestore {
         && (
           !('freeGenerationsUsed' in request.resource.data.diff(resource.data).affectedKeys())
           || (!('freeGenerationsUsed' in resource.data) && request.resource.data.freeGenerationsUsed == 0)
-        );
+        )
+        // No client may add or change `quotaExempt`. Unlike the two fields
+        // above there is no init carve-out — the safe default is simply the
+        // field's absence, so a client never needs to write it.
+        && !('quotaExempt' in request.resource.data.diff(resource.data).affectedKeys());
       // Owners can delete their own account (the Profile screen's
       // "Delete Account" flow). Required for App Store policy and
       // GDPR/CCPA right-to-erasure compliance.

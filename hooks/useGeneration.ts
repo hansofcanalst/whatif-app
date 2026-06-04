@@ -85,6 +85,14 @@ export function useGeneration() {
   const canGenerate = useCallback((): boolean => {
     if (isActive) return true;
     if (!userDoc) return false;
+    // Reviewer allow-list: `quotaExempt` lifts the lifetime cap for a
+    // single server-flagged account so the App Store reviewer can fully
+    // test the app. Mirrors the server check in functions/src/generate.ts
+    // `checkQuotaAndCategory`. Quota only — premium and safety gates are
+    // unaffected. The client MUST honor this too: `start()` short-circuits
+    // to the paywall BEFORE sending the request, so a server-only exemption
+    // would never be reached. See PROGRESS_LOG 2026-06-03.
+    if (userDoc.quotaExempt) return true;
     return (userDoc.freeGenerationsUsed ?? 0) < config.freeGenerationCap;
   }, [isActive, userDoc]);
 

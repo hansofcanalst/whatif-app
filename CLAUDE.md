@@ -79,6 +79,16 @@ __tests__/              Jest snapshot tests on prompt catalog
   `race-swap` / `gender-swap` / `ethnicity-blend` and refuses with 403
   if any person appears under 18. Fail-CLOSED on detection errors
   (503). `moderation_log.serverDetectedMinor` is the source of truth.
+- **Reviewer quota exemption (`quotaExempt`).** Server-controlled boolean
+  on `users/{uid}` that lifts the 3-generation lifetime cap for ONE
+  allow-listed account (App Store reviewer). Checked in BOTH
+  `functions/src/generate.ts` `checkQuotaAndCategory` (server) AND
+  `hooks/useGeneration.ts` `canGenerate` (client) — the client mirror is
+  mandatory because `start()` short-circuits to the paywall BEFORE
+  sending, so a server-only exemption is never reached. Locked in
+  `firestore.rules` (clients can't set it; Admin SDK / console only).
+  Quota ONLY — never bypasses premium or minor/safety gates. Absent/false
+  for normal users.
 - **Generation pipeline branching:** solo subject = static prompt;
   multi-person subset = composer single-pass; multi-person 2+ selected =
   SEQUENTIAL per-person passes. See comment block in
@@ -208,6 +218,10 @@ Server-only (no EXPO_PUBLIC_ prefix):
   prod on race-swap + gender-swap.
 - 2026-05-30 — `eas.json` created, app.json bundle id fixed to
   `com.olytoma.whatif`, monetization disabled for v1 launch.
+- 2026-06-03 — `quotaExempt` reviewer cap-exemption flag added. Server
+  check + `firestore.rules` lock deployed to prod; client gate
+  (`canGenerate`) ships in **Build 11**. Activate by setting
+  `quotaExempt: true` on the reviewer's user doc. See PROGRESS_LOG.
 
 ## Notes / gotchas
 
