@@ -5,6 +5,29 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-04 — Stop `freeGenerationsUsed` climbing past cap for `quotaExempt`
+
+**Context:** The reviewer demo account's counter was showing 4/3, 5/3 — the
+`quotaExempt` flag lifts the cap (so generation isn't blocked) but the
+success-path counter was still incrementing on every generation, so the
+displayed `freeGenerationsUsed` kept climbing past 3.
+
+**Fix:** `functions/src/generate.ts` — the success-path increment (around
+line 655) previously bumped `freeGenerationsUsed` for any non-pro user. Added
+`&& !user.quotaExempt` so exempt reviewers don't increment either, mirroring
+the cap exemption in `checkQuotaAndCategory`. Read the existing `quotaExempt`
+field off the already-fetched user doc; no extra read.
+
+**Scope / safety:** Quota counter only. Non-exempt users increment exactly as
+before. Premium gate, per-minute rate limiter, and the minor-detection gate /
+`moderation_log` are all untouched — `freeGenerationsUsed` is the quota
+counter, not the safety audit log.
+
+**Deploy:** `npx tsc --noEmit` clean → `firebase deploy --only functions`
+(all 6 functions updated successfully). No app rebuild — server-only change.
+
+---
+
 ## 2026-06-03 — App Store reviewer quota exemption (`quotaExempt` flag)
 
 **Context:** Apple's reviewer needs to fully test generation, but the free
