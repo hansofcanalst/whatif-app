@@ -25,7 +25,7 @@
         "NSCameraUsageDescription": "Me But needs access to your camera to take a photo for transformation.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "10"
+      "buildNumber": "11"
     },
     "android": {
       "package": "com.olytoma.whatif",

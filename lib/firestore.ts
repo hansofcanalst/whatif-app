@@ -12,6 +12,8 @@ import {
   serverTimestamp,
   Timestamp,
   increment,
+  onSnapshot,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { db } from './firebase';
@@ -132,6 +134,32 @@ export async function ensureUserDoc(user: User): Promise<UserDoc> {
 export async function getUserDoc(uid: string): Promise<UserDoc | null> {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? (snap.data() as UserDoc) : null;
+}
+
+/**
+ * Live subscription to users/{uid}. Replaces the one-shot read on the auth
+ * path so freeGenerationsUsed (and the rest of the doc) update in real time
+ * — the generation counter used to be frozen at its sign-in value until the
+ * app was restarted, because the doc was read exactly once.
+ *
+ * Returns the Firestore unsubscribe fn; the caller MUST call it on sign-out
+ * and unmount to avoid a listener leak. `onData` fires with the current doc
+ * on attach and on every subsequent change. A snapshot for a non-existent
+ * doc is skipped — the caller guarantees existence via `ensureUserDoc`
+ * before subscribing — so `onData` always receives a fully-shaped UserDoc.
+ */
+export function subscribeToUserDoc(
+  uid: string,
+  onData: (doc: UserDoc) => void,
+  onError: (error: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'users', uid),
+    (snap) => {
+      if (snap.exists()) onData(snap.data() as UserDoc);
+    },
+    onError,
+  );
 }
 
 export async function incrementFreeGenerations(uid: string): Promise<void> {

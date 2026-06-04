@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { subscribeToAuth } from '@/lib/auth';
-import { ensureUserDoc, UserDoc } from '@/lib/firestore';
+import { ensureUserDoc, subscribeToUserDoc, UserDoc } from '@/lib/firestore';
 import { useToast } from '@/components/ui/Toast';
 
 const AUTH_FALLBACK_MS = 5000;
@@ -29,6 +29,13 @@ export function useAuth() {
   // switch) and we don't want a stack of identical red banners. Cleared
   // on sign-out so a fresh sign-in can surface a fresh failure.
   const failureToastShownRef = useRef(false);
+  // Holds the live users/{uid} onSnapshot unsubscribe so we can tear the
+  // listener down on auth change / sign-out / unmount. `authEpochRef` is
+  // bumped on every auth callback; an in-flight ensureUserDoc().then() from
+  // a previous auth state compares against it and bails, so a late resolve
+  // can't attach a listener for an account we've already moved past.
+  const userDocUnsubRef = useRef<(() => void) | null>(null);
+  const authEpochRef = useRef(0);
 
   useEffect(() => {
     setLoading(true);
@@ -48,11 +55,30 @@ export function useAuth() {
       }
     }, AUTH_FALLBACK_MS);
 
+    // Tear down the live user-doc listener if one is attached. Called on
+    // every auth change, on sign-out, and on unmount — so we never leak a
+    // listener or keep one pointed at a previous account.
+    const teardownUserDoc = () => {
+      if (userDocUnsubRef.current) {
+        userDocUnsubRef.current();
+        userDocUnsubRef.current = null;
+      }
+    };
+
     const unsub = subscribeToAuth((u) => {
       if (!settledRef.current) {
         settledRef.current = true;
         clearTimeout(fallback);
       }
+
+      // Any auth change invalidates the previous user-doc listener. Tear it
+      // down up front (no listener attached while logged out, none left
+      // pointing at the old account), and bump the epoch so a still-in-flight
+      // ensureUserDoc().then() from the prior auth state can't attach a stale
+      // listener after we've already moved on.
+      const epoch = ++authEpochRef.current;
+      teardownUserDoc();
+
       setUser(u);
 
       // IMPORTANT: flip loading=false immediately off the auth callback.
@@ -61,15 +87,50 @@ export function useAuth() {
       setLoading(false);
 
       if (u) {
+        // ensureUserDoc still runs first: it CREATES the doc on first
+        // sign-in and backfills any missing base field (the "NaN/3" and
+        // create-race fixes live there), guaranteeing the snapshot listener
+        // below always observes a fully-shaped doc. We then attach an
+        // onSnapshot listener so freeGenerationsUsed and the rest of the doc
+        // stay live — the counter used to freeze at its sign-in value
+        // because this was a one-shot read.
         ensureUserDoc(u)
           .then((doc) => {
+            // A newer auth change superseded this one while we awaited;
+            // drop the result so we don't set a stale doc or attach a
+            // listener for an account we've moved past.
+            if (authEpochRef.current !== epoch) return;
             setUserDoc(doc);
             syncSubscriptionFromUserDoc(doc);
             // A previously-failed read succeeded — allow a fresh
             // toast if it fails again later (e.g. token expired).
             failureToastShownRef.current = false;
+
+            // Live updates from here on. Keeps userDoc in sync with the
+            // server doc (e.g. the generation counter after a server-side
+            // increment, or subscriptionStatus after a RevenueCat webhook)
+            // without an app restart.
+            userDocUnsubRef.current = subscribeToUserDoc(
+              u.uid,
+              (live) => {
+                setUserDoc(live);
+                syncSubscriptionFromUserDoc(live);
+              },
+              (e) => {
+                // A live-listener error (rules change, token expiry, network)
+                // surfaces the same way as an initial read failure below.
+                const message = e instanceof Error ? e.message : String(e);
+                console.warn('[auth] user-doc listener error', e);
+                setError(message);
+                if (!failureToastShownRef.current) {
+                  failureToastShownRef.current = true;
+                  showRef.current(`Couldn't load your profile: ${message}`, 'error');
+                }
+              },
+            );
           })
           .catch((e) => {
+            if (authEpochRef.current !== epoch) return;
             // Previously this was a silent console.warn — the user
             // got "0 used / 0 remaining" math on the profile and
             // "Free plan" even with a Pro doc set in the console,
@@ -97,6 +158,7 @@ export function useAuth() {
 
     return () => {
       clearTimeout(fallback);
+      teardownUserDoc();
       unsub();
     };
     // `show` is deliberately NOT in this dep array — it's accessed via

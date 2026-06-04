@@ -5,6 +5,47 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-04 — Build 12: live generation counter + age-transform probe removed
+
+**Three changes bundled for Build 12.**
+
+**1. Removed the temporary age-transform diagnostic probe.** The
+`io-bytes … identical=` `console.log` added to `generateOne`
+(`functions/src/generate.ts`) during the age-transform echo-vs-weak-transform
+investigation was reverted — the file is back to exactly its committed state
+(diagnostic only, never committed). Re-deployed `functions:generate` so prod
+runs the clean version. (Age-transform root-cause/fix still parked — see the
+prior session notes; this only removed the probe.)
+
+**2. Live generation counter (client read-mechanism swap).** The generation
+counter was frozen at its sign-in value until app restart because the user
+doc was read once via `ensureUserDoc` on the auth callback. Replaced the
+one-shot read with a real-time `onSnapshot` listener:
+- New `subscribeToUserDoc(uid, onData, onError)` helper in `lib/firestore.ts`
+  (mirrors the `subscribeToAuth` pattern; returns the Firestore unsubscribe;
+  skips non-existent-doc snapshots so `onData` always gets a full `UserDoc`).
+- `hooks/useAuth.ts`: `ensureUserDoc` still runs FIRST (keeps the
+  create-on-first-signin + NaN/3 backfill fixes and guarantees the listener
+  observes a fully-shaped doc), then attaches the live listener.
+- Leak/race handling: `userDocUnsubRef` + `teardownUserDoc()` tear the
+  listener down on every auth change, sign-out, and unmount (no listener
+  while logged out, none left pointing at a prior account). An `authEpochRef`
+  bumped per auth callback makes a late-resolving `ensureUserDoc().then()`
+  from a superseded auth state bail without attaching a stale listener.
+- Preserved exactly: `setLoading(false)` off the auth callback, the
+  `ensureUserDoc().catch` error+toast path, and the `UserDoc` shape/typing.
+  Pure read-mechanism change — `quotaExempt`, server cap, premium gating, and
+  the minor-gate are untouched.
+
+**3. Build 12 cut.** Committed `app.json` buildNumber 10→11; EAS production
+`autoIncrement` (appVersionSource: local) stamps 12 at build time and writes
+it back to the working-tree `app.json`. `eas build --profile production
+--platform ios`.
+
+Typechecks clean (app + functions, both exit 0).
+
+---
+
 ## 2026-06-04 — Stop `freeGenerationsUsed` climbing past cap for `quotaExempt`
 
 **Context:** The reviewer demo account's counter was showing 4/3, 5/3 — the
