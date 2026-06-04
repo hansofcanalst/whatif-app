@@ -659,8 +659,14 @@ export const generate = functions
 
       const userRef = admin.firestore().collection('users').doc(uid);
       const userSnap = await userRef.get();
-      const user = userSnap.data() as { subscriptionStatus?: string };
-      if (user.subscriptionStatus !== 'pro') {
+      const user = userSnap.data() as { subscriptionStatus?: string; quotaExempt?: boolean };
+      // Increment the lifetime free-generation counter for normal users.
+      // `quotaExempt` reviewers are exempt from the cap (see
+      // checkQuotaAndCategory), so we must NOT bump their counter either —
+      // otherwise it climbs past the 3-cap (4/3, 5/3 …) on the demo account.
+      // This is the quota counter only; the minor/safety gate and
+      // moderation_log are untouched.
+      if (user.subscriptionStatus !== 'pro' && !user.quotaExempt) {
         await userRef.update({
           freeGenerationsUsed: admin.firestore.FieldValue.increment(1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
