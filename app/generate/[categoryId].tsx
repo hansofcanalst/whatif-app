@@ -37,6 +37,24 @@ export default function GenerateCategoryScreen() {
     return selected.size === category.subcategories.length;
   }, [selected, category]);
 
+  // List of (subcategory, accessory[]) pairs that should appear in the
+  // accessories section. Only includes selected variants that have any
+  // accessories defined — others are filtered out so the UI doesn't
+  // render an empty section header.
+  //
+  // MUST stay above the `if (!category)` early return below — a hook
+  // declared after that guard changes the render hook count between the
+  // category-missing render and the normal render (the "Rendered more
+  // hooks than during the previous render" crash, same class as the
+  // result-screen setIdx fix). Null-guards `category` like allSelected.
+  const accessoryRows = useMemo(() => {
+    if (!category) return [];
+    return category.subcategories
+      .filter((s) => selected.has(s.id))
+      .map((s) => ({ sub: s, accessories: getPrompt(category.id, s.id)?.accessories ?? [] }))
+      .filter((row) => row.accessories.length > 0);
+  }, [category, selected]);
+
   if (!category) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -86,17 +104,6 @@ export default function GenerateCategoryScreen() {
       return next;
     });
   };
-
-  // List of (subcategory, accessory[]) pairs that should appear in the
-  // accessories section. Only includes selected variants that have any
-  // accessories defined — others are filtered out so the UI doesn't
-  // render an empty section header.
-  const accessoryRows = useMemo(() => {
-    return category.subcategories
-      .filter((s) => selected.has(s.id))
-      .map((s) => ({ sub: s, accessories: getPrompt(category.id, s.id)?.accessories ?? [] }))
-      .filter((row) => row.accessories.length > 0);
-  }, [category, selected]);
 
   // Single chokepoint for the paywall trigger. With v1 monetization OFF
   // (V1_MONETIZATION_ENABLED=false) the paywall must never appear, so we

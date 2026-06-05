@@ -5,7 +5,40 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
-## 2026-06-05 — Build 15: fix Rules-of-Hooks crash opening a gallery photo
+## 2026-06-05 — Build 16: fix second Rules-of-Hooks violation (category picker)
+
+**One client change. No server, minor-gate, quota, or watermark-logic
+changes.**
+
+A pre-submission read-only review (Rules-of-Hooks sweep across the whole
+app) found one sibling of the Build 15 crash: in
+`app/generate/[categoryId].tsx`, the `accessoryRows = useMemo(...)` sat
+*below* the `if (!category)` early return. When `category` is undefined
+(route param empty/hydrating) the guard renders fewer hooks than the
+normal render — the same "Rendered more hooks than during the previous
+render" crash class as Build 15. More intermittent than the result-screen
+bug (trigger is param-hydration timing, not a data-load flip), but the same
+violation.
+
+**Fix:** moved the `accessoryRows` `useMemo` above the `if (!category)`
+guard, adding an `if (!category) return []` null-guard (mirrors the
+existing `allSelected` memo, since it dereferences `category.subcategories`).
+Re-audited the whole file: all 11 hooks now sit above both early returns
+(`if (!category)` and `if (busy)`); zero hooks below either guard.
+`useGenerationStore.getState()` in `handleGenerate` is the static accessor,
+not a hook. App + functions typecheck clean.
+
+The same review confirmed the safety/quota/watermark invariants are INTACT
+and untouched by Builds 12–15, and flagged two non-code items left for
+later: external legal pages still branded "WhatIf" (out-of-repo) and the
+dev-only prompt-eval screen's hooks (dev-gated, can't flip at runtime).
+Neither touched here.
+
+**Build 16 cut.** Committed `app.json` buildNumber 14→15 (EAS production
+`autoIncrement` stamps 16 at build time). `eas build --profile production
+--platform ios`.
+
+
 
 **One client change. No server, minor-gate, quota, or watermark-logic
 changes (watermark stays always-on).**
