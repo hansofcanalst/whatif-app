@@ -177,3 +177,32 @@ export async function removeLocalGeneration(id: string): Promise<LocalGeneration
   }
   return next;
 }
+
+/**
+ * Remove MULTIPLE entries by id in a single read-modify-write. Used by the
+ * gallery's multi-select batch delete.
+ *
+ * Why a dedicated batch primitive instead of calling removeLocalGeneration()
+ * per id: that function does its own listLocalGallery() → filter → setItem
+ * cycle, so firing several concurrently races on AsyncStorage — each reads
+ * the same starting list, removes only its own id, and the last write wins,
+ * silently resurrecting every "deleted" entry but one. Collapsing the whole
+ * batch into one pass is the only safe way to delete more than one at a time.
+ *
+ * Returns the new list (post-removal) so callers can update an in-memory copy
+ * without re-reading. No-op (returns the current list) if none were present.
+ */
+export async function removeLocalGenerations(ids: string[]): Promise<LocalGenerationDoc[]> {
+  if (ids.length === 0) return listLocalGallery();
+  const remove = new Set(ids);
+  const existing = await listLocalGallery();
+  const next = existing.filter((d) => !remove.has(d.id));
+  if (next.length === existing.length) return existing; // none present
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.warn('[localGallery] batch remove failed', e);
+    return existing;
+  }
+  return next;
+}

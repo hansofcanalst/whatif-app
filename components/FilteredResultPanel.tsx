@@ -82,12 +82,14 @@ export function FilteredResultPanel({
   subcategoryLabel,
 }: FilteredResultPanelProps) {
   const [filter, setFilter] = useState<FilterId>('none');
-  // Watermark defaults to ON — every shared image carries attribution
-  // by default, with an explicit per-result opt-out. The toggle lives
-  // on this screen rather than as a global setting because the user's
-  // intent often varies per image (sharing into a personal group chat
-  // vs. posting publicly), and a per-result decision is friction-free.
-  const [watermark, setWatermark] = useState(true);
+  // Watermark is ALWAYS ON and not user-toggleable. Sharing/saving an
+  // un-watermarked image contradicts the App Store listing and the app's
+  // safety posture (attribution must survive a reshare), so the per-result
+  // opt-out toggle was removed in Build 13. Kept as a const (rather than
+  // inlined) so the watermark pill + `needsCapture` references below read
+  // clearly and a future edit can't silently reintroduce an off-state. See
+  // the v1.1 batch-share hard-constraint comment near handleShare.
+  const watermark = true;
   const [busy, setBusy] = useState(false);
   const captureRefHandle = useRef<View>(null);
   const { show } = useToast();
@@ -192,6 +194,18 @@ export function FilteredResultPanel({
     }
   };
 
+  // ── v1.1 HARD CONSTRAINT — batch share ──────────────────────────────
+  // No share path may EVER emit an un-watermarked image. The watermark is
+  // baked into the exported bytes by rendering it INSIDE the captureRef
+  // target (the watermark pill in the JSX below) and exporting through
+  // resolveExportUri(). When multi-select batch share lands in v1.1, every
+  // selected image MUST go through this same captureRef-with-watermark
+  // render — it must NOT share a raw stored imageURL / Storage object
+  // directly, which would bypass the watermark entirely. Do not weaken or
+  // bypass this. (Build 13 intentionally shipped delete-only multi-select;
+  // batch share was deferred because it needs a new native share dep and a
+  // watermark-rendering decision — this comment is the reminder.)
+  // ─────────────────────────────────────────────────────────────────────
   const handleShare = async () => {
     if (busy) return;
     setBusy(true);
@@ -331,33 +345,8 @@ export function FilteredResultPanel({
         })}
       </View>
 
-      {/* Watermark toggle. Lives in its own row below the filter chips
-          so it doesn't visually compete with filter selection. Same
-          chip styling as the filters for consistency, with explicit
-          on/off label so the current state is unambiguous (a single
-          chip that just toggles is harder to read at a glance). */}
-      <View style={styles.watermarkRow}>
-        <Pressable
-          onPress={() => setWatermark((w) => !w)}
-          style={[styles.chip, styles.watermarkChip, watermark && styles.chipActive]}
-          // `switch` role is the correct semantic for a binary toggle;
-          // `accessibilityState.checked` mirrors the on/off state.
-          accessibilityRole="switch"
-          accessibilityLabel="Watermark on shared images"
-          accessibilityState={{ checked: watermark }}
-        >
-          {watermark ? (
-            <Sparkles
-              size={11}
-              color={colors.accentText}
-              strokeWidth={2.5}
-            />
-          ) : null}
-          <Text style={[styles.chipText, watermark && styles.chipTextActive]}>
-            {watermark ? 'Watermark on' : 'Watermark off'}
-          </Text>
-        </Pressable>
-      </View>
+      {/* Watermark toggle removed in Build 13 — the watermark is always on
+          (see the `watermark` const above). No user-facing opt-out. */}
 
       <View style={styles.actions}>
         <Button
@@ -427,7 +416,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chipTextActive: { color: colors.accentText, fontWeight: '700' },
-  watermarkRow: { flexDirection: 'row', marginTop: spacing.sm },
   // Watermark pill — sits inside the capture target at bottom-right.
   // Dark translucent background + subtle border keeps it readable on
   // both bright and dark results. Sized small enough to not dominate
@@ -446,14 +434,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(9,9,13,0.7)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
-  },
-  // The watermark *toggle* chip needs flexDirection:row so the inline
-  // Sparkles icon sits left of the label. The other chips on this
-  // screen are text-only and don't need it.
-  watermarkChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
   },
   watermarkText: {
     color: colors.textPrimary,

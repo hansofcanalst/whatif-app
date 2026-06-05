@@ -5,6 +5,54 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-04 — Build 13: gallery multi-select delete + watermark always-on
+
+**Two changes bundled for Build 13. Client-only — no server, rules, minor-gate
+or quota touched.**
+
+**1. Gallery delete — single-photo fix + multi-select (delete only).**
+Root cause of "delete doesn't work": the gallery renders `localGallery ∪
+remoteDocs`, but `remoteDocs` is component state (from `listGenerations`) that
+the delete path never pruned, so Firestore-backed tiles lingered until a
+pull-to-refresh. The Firestore delete + Storage cascade (`onGenerationDeleted`
+trigger) were already working.
+- **Single fix** (`app/(tabs)/gallery.tsx`): after `removeGeneration(docId)`
+  resolves, prune `remoteDocs` too → tile disappears immediately.
+- **Multi-select** (`gallery.tsx`): `selectionMode` + `selectedIds:
+  Set<docId>` (doc is the unit of deletion). A "Select" pill enters mode;
+  the top bar becomes Cancel · "N selected" · Delete; tapping a tile toggles
+  selection (checkmark + accent border) instead of navigating; long-press
+  single-delete and the web X-badge are suppressed in selection mode.
+- **Batch primitive** (`stores/generationStore.ts` `removeGenerations`):
+  parallel `Promise.allSettled(deleteGeneration)` (each cascades Storage via
+  the trigger) + ONE batched local prune; returns the ids whose Firestore
+  delete genuinely succeeded so the gallery prunes `remoteDocs` for those. A
+  failed delete stays in both caches → its tile remains; the rest complete.
+- **Batch local prune** (`lib/localGallery.ts` `removeLocalGenerations`):
+  single read-modify-write. Deliberately NOT
+  `Promise.allSettled(ids.map(removeGeneration))` — concurrent per-id
+  AsyncStorage read-modify-writes race and resurrect entries.
+- **Batch share: deferred to v1.1** (needs a native share dep + a watermark
+  decision). No batch/multi share control shipped.
+
+**2. Watermark always-on for single-image share** (`components/
+FilteredResultPanel.tsx`). Users could previously toggle the watermark OFF and
+share/save an un-watermarked image, contradicting the App Store listing + the
+app's safety posture. Removed the user-facing toggle entirely; `watermark` is
+now a `const true`, so `needsCapture` is always true and every Save/Share goes
+through the `captureRef` render with the watermark pill baked into the bytes.
+Added a v1.1 HARD CONSTRAINT comment near `handleShare`: no future (batch)
+share path may emit an un-watermarked image — it must use the same
+captureRef-with-watermark render, never a raw stored imageURL/Storage object.
+
+**Build 13 cut.** Committed `app.json` buildNumber 11→12 (EAS production
+`autoIncrement`, appVersionSource: local, stamps 13). `eas build --profile
+production --platform ios`.
+
+Typechecks clean (app + functions, both exit 0).
+
+---
+
 ## 2026-06-04 — Build 12: live generation counter + age-transform probe removed
 
 **Three changes bundled for Build 12.**

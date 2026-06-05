@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGenerationStore } from '@/stores/generationStore';
 import { listGenerations } from '@/lib/firestore';
 import type { GenerationDoc } from '@/lib/firestore';
-import { Sparkles, X } from 'lucide-react-native';
+import { Sparkles, X, Check } from 'lucide-react-native';
 import { CATEGORIES } from '@/constants/categories';
 import { colors, radii, spacing, typography } from '@/constants/theme';
 import { CategoryIcon } from '@/components/CategoryIcon';
@@ -21,9 +21,16 @@ export default function Gallery() {
   const localGallery = useGenerationStore((s) => s.localGallery);
   const hydrateLocalGallery = useGenerationStore((s) => s.hydrateLocalGallery);
   const removeGeneration = useGenerationStore((s) => s.removeGeneration);
+  const removeGenerations = useGenerationStore((s) => s.removeGenerations);
   const [remoteDocs, setRemoteDocs] = useState<GenerationDoc[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Multi-select delete mode. selectedIds holds parent generation docIds —
+  // the doc is the unit of deletion, so selecting any variant tile selects
+  // the whole set. A fresh Set is created on every mutation so React sees a
+  // new reference and re-renders.
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     // Re-hydrate local gallery alongside remote refetch so pull-to-
@@ -68,9 +75,14 @@ export default function Gallery() {
           ? `Removes all ${variantCount} variants from this generation. This can't be undone.`
           : `Removes this transformation. This can't be undone.`;
       const proceed = () => {
-        removeGeneration(docId).catch((e) =>
-          console.warn('[gallery] removeGeneration failed', e),
-        );
+        // removeGeneration prunes Firestore + the local-gallery slice, but the
+        // remoteDocs cache (component state from listGenerations) is separate —
+        // prune it here too so the tile disappears immediately instead of
+        // lingering until a pull-to-refresh. This is the actual single-delete
+        // bug fix.
+        removeGeneration(docId)
+          .then(() => setRemoteDocs((prev) => prev.filter((d) => d.id !== docId)))
+          .catch((e) => console.warn('[gallery] removeGeneration failed', e));
       };
       if (Platform.OS === 'web') {
         // eslint-disable-next-line no-alert
@@ -86,6 +98,62 @@ export default function Gallery() {
     },
     [removeGeneration],
   );
+
+  // Toggle a generation's selection (keyed by parent docId). Fresh Set each
+  // time so the change is observed.
+  const toggleSelect = useCallback((docId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  }, []);
+
+  // Leave selection mode and clear the selection.
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  // Batch delete the selected generations. Mirrors handleDelete's confirm +
+  // Platform branch. The deletes go through the store's removeGenerations
+  // (parallel Firestore deletes + a single batched local prune); we then
+  // prune the remoteDocs cache for the ids that genuinely deleted server-side.
+  // A failed delete is left in both caches so its tile stays — the rest still
+  // complete (allSettled inside the store), so one failure never wedges the UI.
+  const handleBatchDelete = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const count = ids.length;
+    const title = count > 1 ? `Delete ${count} sets?` : 'Delete this set?';
+    const message =
+      count > 1
+        ? `Removes ${count} generations and all their variants. This can't be undone.`
+        : `Removes this transformation and all its variants. This can't be undone.`;
+    const proceed = () => {
+      removeGenerations(ids)
+        .then((remoteDeleted) => {
+          if (remoteDeleted.length > 0) {
+            const gone = new Set(remoteDeleted);
+            setRemoteDocs((prev) => prev.filter((d) => !gone.has(d.id)));
+          }
+        })
+        .catch((e) => console.warn('[gallery] batch delete failed', e))
+        .finally(() => exitSelection());
+    };
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) {
+        proceed();
+      }
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: proceed },
+    ]);
+  }, [selectedIds, removeGenerations, exitSelection]);
 
   // Merge the two sources and dedupe by id. Remote wins on collision
   // because its `results[].imageURL` is an https URL (smaller, cacheable)
@@ -154,37 +222,79 @@ export default function Gallery() {
           <Text style={styles.title}>Your Gallery</Text>
         </View>
         <View style={styles.topBarRight}>
-          {/* Compact two-state toggle. Lives next to the count badge so
-              the top bar density stays the same as before. The compare
-              mode reveals the original alongside each result — the
-              gallery's most direct answer to "show before and after". */}
-          <View style={styles.modeSwitch}>
-            <Pressable
-              onPress={() => setViewMode('results')}
-              style={[styles.modeBtn, viewMode === 'results' && styles.modeBtnActive]}
-              accessibilityRole="button"
-              accessibilityLabel="Show results only"
-              accessibilityState={{ selected: viewMode === 'results' }}
-            >
-              <Text style={[styles.modeText, viewMode === 'results' && styles.modeTextActive]}>
-                Results
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setViewMode('compare')}
-              style={[styles.modeBtn, viewMode === 'compare' && styles.modeBtnActive]}
-              accessibilityRole="button"
-              accessibilityLabel="Compare original and result side by side"
-              accessibilityState={{ selected: viewMode === 'compare' }}
-            >
-              <Text style={[styles.modeText, viewMode === 'compare' && styles.modeTextActive]}>
-                Compare
-              </Text>
-            </Pressable>
-          </View>
-          <View style={styles.countBadge}>
-            <Text style={styles.countText}>{flat.length}</Text>
-          </View>
+          {selectionMode ? (
+            // Contextual selection action bar: cancel · count · delete.
+            <>
+              <Pressable
+                onPress={exitSelection}
+                style={styles.selBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel selection"
+              >
+                <Text style={styles.selBtnText}>Cancel</Text>
+              </Pressable>
+              <Text style={styles.selCount}>{selectedIds.size} selected</Text>
+              <Pressable
+                onPress={handleBatchDelete}
+                disabled={selectedIds.size === 0}
+                style={[
+                  styles.selDeleteBtn,
+                  selectedIds.size === 0 && styles.selDeleteBtnDisabled,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${selectedIds.size} selected ${
+                  selectedIds.size === 1 ? 'set' : 'sets'
+                }`}
+                accessibilityState={{ disabled: selectedIds.size === 0 }}
+              >
+                <Text style={styles.selDeleteText}>Delete</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              {/* Compact two-state toggle. Lives next to the count badge so
+                  the top bar density stays the same as before. The compare
+                  mode reveals the original alongside each result — the
+                  gallery's most direct answer to "show before and after". */}
+              <View style={styles.modeSwitch}>
+                <Pressable
+                  onPress={() => setViewMode('results')}
+                  style={[styles.modeBtn, viewMode === 'results' && styles.modeBtnActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Show results only"
+                  accessibilityState={{ selected: viewMode === 'results' }}
+                >
+                  <Text style={[styles.modeText, viewMode === 'results' && styles.modeTextActive]}>
+                    Results
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setViewMode('compare')}
+                  style={[styles.modeBtn, viewMode === 'compare' && styles.modeBtnActive]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Compare original and result side by side"
+                  accessibilityState={{ selected: viewMode === 'compare' }}
+                >
+                  <Text style={[styles.modeText, viewMode === 'compare' && styles.modeTextActive]}>
+                    Compare
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={styles.countBadge}>
+                <Text style={styles.countText}>{flat.length}</Text>
+              </View>
+              {flat.length > 0 ? (
+                <Pressable
+                  onPress={() => setSelectionMode(true)}
+                  style={styles.selBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select photos to delete"
+                >
+                  <Text style={styles.selBtnText}>Select</Text>
+                </Pressable>
+              ) : null}
+            </>
+          )}
         </View>
       </View>
       {/* Horizontal filter bar. `style={styles.filterBar}` pins the outer
@@ -262,19 +372,32 @@ export default function Gallery() {
         }
         renderItem={({ item }) => {
           const showCompare = viewMode === 'compare' && !!item.originalURL;
+          const selected = selectionMode && selectedIds.has(item.docId);
           return (
             <Pressable
               onPress={() =>
-                router.push(`/result/${item.docId}?idx=${item.resultIdx}`)
+                selectionMode
+                  ? toggleSelect(item.docId)
+                  : router.push(`/result/${item.docId}?idx=${item.resultIdx}`)
               }
-              onLongPress={() => handleDelete(item.docId, item.variantCount)}
+              onLongPress={() => {
+                // Long-press is the quick single-delete shortcut, but only
+                // outside selection mode — in selection mode a tap already
+                // toggles, so long-press would be ambiguous.
+                if (!selectionMode) handleDelete(item.docId, item.variantCount);
+              }}
               delayLongPress={400}
-              style={styles.thumb}
+              style={[styles.thumb, selected && styles.thumbSelected]}
               accessibilityRole="button"
+              accessibilityState={{ selected }}
               accessibilityLabel={
-                showCompare
-                  ? 'Open generation. Long-press to delete. Showing before and after.'
-                  : 'Open generation. Long-press to delete.'
+                selectionMode
+                  ? selected
+                    ? 'Selected. Tap to deselect.'
+                    : 'Tap to select for deletion.'
+                  : showCompare
+                    ? 'Open generation. Long-press to delete. Showing before and after.'
+                    : 'Open generation. Long-press to delete.'
               }
             >
               {showCompare ? (
@@ -286,7 +409,19 @@ export default function Gallery() {
               ) : (
                 <Image source={{ uri: item.url }} style={styles.thumbImage} />
               )}
-              {Platform.OS === 'web' ? (
+              {selectionMode ? (
+                // Selection checkmark overlay — accent-filled circle when
+                // selected, hollow ring otherwise, so every tile reads as
+                // selectable at a glance. pointerEvents none so taps fall
+                // through to the tile's onPress toggle.
+                <View style={styles.selectOverlay} pointerEvents="none">
+                  <View style={[styles.selectRing, selected && styles.selectRingOn]}>
+                    {selected ? (
+                      <Check size={14} color={colors.accentText} strokeWidth={3} />
+                    ) : null}
+                  </View>
+                </View>
+              ) : Platform.OS === 'web' ? (
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation?.();
@@ -414,8 +549,47 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   thumbImage: { width: '100%', height: '100%' },
+  // Selected tile gets an accent border (replaces the default 1px border).
+  thumbSelected: { borderColor: colors.accent, borderWidth: 2 },
   // Top-bar right cluster — Compare/Results mode switch + count pill.
   topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Selection-mode controls (Select / Cancel pill + count + Delete pill).
+  selBtn: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  selBtnText: { ...typography.label, color: colors.textSecondary, fontSize: 11, fontWeight: '700' },
+  selCount: { ...typography.label, color: colors.textPrimary, fontSize: 11 },
+  selDeleteBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.danger,
+  },
+  selDeleteBtnDisabled: { opacity: 0.4 },
+  selDeleteText: { ...typography.label, color: '#fff', fontSize: 11, fontWeight: '700' },
+  // Per-tile selection checkmark overlay (top-right).
+  selectOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    padding: 6,
+  },
+  selectRing: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(9,9,13,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectRingOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   modeSwitch: {
     flexDirection: 'row',
     backgroundColor: colors.bgCard,

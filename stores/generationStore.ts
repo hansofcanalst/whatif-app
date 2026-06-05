@@ -5,6 +5,7 @@ import {
   appendLocalGeneration,
   listLocalGallery,
   removeLocalGeneration,
+  removeLocalGenerations,
   type AppendLocalGenerationArgs,
   type LocalGenerationDoc,
 } from '@/lib/localGallery';
@@ -124,6 +125,17 @@ interface GenerationState {
   // localGallery slice so subscribers re-render. Used by the gallery
   // tab's long-press → delete flow.
   removeGeneration: (id: string) => Promise<void>;
+  // Batch sibling of removeGeneration for the gallery's multi-select delete.
+  // Deletes each Firestore doc in PARALLEL (independent docs; each cascades
+  // Storage cleanup via the onGenerationDeleted trigger) but prunes the local
+  // gallery in ONE batched write — fanning removeGeneration out per id would
+  // race the AsyncStorage read-modify-write and resurrect entries (see
+  // removeLocalGenerations). Per-id Firestore failures are tolerated
+  // (allSettled): a local-only id with no Firestore doc, or a transient
+  // network error, doesn't abort the rest. Returns the ids whose Firestore
+  // delete genuinely succeeded so the caller can prune its remote cache; a
+  // failed id is left out so its tile stays.
+  removeGenerations: (ids: string[]) => Promise<string[]>;
 
   reset: () => void;
 }
@@ -278,6 +290,31 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       // re-surface the entry, but at least the immediate UX is correct.
       set((s) => ({ localGallery: s.localGallery.filter((d) => d.id !== id) }));
     }
+  },
+
+  removeGenerations: async (ids) => {
+    if (ids.length === 0) return [];
+    // Firestore deletes run concurrently — they touch independent docs with
+    // no shared mutable state, and each fires the onGenerationDeleted trigger
+    // that sweeps the doc's Storage prefix. allSettled so one rejection
+    // (transient network, or a local-only id with no Firestore doc →
+    // permission-denied) never aborts the batch.
+    const settled = await Promise.allSettled(ids.map((id) => deleteGeneration(id)));
+    const remoteDeleted = ids.filter((_, i) => settled[i].status === 'fulfilled');
+    // Prune the local gallery for ALL requested ids in a SINGLE write — this
+    // matches single-delete (which prunes local regardless of the remote
+    // outcome) and, critically, avoids the per-id AsyncStorage read-modify-
+    // write race (see removeLocalGenerations).
+    try {
+      const next = await removeLocalGenerations(ids);
+      set({ localGallery: next });
+    } catch (e) {
+      console.warn('[generationStore] removeLocalGenerations failed', e);
+      const drop = new Set(ids);
+      set((s) => ({ localGallery: s.localGallery.filter((d) => !drop.has(d.id)) }));
+    }
+    // Caller prunes its remoteDocs cache using the genuinely-deleted ids.
+    return remoteDeleted;
   },
 
   reset: () =>
