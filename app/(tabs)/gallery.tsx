@@ -483,7 +483,13 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    // Wrap instead of clipping: on narrow widths the right cluster
+    // (Results/Compare toggle + count + Select pill, or the selection action
+    // bar) drops to its own line below the title rather than overflowing off
+    // the right edge. marginLeft:'auto' on topBarRight keeps it right-aligned
+    // on whichever line it lands. rowGap spaces the two lines when wrapped.
+    flexWrap: 'wrap',
+    rowGap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
     paddingBottom: spacing.lg,
@@ -552,7 +558,9 @@ const styles = StyleSheet.create({
   // Selected tile gets an accent border (replaces the default 1px border).
   thumbSelected: { borderColor: colors.accent, borderWidth: 2 },
   // Top-bar right cluster — Compare/Results mode switch + count pill.
-  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // marginLeft:'auto' right-aligns it (replacing the old space-between) and
+  // survives wrapping to a second line — see the topBar flexWrap note.
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginLeft: 'auto' },
   // Selection-mode controls (Select / Cancel pill + count + Delete pill).
   selBtn: {
     paddingHorizontal: spacing.sm + 2,

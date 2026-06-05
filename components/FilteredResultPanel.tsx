@@ -42,6 +42,7 @@ import {
 import { captureRef } from 'react-native-view-shot';
 import { Sparkles } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
 // Alias the expo-file-system File class so it doesn't shadow the
 // global `File` constructor used in the Web Share API path below.
 import { File as FsFile, Paths } from 'expo-file-system';
@@ -170,20 +171,22 @@ export function FilteredResultPanel({
         show('Saved to Downloads', 'success');
         return;
       }
-      // Native: write to the document directory via the new
-      // expo-file-system class API. The captured uri is either an
-      // HTTP(S) URL or a tmpfile from view-shot; downloadFileAsync
-      // handles both. For un-captured runs (filter='none', no
-      // watermark), uri is the original imageURL — same path.
-      const dest = new FsFile(Paths.document, filename);
-      if (dest.exists) dest.delete();
-      if (!needsCapture) {
-        await FsFile.downloadFileAsync(uri, dest);
-      } else {
-        // captureRef gave us a tmpfile path → wrap as a File and copy.
-        new FsFile(uri).copy(dest);
+      // Native: save the rendered capture into the iOS Photos library.
+      // `uri` is the captureRef tmpfile from resolveExportUri() — the SAME
+      // watermarked + filtered bytes Share emits (watermark is always on, so
+      // needsCapture is always true and `uri` is never the raw imageURL).
+      // Save therefore can never write an un-watermarked image.
+      //
+      // Request ADD-only permission (writeOnly = true) → maps to
+      // NSPhotoLibraryAddUsageDescription, the minimal scope needed to write
+      // a photo without read access to the user's library.
+      const perm = await MediaLibrary.requestPermissionsAsync(true);
+      if (!perm.granted) {
+        show('Allow Photos access in Settings to save', 'error');
+        return;
       }
-      Alert.alert('Saved', 'Image saved to app storage.');
+      await MediaLibrary.saveToLibraryAsync(uri);
+      show('Saved to Photos', 'success');
     } catch (e) {
       Alert.alert(
         'Save failed',

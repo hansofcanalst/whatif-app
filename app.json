@@ -22,10 +22,11 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Me But needs access to your photos so you can transform them.",
+        "NSPhotoLibraryAddUsageDescription": "Me But saves your transformed images to your Photos library.",
         "NSCameraUsageDescription": "Me But needs access to your camera to take a photo for transformation.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "12"
+      "buildNumber": "13"
     },
     "android": {
       "package": "com.olytoma.whatif",

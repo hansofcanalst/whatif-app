@@ -5,6 +5,46 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-04 — Build 14: Save to Photos (real fix) + gallery top-bar un-clip
+
+**Two client changes. No server, minor-gate, quota, or watermark-logic
+changes (watermark stays always-on).**
+
+**1. Save to Photos.** The result view's Save button previously wrote the
+image to the app's document directory (`FsFile(Paths.document, …)`) and
+popped an "Saved" Alert — so nothing actually landed in the user's Photos.
+Rewired the native `handleSave` branch (`components/FilteredResultPanel.tsx`)
+to save into the iOS Photos library via `expo-media-library`:
+- Uses the SAME `resolveExportUri()` captureRef output that Share uses, so
+  the watermark + active filter are baked into the saved bytes. Watermark is
+  always on → `needsCapture` is always true → `uri` is never the raw
+  imageURL, so Save can never write an un-watermarked image.
+- Requests ADD-only permission (`requestPermissionsAsync(true)` → maps to
+  `NSPhotoLibraryAddUsageDescription`), then `saveToLibraryAsync(uri)`.
+- Success → toast "Saved to Photos"; permission-denied → toast "Allow Photos
+  access in Settings to save". The old Alert path is gone.
+- New native dep: `expo-media-library@~18.2.1` (autolinks; no config plugin
+  needed since the only iOS build-config requirement is the Info.plist add
+  string). Added `NSPhotoLibraryAddUsageDescription` to `app.json`
+  ios.infoPlist. **Needs a new build** (native module).
+
+**2. Gallery top-bar un-clip** (`app/(tabs)/gallery.tsx`). The top bar
+(Results/Compare toggle + count badge + Select pill, and the selection action
+bar) overflowed horizontally on normal phone widths, clipping the Select pill
+off the right edge. Smallest fix, no redesign: `topBar` is now
+`flexWrap:'wrap'` + `rowGap`, and `topBarRight` uses `marginLeft:'auto'`
+(replacing `justifyContent:'space-between'`) so the right cluster wraps to its
+own right-aligned line instead of clipping. Same controls; the existing
+multi-select is now reachable. No iOS-Photos-style trash bar added.
+
+**Build 14 cut.** Committed `app.json` buildNumber 12→13 (EAS production
+`autoIncrement`, appVersionSource: local, stamps 14). `eas build --profile
+production --platform ios`.
+
+Typechecks clean (app + functions, both exit 0).
+
+---
+
 ## 2026-06-04 — Build 13: gallery multi-select delete + watermark always-on
 
 **Two changes bundled for Build 13. Client-only — no server, rules, minor-gate
