@@ -5,7 +5,41 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
-## 2026-06-04 — Build 14: Save to Photos (real fix) + gallery top-bar un-clip
+## 2026-06-05 — Build 15: fix Rules-of-Hooks crash opening a gallery photo
+
+**One client change. No server, minor-gate, quota, or watermark-logic
+changes (watermark stays always-on).**
+
+**Crash:** opening a result from the Gallery threw React's "Rendered more
+hooks than during the previous render." — a launch blocker.
+
+**Root cause** (`app/result/[id].tsx`): the `setIdx` `useCallback` sat
+*below* the `if (!current || !original)` early-return guard. On the
+gallery-open path the first render hits the guard (5 hooks, spinner), then
+the `useEffect` loads the doc via `getGeneration`/`getLocalGeneration`,
+`setDoc` flips the guard false, and the second render falls through to the
+6th hook → count mismatch → crash. The fresh-generation hot path never
+tripped it because `current`/`original` exist on the first render, so the
+guard never fired.
+
+It was **not** `FilteredResultPanel` — its four hooks are unconditional and
+top-of-component; the Build-14 `const watermark = true` (which removed a
+`useState`) keeps that component's per-render hook count stable and can't
+cause a mismatch. Red herring.
+
+**Fix:** moved the `setIdx` `useCallback` above the early return (it only
+closes over `router`). Re-audited the whole component: all six hooks
+(`useLocalSearchParams`, `useRouter`, `useGenerationStore`, `useState`,
+`useEffect`, `useCallback`) now sit above any conditional return; zero hooks
+below the guard. `useGenerationStore.getState()` on the `original`/
+`categoryId` lines is the static store accessor, not a hook. App +
+functions typecheck clean.
+
+**Build 15 cut.** Committed `app.json` buildNumber 13→14 (EAS production
+`autoIncrement` stamps 15 at build time). `eas build --profile production
+--platform ios`.
+
+
 
 **Two client changes. No server, minor-gate, quota, or watermark-logic
 changes (watermark stays always-on).**

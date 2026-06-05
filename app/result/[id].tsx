@@ -43,6 +43,25 @@ export default function ResultScreen() {
     })();
   }, [id, currentGenerationId, currentResults.length]);
 
+  // Variant navigation rewrites only the `idx` query param so the
+  // browser/native back stack stays one entry deep — the user backs out
+  // of "Result" once and lands on the grid, no matter how many variants
+  // they flipped through. `router.replace` would also work, but
+  // setParams is the documented expo-router primitive for "swap a param,
+  // same route".
+  //
+  // MUST stay above the `if (!current || !original)` early return below —
+  // a hook declared after that guard changes the hook count between the
+  // loading render (guard true) and the loaded render (guard false), which
+  // is the "Rendered more hooks than during the previous render" crash on
+  // the gallery-open path. Only depends on `router`, so it's safe up here.
+  const setIdx = useCallback(
+    (n: number) => {
+      router.setParams({ idx: String(n) });
+    },
+    [router],
+  );
+
   const results = doc?.results ?? currentResults;
   // Prefer the doc's originalImageURL (always a self-contained data URI
   // for local entries, https URL for Firestore entries) over the store's
@@ -67,19 +86,6 @@ export default function ResultScreen() {
   const hasMultiple = total > 1;
   const canPrev = idxNum > 0;
   const canNext = idxNum < total - 1;
-
-  // Variant navigation rewrites only the `idx` query param so the
-  // browser/native back stack stays one entry deep — the user backs out
-  // of "Result" once and lands on the grid, no matter how many variants
-  // they flipped through. `router.replace` would also work, but
-  // setParams is the documented expo-router primitive for "swap a param,
-  // same route".
-  const setIdx = useCallback(
-    (n: number) => {
-      router.setParams({ idx: String(n) });
-    },
-    [router],
-  );
 
   return (
     <SafeAreaView style={styles.safe}>
