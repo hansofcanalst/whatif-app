@@ -5,6 +5,104 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-07 — Failure-card styling: calm tone for blocked results
+
+**UI-only follow-up to the graceful-failure work below. No functions
+change, no redeploy.**
+
+Blocked / policy-refusal results now read calm instead of red-alarm (red
+contradicted the "try a different photo" copy and made an expected outcome
+look broken); transient real errors keep their red alert tone. Drives the
+split off the slot's existing `kind`: `terminal` → neutral, `transient` →
+alert.
+
+- `components/ResultsGrid.tsx`: derive `failureTone` ('neutral'|'alert')
+  from `slot.kind`, pass to `ResultCard`.
+- `components/ResultCard.tsx`: neutral tile = muted `ImageOff` glyph +
+  default (non-red) border; alert tile = red `!` + red border (unchanged).
+- `app/generate/results.tsx`: all-blocked banner uses new neutral
+  `noticeBlock`/`noticeTitle` (card chrome, no red); all-transient banner
+  keeps red `failureBlock`/`failureTitle`.
+
+Minor-gate 403 refusal (also `terminal`) gets the same calm treatment.
+Root typecheck clean; 19 tests pass.
+
+---
+
+## 2026-06-07 — Graceful generation-failure handling
+
+**Calmer, non-technical failure UX. Builds on the IMAGE_SAFETY diagnosis
+below.**
+
+Server (both paths — `functions/src/generate.ts` + `app/api/generate+api.ts`):
+`generateOne` now classifies a no-image response as `blocked` (safety/
+content refusal — finishReason IMAGE_SAFETY/SAFETY/PROHIBITED_CONTENT or a
+promptFeedback blockReason) vs generic failure, and attaches a `blocked`
+flag to the thrown error. The per-variant `error` NDJSON event now carries
+a coarse `reason: 'blocked' | 'failed'` plus a NEUTRAL message. Technical
+detail (finishReason, safety ratings) stays server-side only — the
+`NANO_BANANA_NO_IMAGE` console diagnostic and the `logs/` row keep the real
+cause; nothing technical crosses to the client. Unknown-subcategory branch
+also neutralized (matters now that baby/child/teen are gone — stale clients
+get calm copy, not "unknown subcategory …").
+
+Client: `lib/gemini.ts` error event gains optional `reason`.
+`hooks/useGeneration.ts` maps `reason` → calm copy + slot kind: blocked →
+`terminal` ("Couldn't transform this photo", no Try Again), failed →
+`transient` ("Didn't come through", retryable). Raw server message is never
+rendered. Whole-request transient toast no longer leaks raw error text.
+`app/generate/results.tsx` banners softened: all-terminal → "This photo
+couldn't be transformed." (no retry); any-transient → "That didn't come
+through" (+ Try Again). `components/ResultCard.tsx` neutral fallback.
+
+Partial-batch already worked (banner only shows when failed === total);
+unchanged — one failed tile no longer fails the batch. Failure-card red
+tint left as-is (copy-only pass).
+
+Files: `lib/gemini.ts`, `functions/src/generate.ts`,
+`app/api/generate+api.ts`, `hooks/useGeneration.ts`,
+`app/generate/results.tsx`, `components/ResultCard.tsx`. Typechecks (root +
+functions) clean; 19 tests pass. Deployed `functions:generate` —
+"Successful update operation" + "Deploy complete!". Minor-gate untouched.
+
+---
+
+## 2026-06-07 — Age Machine: remove minor age targets (IMAGE_SAFETY)
+
+**Diagnosis → fix for the intermittent Baby/Child "Model returned no
+image" failures.**
+
+Root cause (confirmed from real logs): Gemini's image model returns
+`finishReason=IMAGE_SAFETY` on Baby (1yr) / Child (8yr) — its
+child-safety filter refuses to synthesize photorealistic minors. Not a
+429, not a transient empty response. Intermittent because the safety
+classifier is probabilistic. NOT engineered around.
+
+Diagnostic added to `functions/src/generate.ts generateOne` (kept):
+single-line `console.error('[fn/generate] NANO_BANANA_NO_IMAGE
+finishReason=… blockReason=… safetyRatings=… textAlongside=…')` on the
+no-image path, before the unchanged `throw`. Search Cloud Logging for
+the token `NANO_BANANA_NO_IMAGE` to catch IMAGE_SAFETY on any future
+target. Diagnostics only — no retry/request/telemetry/user-facing change.
+
+Fix: removed Baby (1yr) / Child (8yr) / Teen (16yr) as age targets
+(16 is a minor; Age Machine now starts at adult ages). Removed from
+**both** the UI catalog and the server-side prompt catalogs, so a
+crafted request can't reach them either (`getPrompt()` → null →
+"unknown subcategory"). Remaining: Young Adult (25) · Middle Aged (50)
+· Elderly (80). Baby's `pacifier` accessory removed with it.
+
+Files: `constants/categories.ts`, `lib/prompts.ts`,
+`functions/src/prompts.ts`, `__tests__/__snapshots__/prompts.test.ts.snap`
+(regenerated via `npm run test:update`). Typechecks (root + functions)
+clean; 19 tests pass. Deployed `functions:generate` to prod —
+"Successful update operation" + "Deploy complete!".
+
+Minor-gate (`detect.ts` / `serverDetection.ts` / `isMinorSensitiveCategory`),
+quota, and all other categories untouched.
+
+---
+
 ## 2026-06-05 — Build 16: fix second Rules-of-Hooks violation (category picker)
 
 **One client change. No server, minor-gate, quota, or watermark-logic

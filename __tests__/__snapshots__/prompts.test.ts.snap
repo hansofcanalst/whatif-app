@@ -3,21 +3,6 @@
 exports[`PROMPTS catalog full snapshot of every category × subcategory 1`] = `
 {
   "age-transform": {
-    "baby": {
-      "accessories": [
-        {
-          "id": "pacifier",
-          "label": "Pacifier",
-          "promptSnippet": " Additionally, the baby should have a pacifier in their mouth in a soft pastel color (white, blue, or pink). The pacifier must be clearly visible.",
-        },
-      ],
-      "label": "Baby (1yr)",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to look like a 1-year-old baby version of themselves. Maintain family resemblance.",
-    },
-    "child": {
-      "label": "Child (8yr)",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to look like an 8-year-old child version of themselves.",
-    },
     "elderly": {
       "accessories": [
         {
@@ -44,10 +29,6 @@ exports[`PROMPTS catalog full snapshot of every category × subcategory 1`] = `
       ],
       "label": "Middle Aged (50yr)",
       "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to look like a 50-year-old version of themselves with natural aging.",
-    },
-    "teen": {
-      "label": "Teen (16yr)",
-      "prompt": "Edit this photo of a real person. Maintain the exact same pose, expression, lighting, background, and composition. The edit should look like a natural, photorealistic photograph — not AI-generated or cartoonish. Preserve the person's core facial structure and identity as much as possible while applying the following transformation: Transform the person to look like a 16-year-old teen version of themselves.",
     },
     "young-adult": {
       "label": "Young Adult (25yr)",
@@ -252,7 +233,6 @@ exports[`PROMPTS catalog full snapshot of every category × subcategory 1`] = `
 
 exports[`appendAccessoryPrompt snapshot of every accessory snippet across the catalog 1`] = `
 {
-  "age-transform/baby/pacifier": " Additionally, the baby should have a pacifier in their mouth in a soft pastel color (white, blue, or pink). The pacifier must be clearly visible.",
   "age-transform/elderly/cane": " Additionally, the elderly person should be holding a wooden walking cane in their hand. The cane must be clearly visible.",
   "age-transform/elderly/reading-glasses": " Additionally, add a pair of reading glasses on the face in a frame style that suits an elderly person.",
   "age-transform/middle-aged/reading-glasses": " Additionally, add a pair of subtle reading glasses on the face in a frame style that suits the person.",

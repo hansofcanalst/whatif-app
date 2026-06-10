@@ -180,7 +180,15 @@ async function generateOne(
       ? `model returned text only: "${String(textPart).slice(0, 200)}"`
       : 'model returned no image parts';
 
-  throw new Error(detail);
+  // Coarse safety/content classification for the client. `detail` (with
+  // finishReason etc.) stays server-side via the throw → handler console;
+  // only this boolean rides to the client via the error event. Mirrors
+  // functions/src/generate.ts.
+  const SAFETY_FINISH_REASONS = new Set(['IMAGE_SAFETY', 'SAFETY', 'PROHIBITED_CONTENT']);
+  const noImageErr: Error & { blocked?: boolean } = new Error(detail);
+  noImageErr.blocked =
+    !!blockReason || (!!finishReason && SAFETY_FINISH_REASONS.has(String(finishReason)));
+  throw noImageErr;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -400,15 +408,21 @@ export async function POST(request: Request): Promise<Response> {
           ? { label: resolvedTrend.label, prompt: resolvedTrend.promptTemplate }
           : getPrompt(body.category, subId);
         if (!meta) {
-          const reason = `unknown subcategory ${body.category}/${subId}`;
-          console.warn(`[api/generate] ${reason}`);
+          const detail = `unknown subcategory ${body.category}/${subId}`;
+          console.warn(`[api/generate] ${detail}`);
           emitTelemetry({
             status: 'failed',
-            errorMessage: reason,
+            errorMessage: detail,
             promptSource: null,
             attempts: 0,
           });
-          await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          await send({
+            type: 'error',
+            index: i,
+            subcategoryId: subId,
+            message: "This transformation didn't come through.",
+            reason: 'failed',
+          });
           failed++;
           continue;
         }
@@ -568,15 +582,28 @@ export async function POST(request: Request): Promise<Response> {
         });
         completed++;
       } catch (err: any) {
-        const reason = err?.message ?? String(err);
+        // Technical detail stays server-side (telemetry + console). The
+        // client gets only a coarse reason code + neutral copy — finishReason
+        // / safety details never cross the wire. Mirrors functions/src/generate.ts.
+        const technical = err?.message ?? String(err);
         console.warn(`[api/generate] ${subId} failed:`, err);
         emitTelemetry({
           status: 'failed',
-          errorMessage: reason,
+          errorMessage: technical,
           promptSource,
           attempts: totalAttempts,
         });
-        await send({ type: 'error', index: i, subcategoryId: subId, message: reason });
+        const reason: 'blocked' | 'failed' = err?.blocked ? 'blocked' : 'failed';
+        await send({
+          type: 'error',
+          index: i,
+          subcategoryId: subId,
+          message:
+            reason === 'blocked'
+              ? "This photo couldn't be transformed."
+              : "This transformation didn't come through.",
+          reason,
+        });
         failed++;
       }
       }

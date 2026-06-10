@@ -12,6 +12,21 @@ import {
 import { config } from '@/constants/config';
 import { getCategory } from '@/constants/categories';
 
+// Calm, non-technical copy for failed tiles. We NEVER render the raw server
+// message — the client derives copy purely from the coarse `reason` code so
+// nothing technical (finishReason, safety details) is ever shown. Keep these
+// short: they sit under the red "!" on a square tile (2 lines max).
+const FAILED_COPY = {
+  // Safety/content refusal. Paired with a 'terminal' slot kind (no retry).
+  blocked: "Couldn't transform this photo",
+  // Any other failure (empty response, timeout, network). 'transient' kind.
+  transient: "Didn't come through",
+} as const;
+// Slightly longer, sentence-form copy for a whole-request transient failure
+// (network/timeout/fatal), used for both the picker toast and any tiles that
+// were still pending when the request died.
+const REQUEST_FAILED_MESSAGE = "This didn't come through. Please try again.";
+
 export interface StartGenerationArgs {
   imageBase64: string;
   categoryId: string;
@@ -179,7 +194,16 @@ export function useGeneration() {
           resultsByIndex[ev.index] = ev.item;
           resolveSlot(ev.index, ev.item);
         } else if (ev.type === 'error') {
-          failSlot(ev.index, ev.message);
+          // Map the server's coarse reason code to calm copy. A safety/content
+          // block is terminal (the results screen hides Try Again for these);
+          // everything else is transient and retryable. The raw server
+          // message is intentionally ignored.
+          const blocked = ev.reason === 'blocked';
+          failSlot(
+            ev.index,
+            blocked ? FAILED_COPY.blocked : FAILED_COPY.transient,
+            blocked ? 'terminal' : 'transient',
+          );
         } else if (ev.type === 'done') {
           if (!generationId) generationId = ev.generationId;
         }
@@ -210,11 +234,12 @@ export function useGeneration() {
         // keeps the existing retry affordance.
         const isTerminalRefusal =
           e instanceof GenerationHttpError && e.status === 403;
+        // Never surface a raw error string (network stack text, etc.). A
+        // policy refusal gets the neutral terminal copy; any other
+        // whole-request failure gets the calm retryable sentence.
         const slotMessage = isTerminalRefusal
           ? "This transformation isn't available for this photo."
-          : e instanceof Error
-            ? e.message
-            : 'Generation failed.';
+          : REQUEST_FAILED_MESSAGE;
         const slotKind: 'transient' | 'terminal' = isTerminalRefusal
           ? 'terminal'
           : 'transient';

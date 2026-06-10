@@ -87,7 +87,19 @@ export class GenerationHttpError extends Error {
 export type GenerationEvent =
   | { type: 'start'; generationId: string; total: number }
   | { type: 'result'; index: number; item: GenerateResponseItem }
-  | { type: 'error'; index: number; subcategoryId: string; message: string }
+  // `reason` is a coarse, non-sensitive classification the client maps to
+  // calm copy: 'blocked' = a safety/content refusal (terminal — no retry,
+  // "try a different photo"); 'failed' = any other failure (transient —
+  // retryable). Optional for back-compat with older servers (treated as
+  // 'failed'). The technical cause (finishReason, safety ratings) is NEVER
+  // sent here — it stays in server logs.
+  | {
+      type: 'error';
+      index: number;
+      subcategoryId: string;
+      message: string;
+      reason?: 'blocked' | 'failed';
+    }
   | { type: 'done'; generationId: string; completed: number; failed: number }
   | { type: 'fatal'; message: string };
 

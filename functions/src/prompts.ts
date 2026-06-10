@@ -138,19 +138,11 @@ export const PROMPTS: CategoryPromptMap = {
     },
   },
   'age-transform': {
-    baby: {
-      label: 'Baby (1yr)',
-      prompt: `${BASE} Transform the person to look like a 1-year-old baby version of themselves. Maintain family resemblance.`,
-      accessories: [
-        {
-          id: 'pacifier',
-          label: 'Pacifier',
-          promptSnippet: ` Additionally, the baby should have a pacifier in their mouth in a soft pastel color (white, blue, or pink). The pacifier must be clearly visible.`,
-        },
-      ],
-    },
-    child: { label: 'Child (8yr)', prompt: `${BASE} Transform the person to look like an 8-year-old child version of themselves.` },
-    teen: { label: 'Teen (16yr)', prompt: `${BASE} Transform the person to look like a 16-year-old teen version of themselves.` },
+    // Baby (1yr) / Child (8yr) / Teen (16yr) removed 2026-06-07: Gemini's
+    // image model refuses to synthesize photorealistic minors and returns
+    // finishReason=IMAGE_SAFETY (no image). Age Machine starts at adult ages
+    // by design. Do NOT re-add — child-safety block, not a bug to work
+    // around. Keep in sync with constants/categories.ts and lib/prompts.ts.
     'young-adult': { label: 'Young Adult (25yr)', prompt: `${BASE} Transform the person to look like a 25-year-old version of themselves.` },
     'middle-aged': {
       label: 'Middle Aged (50yr)',

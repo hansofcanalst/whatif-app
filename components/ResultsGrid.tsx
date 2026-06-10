@@ -10,6 +10,11 @@ interface GridItem {
   status: 'pending' | 'complete' | 'failed';
   imageURL?: string;
   error?: string;
+  // Visual tone for a failed tile: 'neutral' = expected non-result
+  // (safety/content block or policy refusal — calm, not alarming);
+  // 'alert' = a real error (timeout/network/empty). Derived from the
+  // slot's `kind`; only meaningful when status === 'failed'.
+  failureTone?: 'alert' | 'neutral';
 }
 
 interface ResultsGridProps {
@@ -49,6 +54,12 @@ export function ResultsGrid({ results, slots, onSelect, columns = 2, pendingCapt
         status: s.status,
         imageURL: s.result?.imageURL,
         error: s.error,
+        failureTone:
+          s.status === 'failed'
+            ? s.kind === 'terminal'
+              ? ('neutral' as const)
+              : ('alert' as const)
+            : undefined,
       }))
     : (results ?? []).map((r) => ({
         label: r.label,
@@ -88,6 +99,7 @@ export function ResultsGrid({ results, slots, onSelect, columns = 2, pendingCapt
                 label={item.label}
                 status={item.status}
                 error={item.error}
+                failureTone={item.failureTone}
                 pendingCaption={pendingCaption}
                 // entryIndex is the linearized tile position. Stagger
                 // reads top-to-bottom, left-to-right rather than

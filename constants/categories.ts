@@ -46,9 +46,11 @@ export const CATEGORIES: Category[] = [
     description: 'Travel through time',
     isPremium: false,
     subcategories: [
-      { id: 'baby', label: 'Baby (1yr)', promptTemplate: `${BASE} Transform the person to look like a 1-year-old baby version of themselves. Maintain recognizable family resemblance in features. Show as a natural baby photo.` },
-      { id: 'child', label: 'Child (8yr)', promptTemplate: `${BASE} Transform the person to look like an 8-year-old child version of themselves. Maintain facial resemblance while clearly showing a child's proportions and features.` },
-      { id: 'teen', label: 'Teen (16yr)', promptTemplate: `${BASE} Transform the person to look like a 16-year-old teen version of themselves. Younger skin, less defined features, teen-appropriate styling.` },
+      // Baby (1yr) / Child (8yr) / Teen (16yr) removed 2026-06-07: Gemini's
+      // image model refuses to synthesize photorealistic minors and returns
+      // finishReason=IMAGE_SAFETY (no image). Age Machine starts at adult
+      // ages by design. Do NOT re-add — this is a child-safety block, not a
+      // bug to engineer around.
       { id: 'young-adult', label: 'Young Adult (25yr)', promptTemplate: `${BASE} Transform the person to look like a 25-year-old young adult version of themselves. Fresh, youthful skin while keeping identity intact.` },
       { id: 'middle-aged', label: 'Middle Aged (50yr)', promptTemplate: `${BASE} Transform the person to look like a 50-year-old version of themselves. Add natural aging: slight wrinkles, mature skin, some grey hair if applicable.` },
       { id: 'elderly', label: 'Elderly (80yr)', promptTemplate: `${BASE} Transform the person to look like an 80-year-old version of themselves. Add natural aging: wrinkles, grey/white hair, aged skin texture. Maintain their core identity and expression.` },

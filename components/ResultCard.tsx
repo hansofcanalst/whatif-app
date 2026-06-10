@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Image, Text, View, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { Sparkles } from 'lucide-react-native';
+import { Sparkles, ImageOff } from 'lucide-react-native';
 import { SkeletonTile } from '@/components/ui/PulseIndicators';
 import { useCardEntrance, usePressScale } from '@/hooks/useMotion';
 import { colors, radii, spacing, typography } from '@/constants/theme';
@@ -18,6 +18,12 @@ interface ResultCardProps {
   status?: 'pending' | 'complete' | 'failed';
   /** Error message shown on failed tiles. */
   error?: string;
+  /**
+   * Visual tone for a failed tile. 'alert' (default) = red, for real
+   * errors. 'neutral' = calm/muted, for an expected non-result (a safety
+   * block or policy refusal) where red would wrongly read as "broken".
+   */
+  failureTone?: 'alert' | 'neutral';
   /**
    * Text shown under the spinner on pending tiles. The streaming results
    * screen passes a rotating flavor line ("Consulting the multiverse…")
@@ -47,6 +53,7 @@ export function ResultCard({
   label,
   status = 'complete',
   error,
+  failureTone = 'alert',
   pendingCaption,
   entryIndex = 0,
   onPress,
@@ -94,11 +101,16 @@ export function ResultCard({
       );
     }
     if (status === 'failed') {
+      const neutral = failureTone === 'neutral';
       return (
         <View style={styles.placeholder}>
-          <Text style={styles.failedGlyph}>!</Text>
+          {neutral ? (
+            <ImageOff size={22} color={colors.textMuted} strokeWidth={2} />
+          ) : (
+            <Text style={styles.failedGlyph}>!</Text>
+          )}
           <Text style={styles.placeholderCaption} numberOfLines={2}>
-            {error ?? 'Failed'}
+            {error ?? "Didn't come through"}
           </Text>
         </View>
       );
@@ -127,7 +139,10 @@ export function ResultCard({
         accessibilityRole={disabled ? 'image' : 'button'}
         accessibilityLabel={a11yLabel}
         accessibilityState={{ disabled, busy: status === 'pending' }}
-        style={[styles.card, status === 'failed' && styles.cardFailed]}
+        style={[
+          styles.card,
+          status === 'failed' && failureTone !== 'neutral' && styles.cardFailed,
+        ]}
       >
         {content}
         <View style={styles.overlay}>

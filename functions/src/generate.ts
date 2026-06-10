@@ -156,7 +156,8 @@ async function generateOne(
         { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
         { text: prompt },
       ]);
-      const parts = result.response.candidates?.[0]?.content?.parts ?? [];
+      const candidate = result.response.candidates?.[0];
+      const parts = candidate?.content?.parts ?? [];
       for (const part of parts) {
         const inline = (part as any).inlineData;
         if (inline?.data) {
@@ -166,10 +167,54 @@ async function generateOne(
           return { b64: inline.data as string, attempts: attempt };
         }
       }
+      // ─── No image in the response — DIAGNOSTICS ONLY ──────────────────
+      // Added 2026-06-06 to investigate intermittent Baby/Child "no image"
+      // failures. We log the model's own finishReason / blockReason /
+      // safetyRatings so Cloud Logging can distinguish a safety block
+      // (finishReason IMAGE_SAFETY / SAFETY / PROHIBITED_CONTENT, or
+      // promptFeedback.blockReason) from a genuinely empty response. This
+      // is logging only: it does NOT change retry behavior, the Gemini
+      // request, the `logs/` telemetry, or the error string the user sees
+      // (left identical below on purpose). Mirrors the classification
+      // already present in app/api/generate+api.ts generateOne.
+      const finishReason = candidate?.finishReason ?? 'none';
+      const blockReason = (result.response as any).promptFeedback?.blockReason ?? 'none';
+      const rawSafety =
+        candidate?.safetyRatings ?? (result.response as any).promptFeedback?.safetyRatings;
+      // Defensive serialize — JSON.stringify can throw (circular refs etc.),
+      // and we must NOT let the diagnostic itself mask the real failure.
+      let safetyStr = 'none';
+      try {
+        if (rawSafety) safetyStr = JSON.stringify(rawSafety);
+      } catch {
+        safetyStr = '<unserializable>';
+      }
+      const textPart = parts.find((p: any) => typeof p?.text === 'string')?.text;
+      const textStr = textPart ? JSON.stringify(String(textPart).slice(0, 200)) : 'none';
+      // Single-line, single-argument console.error (ERROR severity) carrying
+      // a UNIQUE grep token so this is trivially findable in Cloud Logging:
+      // search the token `NANO_BANANA_NO_IMAGE` with no other filter. This
+      // runs on the exact path that throws below (same straight-line block —
+      // there is no other branch). Plain key=value, not JSON, so the field
+      // values substring-match a text query. Diagnostics only: it does NOT
+      // change retry behavior, the request, the `logs/` telemetry, or the
+      // error string the user sees (unchanged below).
+      console.error(
+        `[fn/generate] NANO_BANANA_NO_IMAGE finishReason=${finishReason} blockReason=${blockReason} safetyRatings=${safetyStr} textAlongside=${textStr}`,
+      );
       // "No image" is not a transient/retryable condition — the model
       // responded with text or nothing, which means it declined the edit.
-      // Surface that immediately rather than burning retries.
-      throw new Error('Model returned no image.');
+      // Surface immediately rather than burning retries.
+      //
+      // Coarse safety/content classification for the client: a block gets
+      // calm "try a different photo" copy and no futile retry. finishReason
+      // and safety details stay server-side (diagnostic above + logs/) — only
+      // this boolean leaves the function. Mirrors app/api/generate+api.ts.
+      const SAFETY_FINISH_REASONS = new Set(['IMAGE_SAFETY', 'SAFETY', 'PROHIBITED_CONTENT']);
+      const noImageErr: Error & { blocked?: boolean } = new Error('Model returned no image.');
+      noImageErr.blocked =
+        blockReason !== 'none' || SAFETY_FINISH_REASONS.has(String(finishReason));
+      throw noImageErr;
     } catch (err) {
       lastErr = err;
       const status = (err as { status?: number })?.status;
@@ -477,15 +522,21 @@ export const generate = functions
           ? { label: resolvedTrend.label, prompt: resolvedTrend.promptTemplate }
           : getPrompt(body.category, subId);
         if (!meta) {
-          const reason = `unknown subcategory ${body.category}/${subId}`;
-          console.warn(`[fn/generate] ${reason}`);
+          const detail = `unknown subcategory ${body.category}/${subId}`;
+          console.warn(`[fn/generate] ${detail}`);
           await writeLog({
             status: 'failed',
-            errorMessage: reason,
+            errorMessage: detail,
             promptSource: null,
             attempts: 0,
           });
-          await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          await sendEvent({
+            type: 'error',
+            index: i,
+            subcategoryId: subId,
+            message: "This transformation didn't come through.",
+            reason: 'failed',
+          });
           failedCount++;
           continue;
         }
@@ -632,15 +683,30 @@ export const generate = functions
           await sendEvent({ type: 'result', index: i, item });
           completedCount++;
         } catch (err: any) {
-          const reason = err?.message ?? String(err);
+          // Technical detail stays server-side: the logs/ row + the
+          // NANO_BANANA_NO_IMAGE console diagnostic. The client receives only
+          // a coarse, non-sensitive reason code and neutral copy —
+          // finishReason / safety details never cross the wire. `blocked` is
+          // set by generateOne on a safety/content refusal.
+          const technical = err?.message ?? String(err);
           console.warn(`Generation failed for ${subId}:`, err);
           await writeLog({
             status: 'failed',
-            errorMessage: reason,
+            errorMessage: technical,
             promptSource,
             attempts: totalAttempts,
           });
-          await sendEvent({ type: 'error', index: i, subcategoryId: subId, message: reason });
+          const reason: 'blocked' | 'failed' = err?.blocked ? 'blocked' : 'failed';
+          await sendEvent({
+            type: 'error',
+            index: i,
+            subcategoryId: subId,
+            message:
+              reason === 'blocked'
+                ? "This photo couldn't be transformed."
+                : "This transformation didn't come through.",
+            reason,
+          });
           failedCount++;
         }
       }

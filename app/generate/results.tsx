@@ -259,12 +259,10 @@ export default function ResultsScreen() {
         progress.total > 0 &&
         progress.failed === progress.total &&
         progress.transientFailed === 0 ? (
-          <View style={styles.failureBlock}>
-            <Text style={styles.failureTitle}>
-              This transformation isn&apos;t available for this photo.
-            </Text>
+          <View style={styles.noticeBlock}>
+            <Text style={styles.noticeTitle}>This photo couldn&apos;t be transformed.</Text>
             <Text style={styles.failureBody}>
-              Try a different photo or pick another transformation.
+              Try a different photo, or pick another transformation.
             </Text>
           </View>
         ) : null}
@@ -274,9 +272,9 @@ export default function ResultsScreen() {
         progress.failed === progress.total &&
         progress.transientFailed > 0 ? (
           <View style={styles.failureBlock}>
-            <Text style={styles.failureTitle}>All transformations failed</Text>
+            <Text style={styles.failureTitle}>That didn&apos;t come through</Text>
             <Text style={styles.failureBody}>
-              This usually clears in a minute or two. The model is occasionally rate-limited or returns no image. Tap below to try again with the same selections — your photo and choices are still loaded.
+              Something interrupted the transformation. Your photo and choices are still loaded — tap below to try again.
             </Text>
             <Button
               label="Try again"
@@ -422,6 +420,21 @@ const styles = StyleSheet.create({
   failureTitle: {
     ...typography.h3,
     color: colors.dangerText,
+  },
+  // Neutral "expected non-result" card — used for the all-blocked /
+  // policy-refusal banner. Calm chrome (no red) because a block is an
+  // expected outcome ("try a different photo"), not a malfunction.
+  noticeBlock: {
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+    gap: spacing.xs,
+  },
+  noticeTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
   },
   failureBody: {
     ...typography.body,
