@@ -5,6 +5,58 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-20 — Build 18: privacy/consent pass for Apple review (Guidelines 2.1, 5.1.1, 5.1.2)
+
+**Three changes for the face-data rejection. No functions redeploy, no
+firestore.rules change. Minor-gate, prompts, age catalog, and generation
+logic untouched. tsc clean, 19/19 tests pass.**
+
+**1. One-time third-party-AI consent (gates the send).** Before a photo is
+sent to Gemini for the first time, a disclosure modal must be accepted.
+Enforced at the single client chokepoint `useGeneration.start()` (both the
+static-category and trend send paths funnel through it): if neither
+`userDoc.geminiConsentAt` nor the local mirror is set, `start()` fires
+`onNeedsConsent` and returns null instead of sending. Consent is recorded
+durably on the user doc (`geminiConsentAt`, via `recordGeminiConsent`) and
+mirrored to AsyncStorage (`lib/consent.ts`) for an instant/offline check.
+firestore.rules already permits the new field (the users update rule only
+locks subscriptionStatus / freeGenerationsUsed / quotaExempt), so no rules
+deploy. Copy: "Before you start: …securely sent to Google's Gemini AI…not
+used to train Google's models." (Paid tier — accurate.) Declining ("Not
+now") returns without generating. Distinct from the existing per-session
+premium-likeness `ConsentModal`.
+- New: `lib/consent.ts`, `components/AIDisclosureModal.tsx`.
+- Edited: `hooks/useGeneration.ts` (gate + `grantGeminiConsent` + hydrate),
+  `lib/firestore.ts` (UserDoc.geminiConsentAt + recordGeminiConsent),
+  `app/generate/[categoryId].tsx`, `app/(tabs)/home.tsx` (wire modal +
+  re-invoke on Agree).
+
+**2. Clearer photo-library purpose string.** Both the iOS infoPlist
+`NSPhotoLibraryUsageDescription` and the authoritative expo-image-picker
+`photosPermission` (which wins at prebuild) updated to: "Me But needs
+access to your photos so you can choose a photo to transform. For example,
+select a selfie to see yourself at a different age or in a different
+style." (`app.json`.)
+
+**3. Delete Account → Storage purge (was already correct; comments were
+stale).** Investigation: `deleteAccount` deletes generation docs (fires
+`onGenerationDeleted` → sweeps each `users/{uid}/generations/{id}/`) and
+the user doc (fires `onUserDeleted` → sweeps all of `users/{uid}/`), so
+photos + results ARE removed from Storage server-side via
+`functions/src/storageCleanup.ts`. Only fix needed: corrected the stale
+"Storage objects are orphaned" comments in `lib/auth.ts` and
+`lib/firestore.ts`. No logic change.
+
+**Retention reality (for Apple):** production uploads at
+`users/{uid}/generations/{id}/original.jpg` persist indefinitely — no TTL,
+lifecycle rule, or scheduled cleanup. Removed only on per-generation delete
+(Gallery) or account delete. (Local-dev path writes AsyncStorage only,
+never Storage.)
+
+**Build mechanics:** `buildNumber` stays "17" (EAS autoIncrement → 18).
+
+---
+
 ## 2026-06-07 — Failure-card styling: calm tone for blocked results
 
 **UI-only follow-up to the graceful-failure work below. No functions

@@ -19,6 +19,7 @@ import { PeopleSelector } from '@/components/PeopleSelector';
 import { TrendingCarousel } from '@/components/TrendingCarousel';
 import { PaywallModal } from '@/components/ui/PaywallModal';
 import { ConsentModal } from '@/components/ConsentModal';
+import { AIDisclosureModal } from '@/components/AIDisclosureModal';
 import { ScanLine } from '@/components/ui/PulseIndicators';
 import { useToast } from '@/components/ui/Toast';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -82,7 +83,7 @@ export default function Home() {
   const [trends, setTrends] = useState<TrendingDoc[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const visibleTrends = useMemo(() => trends.filter((t) => isTrendLive(t)), [trends]);
-  const { start: startGeneration } = useGeneration();
+  const { start: startGeneration, grantGeminiConsent } = useGeneration();
 
   // Consent gate for premium (likeness-remix) categories. Tracked in a
   // useRef rather than state because the acknowledgment shouldn't cause a
@@ -96,6 +97,13 @@ export default function Home() {
   // confirm handler to startTrendGeneration with this trend, distinct
   // from pendingCategoryId which routes to the subcategory picker.
   const [pendingTrend, setPendingTrend] = useState<TrendingDoc | null>(null);
+
+  // One-time third-party-AI disclosure (distinct from the premium likeness
+  // ConsentModal above). Opened when start() reports the user hasn't yet
+  // consented to sending photos to Gemini; on Agree we record consent and
+  // re-dispatch the stashed trend.
+  const [aiConsentVisible, setAiConsentVisible] = useState(false);
+  const [pendingConsentTrend, setPendingConsentTrend] = useState<TrendingDoc | null>(null);
 
   // Tracks whether the user has explicitly acknowledged a "flagged"
   // safety verdict for the currently-loaded photo. We don't want to
@@ -290,6 +298,10 @@ export default function Home() {
         trendId: trend.id,
         trendLabel: trend.label,
         onPaywall: showPaywall,
+        onNeedsConsent: () => {
+          setPendingConsentTrend(trend);
+          setAiConsentVisible(true);
+        },
         onReady: () => router.push('/generate/results'),
       });
     },
@@ -621,6 +633,20 @@ export default function Home() {
         visible={consentVisible}
         onConfirm={handleConsentConfirm}
         onClose={handleConsentClose}
+      />
+      <AIDisclosureModal
+        visible={aiConsentVisible}
+        onAgree={async () => {
+          await grantGeminiConsent();
+          setAiConsentVisible(false);
+          const t = pendingConsentTrend;
+          setPendingConsentTrend(null);
+          if (t) startTrendGeneration(t);
+        }}
+        onDecline={() => {
+          setAiConsentVisible(false);
+          setPendingConsentTrend(null);
+        }}
       />
     </SafeAreaView>
   );

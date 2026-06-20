@@ -21,12 +21,12 @@
       "bundleIdentifier": "com.olytoma.whatif",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Me But needs access to your photos so you can transform them.",
+        "NSPhotoLibraryUsageDescription": "Me But needs access to your photos so you can choose a photo to transform. For example, select a selfie to see yourself at a different age or in a different style.",
         "NSPhotoLibraryAddUsageDescription": "Me But saves your transformed images to your Photos library.",
         "NSCameraUsageDescription": "Me But needs access to your camera to take a photo for transformation.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "15"
+      "buildNumber": "17"
     },
     "android": {
       "package": "com.olytoma.whatif",
@@ -50,7 +50,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Me But to access your photos.",
+          "photosPermission": "Me But needs access to your photos so you can choose a photo to transform. For example, select a selfie to see yourself at a different age or in a different style.",
           "cameraPermission": "Allow Me But to use your camera so you can take a photo to transform."
         }
       ],

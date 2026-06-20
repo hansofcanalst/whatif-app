@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useGenerationStore, type GenerationSlot } from '@/stores/generationStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
@@ -11,6 +11,12 @@ import {
 } from '@/lib/gemini';
 import { config } from '@/constants/config';
 import { getCategory } from '@/constants/categories';
+import { recordGeminiConsent } from '@/lib/firestore';
+import {
+  hasLocalGeminiConsent,
+  hydrateGeminiConsent,
+  persistLocalGeminiConsent,
+} from '@/lib/consent';
 
 // Calm, non-technical copy for failed tiles. We NEVER render the raw server
 // message — the client derives copy purely from the coarse `reason` code so
@@ -46,6 +52,11 @@ export interface StartGenerationArgs {
   // showing the trendId string on the pending tile.
   trendLabel?: string;
   onPaywall: () => void;
+  // Invoked (instead of sending) when the user has not yet consented to
+  // sending photos to the third-party Gemini AI. The caller opens the
+  // AIDisclosureModal, calls grantGeminiConsent() on Agree, then re-invokes
+  // start(). Mirrors the onPaywall callback pattern.
+  onNeedsConsent?: () => void;
   // Invoked as soon as the server accepts the request and the NDJSON
   // stream has opened. The caller uses this to navigate to the results
   // screen BEFORE any results land, so the skeleton tiles render
@@ -115,6 +126,28 @@ export function useGeneration() {
     ? Math.max(0, config.freeGenerationCap - (userDoc.freeGenerationsUsed ?? 0))
     : 0;
 
+  // Hydrate the synchronous local-consent mirror once on mount so a
+  // returning user who consented on this device isn't re-prompted before
+  // the Firestore snapshot loads.
+  useEffect(() => {
+    hydrateGeminiConsent();
+  }, []);
+
+  // Record one-time Gemini consent: local mirror first (synchronous, so the
+  // immediate re-invoke of start() passes the gate) then the durable user-doc
+  // stamp. Called by the AIDisclosureModal's Agree action.
+  const grantGeminiConsent = useCallback(async () => {
+    await persistLocalGeminiConsent();
+    const uid = user?.uid;
+    if (uid) {
+      try {
+        await recordGeminiConsent(uid);
+      } catch (e) {
+        console.warn('[useGeneration] gemini consent persist failed', e);
+      }
+    }
+  }, [user]);
+
   const start = useCallback(
     async ({
       imageBase64,
@@ -124,10 +157,20 @@ export function useGeneration() {
       trendId,
       trendLabel,
       onPaywall,
+      onNeedsConsent,
       onReady,
     }: StartGenerationArgs) => {
       if (!canGenerate()) {
         onPaywall();
+        return null;
+      }
+      // One-time third-party-AI disclosure gate. The send is BLOCKED until
+      // consent is recorded (geminiConsentAt on the user doc, or the local
+      // mirror for the immediate re-invoke / offline case). This is the
+      // single chokepoint both entry points (category picker + trend tap)
+      // funnel through, so the disclosure cannot be bypassed.
+      if (!userDoc?.geminiConsentAt && !hasLocalGeminiConsent()) {
+        onNeedsConsent?.();
         return null;
       }
       setLoading(true);
@@ -327,8 +370,9 @@ export function useGeneration() {
       finishStream,
       clearSlots,
       user,
+      userDoc,
     ],
   );
 
-  return { start, canGenerate, remaining, isPro: isActive };
+  return { start, canGenerate, remaining, isPro: isActive, grantGeminiConsent };
 }

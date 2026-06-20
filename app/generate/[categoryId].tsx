@@ -9,6 +9,7 @@ import { useGeneration } from '@/hooks/useGeneration';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { PaywallModal } from '@/components/ui/PaywallModal';
+import { AIDisclosureModal } from '@/components/AIDisclosureModal';
 import { useToast } from '@/components/ui/Toast';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { V1_MONETIZATION_ENABLED } from '@/constants/config';
@@ -20,7 +21,7 @@ export default function GenerateCategoryScreen() {
   const { show } = useToast();
   const category = getCategory(categoryId || '');
   const { selectedPhotoUri, selectedPhotoBase64 } = useGenerationStore();
-  const { start, isPro } = useGeneration();
+  const { start, isPro, grantGeminiConsent } = useGeneration();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Accessory state — keyed by subcategoryId, value is the set of
   // accessory ids the user ticked for that variant. Stays in sync with
@@ -28,6 +29,7 @@ export default function GenerateCategoryScreen() {
   // dropped so we never send modifiers for variants we won't generate.
   const [accessories, setAccessories] = useState<Record<string, Set<string>>>({});
   const [paywall, setPaywall] = useState(false);
+  const [aiConsent, setAiConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const base64 = selectedPhotoBase64;
@@ -145,6 +147,10 @@ export default function GenerateCategoryScreen() {
       subcategoryIds: Array.from(selected),
       modifiers: Object.keys(modifiers).length > 0 ? modifiers : undefined,
       onPaywall: showPaywall,
+      onNeedsConsent: () => {
+        setBusy(false);
+        setAiConsent(true);
+      },
       onReady: () => {
         // Defense against a racy double-navigation if `onReady` fires
         // more than once (the hook guards against that, but a defensive
@@ -331,6 +337,15 @@ export default function GenerateCategoryScreen() {
         ) : null}
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />
+      <AIDisclosureModal
+        visible={aiConsent}
+        onAgree={async () => {
+          await grantGeminiConsent();
+          setAiConsent(false);
+          handleGenerate(); // re-invoke; the gate now passes
+        }}
+        onDecline={() => setAiConsent(false)}
+      />
     </SafeAreaView>
   );
 }

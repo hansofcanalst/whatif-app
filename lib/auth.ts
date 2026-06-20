@@ -74,9 +74,11 @@ export class ReauthRequiredError extends Error {
  *
  * What gets deleted:
  *   - Every `generations/{id}` doc owned by the user (rules allow
- *     owner-delete; Storage objects are orphaned — a future Cloud
- *     Function sweep on user-delete is the right cleanup mechanism).
+ *     owner-delete). Each deletion fires the `onGenerationDeleted`
+ *     Cloud Function, which sweeps that generation's Storage prefix.
  *   - The `users/{uid}` doc (PII: email, displayName, photoURL).
+ *     Deleting it fires `onUserDeleted`, which sweeps the entire
+ *     users/{uid}/ Storage subtree — original + result images included.
  *   - The local AsyncStorage gallery (any cached results).
  *   - The Firebase Auth account itself.
  *
@@ -98,8 +100,8 @@ export async function deleteAccount(): Promise<void> {
   if (!user) throw new Error('Not signed in.');
   const uid = user.uid;
 
-  // 1. Generations (and the original/result images they reference in
-  //    Firestore — Storage cleanup is a separate concern).
+  // 1. Generations. Deleting each doc fires onGenerationDeleted, which
+  //    sweeps its Storage prefix (functions/src/storageCleanup.ts).
   await deleteAllUserGenerations(uid);
 
   // 2. User doc — the canonical PII record. After this point, the

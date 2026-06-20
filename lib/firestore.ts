@@ -35,6 +35,11 @@ export interface UserDoc {
   subscriptionStatus: 'free' | 'pro';
   subscriptionExpiry: Timestamp | null;
   revenueCatId: string | null;
+  // Timestamp of the user's one-time consent to send photos to the
+  // third-party Gemini AI. Absent until they accept the AIDisclosureModal.
+  // Durable, cross-device source of truth for the generation consent gate
+  // (hooks/useGeneration.ts); mirrored locally in lib/consent.ts.
+  geminiConsentAt?: Timestamp | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -169,6 +174,21 @@ export async function incrementFreeGenerations(uid: string): Promise<void> {
   });
 }
 
+/**
+ * Record one-time consent to send photos to the third-party Gemini AI.
+ * Stamped on the user doc as the durable, cross-device source of truth
+ * (the generation gate also keeps a local mirror — see lib/consent.ts).
+ * Permitted by firestore.rules: the users update rule only restricts
+ * subscriptionStatus / freeGenerationsUsed / quotaExempt, so adding
+ * geminiConsentAt is allowed without a rules change.
+ */
+export async function recordGeminiConsent(uid: string): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), {
+    geminiConsentAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function listGenerations(uid: string): Promise<GenerationDoc[]> {
   const q = query(
     collection(db, 'generations'),
@@ -188,14 +208,11 @@ export async function getGeneration(id: string): Promise<GenerationDoc | null> {
  * Delete a generation doc by id. Security rules enforce owner-only:
  * trying to delete someone else's doc throws permission-denied.
  *
- * Storage objects (original + result images at users/{uid}/generations/{id}/*.jpg)
- * are NOT cleaned up here. Doing so client-side would require listing
- * the bucket prefix or remembering each result's storage path on the
- * doc — both fragile compared to a server-side Firestore-trigger
- * Cloud Function that watches `onDelete` and sweeps the prefix. That
- * function is a follow-up; for now the orphaned bytes are acceptable
- * because the visible gallery is the user's mental model and Storage
- * cost at current scale is negligible.
+ * Storage objects (original + result images at
+ * users/{uid}/generations/{id}/*.jpg) are swept server-side by the
+ * `onGenerationDeleted` Firestore-trigger Cloud Function
+ * (functions/src/storageCleanup.ts), which deletes the prefix on this
+ * doc's onDelete. No client-side Storage call is needed here.
  */
 export async function deleteGeneration(id: string): Promise<void> {
   await deleteDoc(doc(db, 'generations', id));
@@ -208,8 +225,10 @@ export async function deleteGeneration(id: string): Promise<void> {
  * docs are logged but don't block the rest — partial deletion is
  * better than no deletion if one row is in a weird state.
  *
- * Like `deleteGeneration`, this does NOT clean up Storage objects.
- * A Cloud Function `onUserDelete` trigger is the right place for that.
+ * Storage cleanup is handled server-side: each deleted generation fires
+ * `onGenerationDeleted`, and the account-deletion flow's user-doc delete
+ * additionally fires `onUserDeleted`, which sweeps the entire
+ * users/{uid}/ prefix (functions/src/storageCleanup.ts).
  */
 export async function deleteAllUserGenerations(uid: string): Promise<void> {
   const docs = await listGenerations(uid);
