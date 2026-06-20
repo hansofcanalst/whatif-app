@@ -126,19 +126,21 @@ export function useGeneration() {
     ? Math.max(0, config.freeGenerationCap - (userDoc.freeGenerationsUsed ?? 0))
     : 0;
 
-  // Hydrate the synchronous local-consent mirror once on mount so a
-  // returning user who consented on this device isn't re-prompted before
-  // the Firestore snapshot loads.
+  // Hydrate the synchronous local-consent mirror for the CURRENT account so a
+  // returning user who consented on this device isn't re-prompted before the
+  // Firestore snapshot loads. Re-runs on uid change: the mirror is keyed per
+  // uid, so switching accounts loads the new user's flag — and a fresh account
+  // finds no flag, so the disclosure fires.
   useEffect(() => {
-    hydrateGeminiConsent();
-  }, []);
+    hydrateGeminiConsent(user?.uid);
+  }, [user?.uid]);
 
   // Record one-time Gemini consent: local mirror first (synchronous, so the
   // immediate re-invoke of start() passes the gate) then the durable user-doc
   // stamp. Called by the AIDisclosureModal's Agree action.
   const grantGeminiConsent = useCallback(async () => {
-    await persistLocalGeminiConsent();
     const uid = user?.uid;
+    await persistLocalGeminiConsent(uid);
     if (uid) {
       try {
         await recordGeminiConsent(uid);
@@ -169,7 +171,7 @@ export function useGeneration() {
       // mirror for the immediate re-invoke / offline case). This is the
       // single chokepoint both entry points (category picker + trend tap)
       // funnel through, so the disclosure cannot be bypassed.
-      if (!userDoc?.geminiConsentAt && !hasLocalGeminiConsent()) {
+      if (!userDoc?.geminiConsentAt && !hasLocalGeminiConsent(user?.uid)) {
         onNeedsConsent?.();
         return null;
       }

@@ -5,6 +5,44 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-20 — Build 19: fix per-DEVICE consent leak → per-uid keying (Apple 5.1.2(i) blocker)
+
+**Bug.** The Gemini-consent local mirror (`lib/consent.ts`) was device-global,
+not per-account. A single AsyncStorage key (`whatif:geminiConsent:v1`) plus a
+bare in-memory `cached` boolean were set on consent and never scoped to a user.
+Repro: account A consents → log out → a NEW account B on the same phone read
+A's flag and SKIPPED the "Before you start" disclosure. An App Store reviewer
+creating a fresh test account on a device the app had already run on would not
+see the prompt — re-triggering the 5.1.2(i) rejection.
+
+**Fix — correct by construction (per-uid keying, not clear-on-switch).** The
+mirror is now keyed per uid on both layers, so account B structurally reads a
+different key than account A and an in-memory cache stamped with another uid can
+never match:
+- AsyncStorage key is now `whatif:geminiConsent:v1:<uid>` (`keyFor(uid)`).
+- In-memory cache tracks `cachedUid`; `hasLocalGeminiConsent(uid)` returns true
+  only when `cached && cachedUid === uid`.
+- `hydrateGeminiConsent(uid)` / `persistLocalGeminiConsent(uid)` now take the
+  uid; both no-op/clear when uid is absent.
+- `useGeneration`: hydrate effect re-runs on `user?.uid` change (was `[]`); the
+  gate and grant pass `user?.uid`.
+
+Chosen over the clear-on-logout/transition-tracking approach deliberately — no
+dependence on a logout handler firing; correctness is in the data model. No
+changes to `lib/auth.ts` / `hooks/useAuth.ts` needed.
+
+Source of truth unchanged: per-account Firestore `userDoc.geminiConsentAt`
+(from `subscribeToUserDoc`); the local mirror is only the same-session/offline
+optimization. Returning user (A re-login) still NOT re-prompted (Firestore flag,
+plus their own per-uid key); fresh account B IS prompted (no Firestore flag, no
+per-uid key).
+
+- Edited: `lib/consent.ts`, `hooks/useGeneration.ts`.
+- No functions redeploy, no firestore.rules change. tsc clean, 19/19 tests pass.
+- `app.json` buildNumber already at 18 (= Build 19 per EAS convention).
+
+---
+
 ## 2026-06-20 — Build 18: privacy/consent pass for Apple review (Guidelines 2.1, 5.1.1, 5.1.2)
 
 **Three changes for the face-data rejection. No functions redeploy, no
