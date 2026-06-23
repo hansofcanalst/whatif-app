@@ -11,11 +11,10 @@ import {
 } from '@/lib/gemini';
 import { config } from '@/constants/config';
 import { getCategory } from '@/constants/categories';
-import { recordGeminiConsent } from '@/lib/firestore';
 import {
+  grantGeminiConsent as grantConsent,
   hasLocalGeminiConsent,
   hydrateGeminiConsent,
-  persistLocalGeminiConsent,
 } from '@/lib/consent';
 
 // Calm, non-technical copy for failed tiles. We NEVER render the raw server
@@ -135,20 +134,12 @@ export function useGeneration() {
     hydrateGeminiConsent(user?.uid);
   }, [user?.uid]);
 
-  // Record one-time Gemini consent: local mirror first (synchronous, so the
-  // immediate re-invoke of start() passes the gate) then the durable user-doc
-  // stamp. Called by the AIDisclosureModal's Agree action.
-  const grantGeminiConsent = useCallback(async () => {
-    const uid = user?.uid;
-    await persistLocalGeminiConsent(uid);
-    if (uid) {
-      try {
-        await recordGeminiConsent(uid);
-      } catch (e) {
-        console.warn('[useGeneration] gemini consent persist failed', e);
-      }
-    }
-  }, [user]);
+  // Record one-time Gemini consent. Thin wrapper over the single grant path in
+  // lib/consent.ts (shared with the first-run ConsentGate, so the two can't
+  // diverge): local mirror first — synchronous, so the immediate re-invoke of
+  // start() passes the send-gate below — then the durable user-doc stamp.
+  // Called by the AIDisclosureModal's Agree action at the two picker call sites.
+  const grantGeminiConsent = useCallback(() => grantConsent(user?.uid), [user]);
 
   const start = useCallback(
     async ({

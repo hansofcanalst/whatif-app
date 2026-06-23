@@ -113,7 +113,7 @@ export default function GenerateCategoryScreen() {
   // Mirrors the home screen so the behavior is identical across triggers.
   const showPaywall = () => {
     if (!V1_MONETIZATION_ENABLED) {
-      show("You've reached your free Me Buts. More coming soon!", 'info');
+      show("You've used all your free Me Buts.", 'info');
       return;
     }
     setPaywall(true);

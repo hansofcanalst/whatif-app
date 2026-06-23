@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { recordGeminiConsent } from './firestore';
 
 // One-time consent to send photos to the third-party Gemini AI.
 //
@@ -56,5 +57,23 @@ export async function persistLocalGeminiConsent(uid: string | null | undefined):
     await AsyncStorage.setItem(keyFor(uid), '1');
   } catch {
     // Best-effort; the Firestore write is the durable record.
+  }
+}
+
+// One-shot "record consent", used by BOTH the first-run entry gate
+// (components/ConsentGate.tsx) and the generation send-gate's grant action
+// (hooks/useGeneration.ts). Local mirror first — synchronous, so any gate
+// reading hasLocalGeminiConsent() passes on the immediate next render — then
+// the durable, cross-device user-doc stamp. Keeping the grant in ONE place is
+// what makes "one consent system" literally true: a single code path writes
+// both layers, so the entry gate and the send-gate can never diverge.
+export async function grantGeminiConsent(uid: string | null | undefined): Promise<void> {
+  await persistLocalGeminiConsent(uid);
+  if (uid) {
+    try {
+      await recordGeminiConsent(uid);
+    } catch (e) {
+      console.warn('[consent] gemini consent persist failed', e);
+    }
   }
 }

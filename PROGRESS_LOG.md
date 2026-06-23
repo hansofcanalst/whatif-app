@@ -5,6 +5,61 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-23 — Build 20: move Gemini AI-consent disclosure to an unavoidable first-run gate (Apple 5.1.1/5.1.2)
+
+**Why.** Apple rejected Build 19 on 5.1.1/5.1.2 AGAIN. The per-account "Before
+you start" disclosure works and is per-uid correct (Build 19), but it only fired
+deep in the flow — pick category → pick photo → tap Generate → `onNeedsConsent`.
+A reviewer who signs in and looks around without completing a full generation
+never reaches it. The consent logic was never the problem; its placement was.
+
+**Fix — gate at the authenticated entry, not the send.** New
+`components/ConsentGate.tsx` wraps the tab navigator in `app/(tabs)/_layout.tsx`,
+so it is the first thing a signed-in-but-unconsented account meets, before home
+renders anything actionable. It reuses the SAME `AIDisclosureModal` and the SAME
+per-uid storage (`lib/consent.ts` mirror + `userDoc.geminiConsentAt`) — no second
+consent system, same copy, same Agree / Not now. `(tabs)` is the right chokepoint
+because every generation surface (`generate/*`) is only reachable from home
+inside `(tabs)`.
+
+**Timing / hydration window.** `user` is guaranteed inside `(tabs)` (AuthGate
+redirects signed-out users to login) but `userDoc` loads ASYNCHRONOUSLY after
+auth resolves. The gate shows the modal ONLY when consent is provably missing,
+and never blocks render (so a consented user can't get stuck):
+- `consented = granted || userDoc.geminiConsentAt || (hydrated && hasLocalGeminiConsent(uid))`
+- `needsConsent = uid && hydrated && userDoc && !consented`
+- `hydrated` (local mirror read) and `granted` (this-session Agree — hides the
+  modal synchronously even if the Firestore write is slow/offline) are React
+  state and BOTH reset on uid change, so account B never inherits A's state.
+- Fresh account, doc still loading → no flash; doc loaded w/o stamp → gate.
+  Returning A (Firestore stamp OR local mirror) → no gate, no flash.
+
+**Decline → sign out.** The disclosure is a precondition for the app's only
+function, so `onDecline` calls `signOut()` (back to login) rather than leaving a
+half-usable session. Re-login re-shows the gate (consent unrecorded).
+
+**Backstop kept.** The send-gate in `useGeneration.start()` is unchanged —
+defense-in-depth so a photo can never be sent unconsented via any path.
+
+**One grant path (DRY).** Moved the persist-mirror-then-stamp-Firestore body
+into `lib/consent.ts` `grantGeminiConsent(uid)`; `useGeneration.grantGeminiConsent`
+is now a thin wrapper over it (call sites unchanged) and `ConsentGate` calls the
+same function. The entry gate and send-gate can no longer diverge.
+
+**Also (same build).** Free-cap banner copy "You've reached your free Me Buts.
+More coming soon!" → "You've used all your free Me Buts." in `app/(tabs)/home.tsx`
+and `app/generate/[categoryId].tsx`. Drops the "More coming soon" phrasing that
+implied paid content and kept inviting Apple's business-model questions.
+
+- New: `components/ConsentGate.tsx`.
+- Edited: `lib/consent.ts`, `hooks/useGeneration.ts`, `app/(tabs)/_layout.tsx`,
+  `app/(tabs)/home.tsx`, `app/generate/[categoryId].tsx`.
+- `app.json` buildNumber 18 → 19 (Build 20 via EAS autoIncrement).
+- Untouched: minor-gate, prompts, age catalog, generation pipeline, the two
+  secondary modal call sites.
+
+---
+
 ## 2026-06-20 — Build 19: fix per-DEVICE consent leak → per-uid keying (Apple 5.1.2(i) blocker)
 
 **Bug.** The Gemini-consent local mirror (`lib/consent.ts`) was device-global,
