@@ -9,6 +9,13 @@ interface AIDisclosureModalProps {
   onAgree: () => void;
   /** User declines; caller closes and does NOT generate. */
   onDecline: () => void;
+  /**
+   * iOS only: fired after the modal has FULLY finished dismissing. ConsentGate
+   * uses this to sequence the onboarding tutorial so it never presents while
+   * this modal is still on screen or mid-dismiss (the Build 20 first-run
+   * double-present freeze). No-op on Android/web, where it never fires.
+   */
+  onDismiss?: () => void;
 }
 
 /**
@@ -22,9 +29,15 @@ interface AIDisclosureModalProps {
  * Not to be confused with components/ConsentModal.tsx — that is a separate,
  * per-session likeness/age confirmation for the Pro ethnicity-blend category.
  */
-export function AIDisclosureModal({ visible, onAgree, onDecline }: AIDisclosureModalProps) {
+export function AIDisclosureModal({ visible, onAgree, onDecline, onDismiss }: AIDisclosureModalProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onDecline}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onDecline}
+      onDismiss={onDismiss}
+    >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.handleBar} />

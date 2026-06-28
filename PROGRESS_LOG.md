@@ -5,6 +5,62 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-27 — Build 21: fix first-run freeze (Apple 2.1(a), iPad) — single first-run modal coordinator
+
+**Why.** Apple rejected Build 20 on 2.1(a): "App was stuck after login, buttons
+unresponsive" on iPad Air 11-inch (M3), iPadOS 26.5. A regression introduced by
+Build 20's `ConsentGate`.
+
+**Root cause — two `<Modal>`s present at once on first run.** Both the onboarding
+tutorial (`OnboardingTutorial`, rendered in `app/_layout.tsx`'s AuthGate, gated on
+a fast AsyncStorage read) and the Gemini consent disclosure (`AIDisclosureModal`
+via `ConsentGate`, gated on the slower Firestore `userDoc` load) auto-present on a
+fresh install + unconsented account — exactly an App Store reviewer's state. iOS
+allows only ONE presented view controller at a time, so the second `present()` is
+rejected by UIKit (`Attempt to present <RCTFabricModalHostViewController> … which
+is already presenting <RCTFabricModalHostViewController>`) and first-run is left
+stuck. Before Build 20 only the tutorial auto-presented on first run, so there was
+never a collision — hence the regression. NOT actually iPad-specific: the trigger
+is fresh-install + unconsented (the reviewer happened to be on iPad). A developer
+never sees it because their install already has the onboarding flag set.
+
+**Reproduced on the simulator.** iPad Air 11-inch (M4), iPadOS 26.5 (closest
+installed match to the M3). Injected a fresh, unconsented Firebase session into
+AsyncStorage so the app cold-launches into the reviewer's first-run state, and
+captured the UIKit "already presenting" error in the native log. A/B control
+(onboarding flag pre-set so only the consent modal fires) → consent modal presents
+cleanly, no error — isolating the bug to the dual-modal collision, NOT a consent
+modal layout problem.
+
+**Fix — `ConsentGate` is now the single first-run modal coordinator.** Moved
+`<OnboardingTutorial>` out of AuthGate and into `ConsentGate`, where it mounts ONLY
+once consent is resolved AND the consent modal is provably off-screen — either it
+was never needed, or it has fully dismissed (new iOS `Modal.onDismiss` on
+`AIDisclosureModal`). The two modals are now structurally unable to present
+simultaneously. Sequence on a fresh account: consent modal → Agree → (consent
+modal fully dismissed) → tutorial. An already-consented user goes straight to the
+tutorial. Preserves `ConsentGate`'s "never block render / degrade if `userDoc` is
+slow" behavior; if `onDismiss` never fires (non-iOS, or an edge case) the tutorial
+is simply skipped — a benign degradation, never a freeze.
+
+**Verified.** `tsc --noEmit` clean; `jest` 19/19 (7 snapshots). Re-ran the
+fresh-install repro on the fixed build → only the consent modal presents, zero
+"already presenting" collisions in the native log.
+
+- Edited: `components/ConsentGate.tsx` (coordinator + tutorial gating),
+  `components/AIDisclosureModal.tsx` (optional `onDismiss` passthrough),
+  `app/_layout.tsx` (removed `<OnboardingTutorial>` from AuthGate).
+- `app.json` buildNumber 19 → 20 (already in the working tree) → Build 21 via EAS autoIncrement.
+- Untouched: minor-gate, prompts, age catalog, generation pipeline, and the
+  secondary `AIDisclosureModal` call sites in `home.tsx` / `generate/[categoryId]`.
+- Also discovered (not a bug): the app is iPhone-only (`ios.supportsTablet: false`,
+  `TARGETED_DEVICE_FAMILY = 1`), so on iPad it runs in iPhone-compatibility mode
+  (letterboxed, no wide-viewport carousel). Apple reviewed the iPhone app on iPad.
+- Pending: real-device tap-through of the full consent → Agree → tutorial sequence
+  before submit; broader iPad QA sweep (Phase 2) on hold.
+
+---
+
 ## 2026-06-23 — Build 20: move Gemini AI-consent disclosure to an unavoidable first-run gate (Apple 5.1.1/5.1.2)
 
 **Why.** Apple rejected Build 19 on 5.1.1/5.1.2 AGAIN. The per-account "Before

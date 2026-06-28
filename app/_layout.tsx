@@ -12,7 +12,6 @@ import { colors, fontFamily, spacing, typography } from '@/constants/theme';
 import { assertFirebaseConfigured } from '@/constants/config';
 import { initSentry, setSentryUser, Sentry } from '@/lib/sentry';
 import { registerPushToken, setupNotificationListeners } from '@/lib/notifications';
-import { OnboardingTutorial } from '@/components/OnboardingTutorial';
 
 // Initialize Sentry as early as possible — at module evaluation time,
 // before any React tree is built. This way an error during the very
@@ -132,16 +131,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Tutorial is rendered HERE (inside AuthGate) rather than at the
-  // RootLayout level so it has access to `user` without re-querying.
-  // It self-gates on AsyncStorage so it only renders once per fresh
-  // install + after a signed-in session is established.
-  return (
-    <>
-      {children}
-      <OnboardingTutorial signedIn={!!user} />
-    </>
-  );
+  // The onboarding tutorial used to render here, but it now lives in
+  // components/ConsentGate.tsx. Both it and the Gemini consent disclosure are
+  // React Native <Modal>s; rendering them from separate places let them both
+  // auto-present on a fresh-install first run, and iOS rejects the second
+  // present() ("already presenting") — the Build 20 freeze (Apple 2.1(a) on
+  // iPad). ConsentGate now owns and sequences both so they can never overlap.
+  return <>{children}</>;
 }
 
 function ConfigError({ message }: { message: string }) {
