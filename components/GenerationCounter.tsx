@@ -6,10 +6,9 @@ import { colors, radii, spacing, typography } from '@/constants/theme';
 import { config } from '@/constants/config';
 
 /**
- * FRAME label-tag — a compact pill rendered in violet-600/15 with
- * violet-300 text. PRO users see the accent-tinted tag; free users see
- * the same tag shape in a neutral surface-800 tone so it still fits the
- * top bar without shouting for attention.
+ * FRAME label-tag — a compact pill showing generations used out of the
+ * allowance, in a neutral surface-800 tone so it fits the top bar
+ * without shouting for attention.
  */
 export function GenerationCounter() {
   const { remaining, isPro } = useGeneration();
@@ -20,7 +19,7 @@ export function GenerationCounter() {
   return (
     <View style={styles.badge}>
       <Text style={styles.text}>
-        {used}/{config.freeGenerationCap} FREE
+        {used} of {config.freeGenerationCap} used
       </Text>
     </View>
   );

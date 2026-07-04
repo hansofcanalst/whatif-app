@@ -202,22 +202,23 @@ export default function Profile() {
           </View>
         </Card>
 
-        {/* Plan card — accent-tinted for Pro, neutral for Free. */}
+        {/* Plan card. v1 ships with no paid tier: the default branch shows
+            a neutral generations counter — no "FREE"/"Free plan" label and
+            no upgrade CTA. The PRO branch + upgrade button stay dormant
+            in-tree (only reachable once V1_MONETIZATION_ENABLED is true and
+            a user doc carries subscriptionStatus 'pro') for the v1.1
+            monetization re-enable. */}
         <Card style={isActive ? styles.planCardPro : styles.planCard}>
-          <View style={styles.planTagRow}>
-            <Text style={[styles.planTag, isActive && styles.planTagPro]}>
-              {isActive ? 'PRO' : 'FREE'}
-            </Text>
-            {isActive ? (
-              <Sparkles
-                size={10}
-                color={colors.accentText}
-                strokeWidth={2.5}
-              />
-            ) : null}
-          </View>
           {isActive ? (
             <>
+              <View style={styles.planTagRow}>
+                <Text style={[styles.planTag, styles.planTagPro]}>PRO</Text>
+                <Sparkles
+                  size={10}
+                  color={colors.accentText}
+                  strokeWidth={2.5}
+                />
+              </View>
               <Text style={styles.planName}>
                 {plan ? `${plan[0].toUpperCase()}${plan.slice(1)} plan` : 'Pro plan'}
               </Text>
@@ -229,16 +230,10 @@ export default function Profile() {
             </>
           ) : (
             <>
-              <Text style={styles.planName}>Free plan</Text>
+              <Text style={styles.planName}>Generations</Text>
               <Text style={styles.planMeta}>
                 {used}/{config.freeGenerationCap} generations used · {remaining} remaining
               </Text>
-              {/* V1 stub: paywall trigger hidden while monetization is OFF.
-                  The PaywallModal component, the `paywall` state, and the
-                  RevenueCat plumbing all remain intact — only the user-
-                  facing affordance to OPEN the paywall is hidden. v1.1
-                  re-enables by flipping V1_MONETIZATION_ENABLED in
-                  constants/config.ts (plus the RC env-var setup steps). */}
               {V1_MONETIZATION_ENABLED ? (
                 <>
                   <View style={{ height: spacing.md }} />

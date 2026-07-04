@@ -5,6 +5,47 @@ one task/change set — written so it can be pasted as-is for review.
 
 ---
 
+## 2026-06-28 — v1 "unambiguously free" strip pass (Apple 2.1(b), business model)
+
+**Why.** Apple keeps re-flagging Guideline 2.1(b) (business model / paid content)
+even though v1 is free with no active IAP. Inventoried every surface that could
+signal a paid tier to a reviewer; the `V1_MONETIZATION_ENABLED` flag already kills
+the PaywallModal, ProBadge, and the "Upgrade to Pro" button, but several paid-tier
+*signals* leaked through surfaces not behind the flag. This pass strips the
+reachable ones so v1 reads as unambiguously free with no paid-tier concept.
+
+**What changed (7 files, smallest-change):**
+- `components/OnboardingTutorial.tsx` — STEP 2 copy dropped the "unlock … with Pro"
+  pitch (which also still named celebrity/political mashups removed in `2a9050d`);
+  rewritten to the accurate free category list (race / age / gender / military
+  uniforms / ethnicity blend).
+- `components/GenerationCounter.tsx` — top-bar pill `X/3 FREE` → `X of 3 used`
+  (no tier word); doc comment de-tiered.
+- `app/(tabs)/profile.tsx` — plan card dropped the `FREE`/`Free plan` framing; the
+  default (non-pro) view is now a neutral "Generations" heading + used/remaining
+  only. The PRO branch + flag-gated Upgrade button stay dormant in-tree for the
+  v1.1 re-enable.
+- `app/generate/[categoryId].tsx` — hint "Counts as 1 **free** generation…" →
+  "Counts as 1 generation regardless of how many you pick"; cap toast neutralized.
+- `app/(tabs)/home.tsx` — cap toast "all your **free** Me Buts" → "all your Me Buts".
+- `hooks/useSubscription.ts` + `lib/revenuecat.ts` — RevenueCat init now gated on
+  `V1_MONETIZATION_ENABLED` (belt-and-suspenders) in both the `useSubscription`
+  effect and `initRevenueCat`, so init is a clean no-op while monetization is off.
+  The existing API-key check is retained; the `react-native-purchases` dependency
+  is untouched (stays bundled but dormant).
+
+**Not touched** (per scope): minor-gate, prompts, age catalog, generation logic,
+the RC dependency. PaywallModal / ProBadge remain dormant behind the flag.
+
+**Still open (out of scope, separate repo).** The externally-hosted legal pages
+linked from Profile (`hansofcanalst.github.io/whatif-legal/terms.html` +
+`privacy.html`) still describe a paid "Pro" subscription — the strongest remaining
+2.1(b) signal, and the page a reviewer actually reads. Must be edited in that repo.
+
+**Verification.** `npx tsc --noEmit` clean; `npm test` → 19 tests / 7 snapshots pass.
+
+---
+
 ## 2026-06-27 — Build 21: fix first-run freeze (Apple 2.1(a), iPad) — single first-run modal coordinator
 
 **Why.** Apple rejected Build 20 on 2.1(a): "App was stuck after login, buttons

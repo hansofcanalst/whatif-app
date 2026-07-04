@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import Purchases, { CustomerInfo } from 'react-native-purchases';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { useAuthStore } from '@/stores/authStore';
+import { V1_MONETIZATION_ENABLED } from '@/constants/config';
 import {
   initRevenueCat,
   getCustomerInfo,
@@ -43,6 +44,11 @@ export function useSubscription() {
 
   useEffect(() => {
     if (!user) return;
+    // v1 monetization is OFF — never start the RevenueCat init+listener
+    // dance. Belt-and-suspenders alongside the API-key check inside
+    // initRevenueCat. Flip V1_MONETIZATION_ENABLED in constants/config.ts
+    // to re-enable.
+    if (!V1_MONETIZATION_ENABLED) return;
     // Skip the entire RC init+listener dance on web. The previous
     // version threw `TypeError: Cannot read properties of undefined
     // (reading 'isConfigured')` on every page load and that was both

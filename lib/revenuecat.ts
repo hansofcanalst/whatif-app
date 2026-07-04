@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import Purchases, { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
-import { config } from '@/constants/config';
+import { config, V1_MONETIZATION_ENABLED } from '@/constants/config';
 
 // Defense-in-depth Platform check. Callers (currently only useSubscription)
 // already gate at the hook level, but exporting these wrappers as
@@ -25,6 +25,10 @@ export function isRevenueCatConfigured(): boolean {
 // (see release-build crash investigation 2026-05-25).
 export async function initRevenueCat(uid: string): Promise<boolean> {
   if (!RC_AVAILABLE) return false;
+  // v1 monetization is OFF — do not configure the SDK. The dependency
+  // stays bundled but dormant; flip V1_MONETIZATION_ENABLED in
+  // constants/config.ts to re-enable. The API-key check below remains.
+  if (!V1_MONETIZATION_ENABLED) return false;
   if (initialized) {
     try {
       await Purchases.logIn(uid);

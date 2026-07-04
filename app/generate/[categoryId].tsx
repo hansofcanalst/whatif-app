@@ -113,7 +113,7 @@ export default function GenerateCategoryScreen() {
   // Mirrors the home screen so the behavior is identical across triggers.
   const showPaywall = () => {
     if (!V1_MONETIZATION_ENABLED) {
-      show("You've used all your free Me Buts.", 'info');
+      show("You've used all your Me Buts.", 'info');
       return;
     }
     setPaywall(true);
@@ -333,7 +333,7 @@ export default function GenerateCategoryScreen() {
           onPress={handleGenerate}
         />
         {!isPro ? (
-          <Text style={styles.hint}>Counts as 1 free generation regardless of count.</Text>
+          <Text style={styles.hint}>Counts as 1 generation regardless of how many you pick.</Text>
         ) : null}
       </ScrollView>
       <PaywallModal visible={paywall} onClose={() => setPaywall(false)} />

@@ -67,7 +67,7 @@ export default function Home() {
   // keeps their behavior identical.
   const showPaywall = useCallback(() => {
     if (!V1_MONETIZATION_ENABLED) {
-      show("You've used all your free Me Buts.", 'info');
+      show("You've used all your Me Buts.", 'info');
       return;
     }
     setPaywall(true);

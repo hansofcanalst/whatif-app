@@ -73,7 +73,7 @@ const STEPS: TutorialStep[] = [
     label: 'STEP 2',
     title: 'Pick a direction',
     body:
-      'Choose what to change — race, age, gender, or unlock celebrity and political mashups with Pro. Each category has multiple variations you can run together.',
+      'Choose what to change — race, age, gender, military uniforms, or an ethnicity blend. Each category has multiple variations you can run together.',
   },
   {
     glyph: Wand2,
